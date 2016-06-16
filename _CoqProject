@@ -1,0 +1,13 @@
+-R /Users/johnw/bae/rings/coq-haskell/src Hask
+-R /Users/johnw/bae/rings/fiat/src Fiat
+-R . Here
+./ADTInduction.v
+./ByteString.v
+./ByteStringLib.v
+./Decidable.v
+./FixedPoint.v
+./Heap.v
+./IEnsemble.v
+./LibExt.v
+./Refined.v
+./Same_set.v
