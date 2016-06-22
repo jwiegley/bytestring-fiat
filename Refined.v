@@ -14,28 +14,7 @@ Require Import
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
-Section ByteString.
-
-Variable Word8 : Type.
-
-Definition ByteStringSpec := ByteStringSpec Word8.
-Definition ByteString     := ByteString Word8.
-Definition HeapSpec       := HeapSpec Word8.
-
-Record PS := makePS {
-  psHeap : Rep HeapSpec;
-
-  psBuffer : N;
-  psBufLen : N;
-
-  psOffset : N;
-  psLength : N
-}.
-
-  (* psBufInHeap : psBufLen = 0 \/ Ensembles.In _ (fst heap) (psBuffer, psBufLen); *)
-
-  (* psBegInBlock : psBufLen = 0 \/ within psBuffer psBufLen psOffset; *)
-  (* psEndInBlock : psBufLen = 0 \/ within psBuffer psBufLen (psOffset + psLength) *)
+Generalizable All Variables.
 
 Theorem Nle_zero : forall n : N, 0 <= n.
 Proof.
@@ -58,19 +37,48 @@ Proof.
   constructor.
 Qed.
 
-Theorem Nsub_add_succ : forall n m,
-  n - 1 + N.succ (N.of_nat m) = n + N.of_nat m.
-Proof.
-  destruct n; intros.
-    admit.
-  admit.
-Admitted.
+Require Import Omega.
+
+(* Theorem Nsub_add_succ : forall n m, *)
+(*   n > 0 -> n - 1 + N.succ (N.of_nat m) = n + N.of_nat m. *)
+(* Proof. *)
+(*   destruct n; intros. *)
+(*     admit. *)
+(*   admit. *)
+(* Admitted. *)
 
 Theorem Nplus_1_mismatch : forall n m, n > 0 -> n + m = n - 1 -> False.
 Proof.
   destruct n; intros.
     discriminate.
 Admitted.
+
+Theorem Nplus_mismatch : forall n m, m > 0 -> ~ (n = n + m).
+Proof.
+  destruct n; intros.
+Admitted.
+
+Theorem Nplus_minus : forall n m o, o <= n -> n - o + (m + o) = n + m.
+Proof.
+  destruct n; intros.
+    apply N.le_0_r in H.
+    subst.
+    simpl.
+    rewrite N.add_0_r.
+    reflexivity.
+Admitted.
+
+Theorem Nplus_minus_one : forall n m o,
+  n + m <= o -> (0 <? n) = true -> n - 1 + (m + 1) <= o.
+Proof.
+  intros.
+  rewrite Nplus_minus.
+    exact H.
+  apply N.ltb_lt in H0.
+  destruct n.
+    discriminate.
+  destruct p; discriminate.
+Qed.
 
 Theorem Nlt_false : forall n, (0 <? n) = false -> n = 0.
 Proof.
@@ -89,14 +97,66 @@ Proof.
   admit.
 Admitted.
 
-Definition ByteString_list_AbsR (or : Rep ByteStringSpec) (nr : PS) :=
-  length or = N.to_nat (psLength nr) /\
-  forall i x,
-    (i <? length or)%nat
-      -> within (psOffset nr) (psLength nr) (N.of_nat i)
-      -> x = nth i or x <->
-         (x <- peek (psHeap nr) (psOffset nr + N.of_nat i);
-          ret (snd x)) ↝ Some x.
+Lemma within_index : forall addr len i,
+  (i <? len) -> within addr len (addr + i).
+Proof.
+  intros.
+  split.
+    apply N.le_add_r.
+  apply N.add_lt_mono_l.
+  apply N.ltb_lt.
+  assumption.
+Qed.
+
+Lemma Nlt_nat_lt : forall n m, (n < N.to_nat m)%nat -> (N.of_nat n < m).
+Proof.
+  induction n; simpl in *; intros.
+    destruct m.
+      inversion H.
+    destruct p; constructor.
+  apply lt_pred in H.
+  rewrite <- N2Nat.inj_pred in H.
+  specialize (IHn _ H).
+  apply N.lt_succ_lt_pred in IHn.
+  simpl in IHn.
+  rewrite <- Nsucc_nat in IHn.
+  apply IHn.
+Qed.
+
+Section ByteString.
+
+Variable Word8 : Type.
+
+Definition ByteStringSpec := ByteStringSpec Word8.
+Definition ByteString     := ByteString Word8.
+Definition HeapSpec       := HeapSpec Word8.
+
+Record PS := makePS {
+  psHeap : Rep HeapSpec;
+
+  psBuffer : N;
+  psBufLen : N;
+
+  psOffset : N;
+  psLength : N
+}.
+
+Record Correct (ps : PS) : Prop := {
+  _ : 0 < psBufLen ps
+        -> In _ (fst (psHeap ps)) (psBuffer ps, psBufLen ps);
+  _ : psOffset ps + psLength ps <= psBufLen ps;
+  _ : ADTInduction.fromADT HeapSpec (psHeap ps)
+}.
+
+Definition ByteString_list_AbsR (or : Rep ByteStringSpec) `(_ : Correct nr) :=
+     (* then the list and active region must be the same size *)
+     length or = N.to_nat (psLength nr)
+     (* and for every index within the list... *)
+  /\ forall i, (i <? length or)%nat
+     (* each byte in the list matches its corresponding byte in the buffer. *)
+       -> forall x, x = nth i or x
+          <-> (x <- peek (psHeap nr) (psOffset nr + N.of_nat i);
+               ret (snd x)) ↝ Some x.
 
 Definition buffer_cons (r : PS) (d : Word8) : Comp PS :=
   ps <- If 0 <? psOffset r
@@ -107,13 +167,14 @@ Definition buffer_cons (r : PS) (d : Word8) : Comp PS :=
                   ; psLength := psLength r + 1 |}
         Else (
           If psLength r <? psBufLen r
-          Then res <- memcpy (psHeap r) (psBuffer r)
-                             (psBuffer r + 1) (psLength r);
-               ret {| psHeap   := fst res
-                    ; psBuffer := psBuffer r
-                    ; psBufLen := psBufLen r
-                    ; psOffset := 0
-                    ; psLength := psLength r + 1 |}
+          Then (
+            res <- memcpy (psHeap r) (psBuffer r)
+                          (psBuffer r + 1) (psLength r);
+            ret {| psHeap   := fst res
+                 ; psBuffer := psBuffer r
+                 ; psBufLen := psBufLen r
+                 ; psOffset := 0
+                 ; psLength := psLength r + 1 |})
           Else (
             res <- realloc (psHeap r) (psBuffer r)
                            (exist _ (psLength r + 1)
@@ -144,14 +205,26 @@ Ltac reduction :=
       rewrite Nsucc_nat
     | [ H : context [N.pos (Pos.of_succ_nat _)] |- _ ] =>
       rewrite Nsucc_nat in H
-    | [ |- context [N.succ (N.of_nat _)] ] =>
-      rewrite Nsub_add_succ
-    | [ H : context [N.succ (N.of_nat _)] |- _ ] =>
-      rewrite Nsub_add_succ in H
+    (* | [ |- context [N.succ (N.of_nat _)] ] => *)
+    (*   rewrite Nsub_add_succ *)
+    (* | [ H : context [N.succ (N.of_nat _)] |- _ ] => *)
+    (*   rewrite Nsub_add_succ in H *)
+    | [ H : within (_ - 1) (_ + 1) (N.succ _) |- _ ] =>
+      apply within_extended in H
+    | [ H1 : is_true (Nat.ltb (S ?I) (S _)),
+        _  : _ = nth ?I _ ?X,
+        H2 : within _ _ _,
+        H3 : forall i x, is_true (Nat.ltb i _) -> within _ _ _ -> _ |- _ ] =>
+      specialize (H3 I X H1 H2); clear H1 H2
     | [ H1 : is_true (Nat.ltb (S ?I) (S _)),
         _  : _ = nth ?I _ ?X,
         H2 : forall i x, is_true (Nat.ltb i _) -> _ |- _ ] =>
       specialize (H2 I X H1); clear H1
+    | [ H1 : is_true (Nat.ltb (S ?I) (S _)),
+        _  : In _ _ (_, ?X),
+        H2 : within _ _ _,
+        H3 : forall i x, is_true (Nat.ltb i _) -> within _ _ _ -> _ |- _ ] =>
+      specialize (H3 I X H1 H2); clear H1 H2
     | [ H1 : is_true (Nat.ltb (S ?I) (S _)),
         _  : In _ _ (_, ?X),
         H2 : forall i x, is_true (Nat.ltb i _) -> _ |- _ ] =>
@@ -167,211 +240,214 @@ Ltac reduction :=
     | [ |- ~ _ ] => unfold not; intros
     end.
 
-Theorem buffer_cons_sound
-        (r_o : list Word8) (r_n : PS) (x : Word8)
-        (AbsR : ByteString_list_AbsR r_o r_n) :
-  forall r_n', buffer_cons r_n x ↝ r_n' ->
-    ByteString_list_AbsR (x :: r_o) r_n'.
+Theorem buffer_cons_heap_adt `(_ : Correct ps) : forall ps' x,
+  buffer_cons ps x ↝ ps'
+    -> ADTInduction.fromADT HeapSpec (psHeap ps').
 Proof.
-  unfold buffer_cons, ByteString_list_AbsR,
-         peek, poke, memcpy.
-  simpl; intros.
+  unfold buffer_cons.
+  destruct Correct0.
+  intros.
+  destruct (0 <? psOffset ps) eqn:Heqe;
+  destruct (psLength ps <? psBufLen ps) eqn:Heqe2;
+  simpl in H2.
+  - unfold poke in H2.
+    apply (@ADTInduction.fromADTMethod
+             _ HeapSpec
+             (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
+             (psHeap ps) _ H1).
+    eexists.
+    exists x.
+    exists tt.
+    simplify_ensembles; reduction.
+    constructor.
+  - unfold poke in H2.
+    apply (@ADTInduction.fromADTMethod
+             _ HeapSpec
+             (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
+             (psHeap ps) _ H1).
+    eexists.
+    exists x.
+    exists tt.
+    simplify_ensembles; reduction.
+    constructor.
+  - revert H2.
+    rewrite refineEquiv_bind_bind.
+    simpl in *.
+    unfold poke in H2.
+    apply (@ADTInduction.fromADTMethod
+             _ HeapSpec
+             (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))) (* memcpy *)
+             (psHeap ps) _ H1).
+    eexists.
+    eexists.
+    eexists.
+    simplify_ensembles; reduction.
+    simpl.
+    econstructor.
+
+Theorem buffer_cons_correct `(_ : Correct ps) : forall ps' x,
+  buffer_cons ps x ↝ ps' -> Correct ps'.
+Proof.
+  destruct Correct0.
+  unfold buffer_cons, peek, poke, memcpy.
+  constructor; intros;
+  destruct (0 <? psOffset ps) eqn:Heqe;
+  destruct (psLength ps <? psBufLen ps) eqn:Heqe2;
+  simpl in H;
+  simplify_ensembles; subst; simpl in *; reduction;
+  simplify_ensembles; subst; simpl in *; eauto.
+  - inv H2; eauto.
+  - unfold realloc, Decidable.IfDec_Then_Else in H2.
+    simpl in H2.
+    simplify_ensembles.
+    unfold If_Opt_Then_Else in *.
+    destruct x0; simpl in *;
+    simplify_ensembles.
+      destruct (psLength ps + 1 <=? n0);
+      simplify_ensembles.
+        inv H4.
+        unfold IF_then_else.
+        intuition.
+      inv H5.
+      right; constructor.
+    inv H5.
+    right; constructor.
+  - apply Nplus_minus_one; assumption.
+  - apply Nplus_minus_one; assumption.
+  - clear H H2 u.
+    apply Nlt_false in Heqe.
+    rewrite Heqe in H0; simpl in H0.
+    apply N.ltb_lt in Heqe2.
+    rewrite N.add_1_r.
+    apply N.le_succ_l.
+    assumption.
+  - apply N.le_refl.
+  - apply (@ADTInduction.fromADTMethod
+             _ HeapSpec
+             (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+             (psHeap ps) _ H1).
+    eexists.
+    exists x.
+    exists tt.
+    constructor.
+  - apply (@ADTInduction.fromADTMethod
+             _ HeapSpec
+             (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+             (psHeap ps) _ H1).
+    eexists.
+    exists x.
+    exists tt.
+    constructor.
+  - inv H2.
+    eapply (@ADTInduction.fromADTMethod
+              _ HeapSpec
+              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+              (psHeap ps) _ H1).
+    eapply (@ADTInduction.fromADTMethod
+             _ HeapSpec
+             (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
+             (psHeap ps)).
+    eexists.
+    eexists.
+    eexists.
+    
+    inv 
+    constructor.
+    exists x.
+    exists tt.
+    simpl.
+    inv H2.
+    admit.
+  - apply (@ADTInduction.fromADTMethod
+             _ HeapSpec
+             (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+             (psHeap ps) _ H1).
+    eexists; eexists; eexists.
+    simpl.
+Qed.
+
+Theorem buffer_cons_length_increase `(_ : Correct ps) : forall ps' x,
+  buffer_cons ps x ↝ ps' -> psLength ps' = psLength ps + 1.
+Proof.
+  unfold buffer_cons, peek, poke, memcpy in *.
+  destruct (0 <? psOffset ps) eqn:Heqe;
+  destruct (psLength ps <? psBufLen ps);
+  simpl; intros; clear -H; simpl in H;
+  simplify_ensembles; subst; simpl;
+  reflexivity.
+Qed.
+
+Theorem buffer_cons_data_retained `(_ : Correct ps) : forall ps' x,
+  buffer_cons ps x ↝ ps' ->
+    (x <- peek (psHeap ps') (psOffset ps'); ret (snd x)) ↝ Some x /\
+    forall i,
+      refineEquiv
+        (x <- peek (psHeap ps') (psOffset ps' + (i + 1)); ret (snd x))
+        (x <- peek (psHeap ps) (psOffset ps + i); ret (snd x)).
+Proof.
+  unfold buffer_cons, peek, poke, memcpy in *.
+  destruct (0 <? psOffset ps) eqn:Heqe;
+  destruct (psLength ps <? psBufLen ps);
+  simpl; intros; clear -H Heqe; simpl in H;
+  simplify_ensembles; subst; simpl;
+  autorewrite with monad laws;
+  simplify_ensembles; subst; simpl;
+  intros; reduction.
+  (* f_equiv; unfold impl, flip; *)
+  (* intros ????; subst; simpl in *; reduction. *)
+Admitted.
+  (* - rewrite (@Nplus_minus (psOffset ps) i 1) in H. *)
+  (*     assumption. *)
+  (*   apply N.ltb_lt in Heqe. *)
+  (*   replace 1 with (N.succ 0); trivial. *)
+  (*   apply N.le_succ_l; assumption. *)
+  (* - apply Nplus_mismatch in H1. *)
+  (*     contradiction. *)
+  (*   admit. *)
+
+Theorem buffer_cons_sound
+        (r_o : list Word8) `(r_n : Correct ps)
+        (AbsR : ByteString_list_AbsR r_o r_n) :
+  forall x ps' (H : buffer_cons ps x ↝ ps'),
+    ByteString_list_AbsR (x :: r_o) (buffer_cons_correct r_n H).
+Proof.
+  unfold ByteString_list_AbsR in *; intros.
   destruct AbsR.
-  rewrite H0 in *; clear H0.
-
   split.
-    destruct (0 <? psOffset r_n) eqn:Heqe;
-    destruct (psLength r_n <? psBufLen r_n);
-    clear -H; simpl in H;
-    simplify_ensembles; subst; simpl;
-    rewrite <- N2Nat.inj_succ, N.add_1_r; reflexivity.
+    simpl.
+    rewrite H0, (buffer_cons_length_increase r_n H),
+            <- N2Nat.inj_succ, N.add_1_r.
+    reflexivity.
 
+  destruct (buffer_cons_data_retained r_n H).
   split; intros.
-    autorewrite with monad laws.
-    apply PickComputes; intros ? H4; inv H4.
-    destruct (psLength r_n <? psBufLen r_n);
-    (destruct (0 <? psOffset r_n) eqn:Heqe;
-     [|apply Nlt_false in Heqe]);
-    simplify_ensembles; subst; simpl in *; inv H4;
-    (destruct i; subst;
-     [apply Union_intror|apply Union_introl]);
-    rewrite ?N.add_0_r, ?Heqe in *;
-    try constructor;
-    unfold peek in *;
-    simplify_ensembles; subst; simpl in *;
+    destruct i; simpl in *.
+      subst.
+      clear -H2.
+      rewrite N.add_0_r.
+      assumption.
+    destruct (H3 (N.of_nat i)); clear H3.
+    unfold refine in H6.
+    rewrite Nsucc_nat, <- N.add_1_r.
+    apply H6, H1; eauto.
+
+  destruct i; simpl in *.
+    clear H0 H1.
+    rewrite N.add_0_r in H5.
+    clear -H2 H5.
+    unfold peek in *.
+    simplify_ensembles; reduction.
+    simpl in *; subst.
     reduction.
-    simpl in H;
-    + inv H3.
-      destruct i; subst; [apply Union_intror|apply Union_introl].
-        constructor.
-      specialize (H1 i x1 H0).
-      apply H1 in H2; clear H1 H0.
-      unfold peek in H2.
-      simplify_ensembles.
-        simpl in H0.
-        admit.
-      unfold not; intros.
-      inv H2.
-      admit.
-    + inv H3.
-      destruct i; subst; [apply Union_intror|apply Union_introl].
-        rewrite N.add_0_r.
-        constructor.
-      specialize (H1 i x1 H0).
-      apply H1 in H2; clear H1 H0.
-      unfold peek in H2.
-      simplify_ensembles.
-        simpl in H0.
-        admit.
-      unfold not; intros.
-      inv H2.
-      admit.
-    + inv H3.
-      destruct i; subst; [apply Union_intror|apply Union_introl].
-        constructor.
-      specialize (H1 i x1 H0).
-      apply H1 in H2; clear H1 H0.
-      unfold peek in H2.
-      simplify_ensembles.
-        simpl in H0.
-        admit.
-      unfold not; intros.
-      inv H2.
-    + 
-        rewrite N.ltb_lt in Heqe.
-        apply N.lt_gt.
-    inv H3.
-
-  destruct i; [clear H1 H0|].
-    destruct (0 <? psOffset r_n) eqn:Heqe;
-    destruct (psLength r_n <? psBufLen r_n);
-    simpl in H;
-    simplify_ensembles; subst; simpl in *.
-
-  (split; intros; [autorewrite with monad laws|]);
-  simplify_ensembles; intro; subst; simpl in *.
-      split.
-
-      split; intros;
-      unfold poke in H0.
-        autorewrite with monad laws.
-        destruct (0 <? psOffset r_n) eqn:Heqe;
-        destruct (psLength r_n <? psBufLen r_n);
-        simpl in H0;
-        simplify_ensembles;
-        subst; simpl in *; intros;
-        repeat match goal with
-          | [ H : Some _ = Some _ |- _ ] => inv H
-          | [ H : (_, _) = (_, _) |- _ ] => inv H
-          end.
-        admit.
-        admit.
-        admit.
-        admit.
-
-      unfold peek in H3.
-      simplify_ensembles.
-      repeat match goal with
-        | [ H : Some _ = Some _ |- _ ] => inv H
-        | [ H : (_, _) = (_, _) |- _ ] => inv H
-        end.
-      simpl in *.
-      specialize (H3 x H4).
-      repeat match goal with
-        | [ H : Some _ = Some _ |- _ ] => inv H
-        | [ H : (_, _) = (_, _) |- _ ] => inv H
-        end.
-      destruct (0 <? psOffset r_n) eqn:Heqe;
-      destruct (psLength r_n <? psBufLen r_n);
-      simpl in H0;
-      simplify_ensembles;
-      subst; simpl in *; intros.
-
-      destruct i; split; intros; subst;
-      autorewrite with monad laws;
-      simplify_ensembles;
-      intros; simpl in *;
-      repeat match goal with
-        | [ H : Some _ = Some _ |- _ ] => inv H
-        | [ H : (_, _) = (_, _) |- _ ] => inv H
-        | [ _ : is_true (Nat.ltb 0 _) |- _ ] =>
-          rewrite N.add_0_r in *;
-          try (apply Union_intror; constructor)
-        | [ H : forall x : _, Some ?X = Some x -> _ |- _ ] =>
-          specialize (H X eq_refl);
-          simplify_ensembles; subst; simpl in *
-        | [ |- context [N.pos (Pos.of_succ_nat _)] ] =>
-          rewrite Nsucc_nat
-        | [ H : context [N.pos (Pos.of_succ_nat _)] |- _ ] =>
-          rewrite Nsucc_nat in H
-        | [ |- context [N.succ (N.of_nat _)] ] =>
-          rewrite Nsub_add_succ
-        | [ H : context [N.succ (N.of_nat _)] |- _ ] =>
-          rewrite Nsub_add_succ in H
-        | [ H1 : is_true (Nat.ltb (S ?I) (S _)),
-            _  : _ = nth ?I _ ?X,
-            H2 : forall i x, is_true (Nat.ltb i _) -> _ |- _ ] =>
-          specialize (H2 I X H1); clear H1
-        | [ H1 : is_true (Nat.ltb (S ?I) (S _)),
-            _  : In _ _ (_, ?X),
-            H2 : forall i x, is_true (Nat.ltb i _) -> _ |- _ ] =>
-          specialize (H2 I X H1); clear H1
-        | [ H1 : _ = nth _ _ _,
-            H2 : _ = nth _ _ _ <-> _ |- _ ] =>
-          apply H2 in H1; clear H2;
-          simplify_ensembles; subst; simpl in *
-        | [ H : _ = nth _ _ _ <-> _ |- _ = nth _ _ _ ] =>
-          apply H; clear H;
-          autorewrite with monad laws;
-          simplify_ensembles; simpl; intros
-        | [ |- ~ _ ] => unfold not; intros
-        | [ |- In _ _ _ ] => apply Union_introl; split; intros
-        end.
-
-      - inv H1.
-        apply Nplus_1_mismatch in H3.
-          assumption.
-        rewrite N.ltb_lt in Heqe.
-        apply N.lt_gt.
-        assumption.
-      - assumption.
-      - symmetry in H4.
-        apply Nplus_1_mismatch in H4.
-          contradiction.
-        rewrite N.ltb_lt in Heqe.
-        apply N.lt_gt.
-        assumption.
-      - inv H1.
-        apply Nplus_1_mismatch in H3.
-          assumption.
-        rewrite N.ltb_lt in Heqe.
-        apply N.lt_gt.
-        assumption.
-      - assumption.
-      - symmetry in H4.
-        apply Nplus_1_mismatch in H4.
-          contradiction.
-        rewrite N.ltb_lt in Heqe.
-        apply N.lt_gt.
-        assumption.
-      - clear H1 H0 Heqe.
-        admit.
-      - inv H2.
-        admit.
-      - admit.
-      - inv H1.
-        admit.
-      - contradiction H4.
-        unfold Ensembles.In; simpl.
-        admit.
-      - admit.
-      - admit.
-      - admit.
-      - admit.
-      - admit.
-    }
-    finish honing.
-  }
+    assert (ADTInduction.fromADT (Heap.HeapSpec Word8) (psHeap ps')).
+      
+      unfold ADTInduction.fromADT.
+    apply (assignments_unique _ _ _ _ (conj H H2)).
+  apply H1.
+    exact H4.
+  apply H3.
+  rewrite N.add_1_r, <- Nsucc_nat.
+  exact H5.
 Admitted.
 
 Lemma ByteStringImpl (heap : Rep HeapSpec) : FullySharpened ByteStringSpec.
