@@ -42,17 +42,12 @@ Definition HeapSpec := Def ADT {
 
   Def Constructor0 emptyS : rep := ret (Empty_set _, Empty_set _),,
 
-  Def Method1 allocS (r : rep) (len : N) : rep * option N :=
-    (* Is there enough free space to allocate the block? *)
-    a <- { a : option N
-         | forall addr, a = Some addr
-             -> len > 0
-             /\ forall addr' len', In _ (fst r) (addr', len')
-                  -> ~ overlaps addr len addr' len' };
-    (* If so, add the allocation; otherwise, do nothing *)
-    ret (Ifopt a as addr
-         Then ((Add _ (fst r) (addr, len), snd r), Some addr)
-         Else (r, None)),
+  Def Method1 allocS (r : rep) (len : N | 0 < len) : rep * N :=
+    (* Allocate the block *)
+    addr <- { addr : N
+            | forall addr' len', In _ (fst r) (addr', len')
+                -> ~ overlaps addr (proj1_sig len) addr' len' };
+    ret ((Add _ (fst r) (addr, proj1_sig len), snd r), addr),
 
   Def Method1 freeS (r : rep) (addr : N) : rep * bool :=
     (* Does an allocated block exist at the given address? *)
@@ -64,48 +59,47 @@ Definition HeapSpec := Def ADT {
                true)
          Else (r, false)),
 
-  Def Method2 reallocS (r : rep) (addr : N) (len : N) : rep * option N :=
-    IfDec 0 < len
-    Then (
-      (* Does an allocated block exist at the given address? *)
-      m <- { m : option N | forall l, m = Some l -> In _ (fst r) (addr, l) };
-      Ifopt m as olen
-      Then
-        (* Check whether to block to be reallocated would fit at its current
-           position. If so, just update the length, otherwise deallocate and
-           reallocate it, while copying its contents to the new position. *)
-        IfDec len < olen
-        Then ret (((fun p =>
-                      IF fst p = addr
-                      then snd p = len
-                      else In _ (fst r) p),
-                   (fun p =>
-                      In _ (snd r) p /\
-                      ~ within (addr + len) (addr + olen) (fst p))),
-                  Some addr)
-        Else (
-          (* Is there enough free space to allocate the new block? *)
-          a <- { a : option N
-               | forall naddr, a = Some naddr
-                   -> len > olen
-                   /\ forall addr' len', In _ (fst r) (addr', len')
-                        -> ~ overlaps naddr len addr' len' };
-          ret (Ifopt a as naddr
-               Then
-                 (* Free the old block, allocate the new one, and copy over as
-                    many bytes as possible from the previous block. *)
-                 ((Add _ (Subtract _ (fst r) (addr, olen)) (naddr, len),
-                   (fun p =>
-                      IF within naddr (N.min olen len) (fst p)
-                      then IF naddr < addr
-                           then In _ (snd r) (fst p - (addr - naddr), snd p)
-                           else In _ (snd r) (fst p + (naddr - addr), snd p)
-                      else ~ within addr len (fst p) -> In _ (snd r) p)),
-                  Some naddr)
-               Else (r, None))
-        )
-      Else (ret (r, None)))
-    Else (ret (r, None)),
+  Def Method2 reallocS (r : rep) (addr : N) (len : N | 0 < len) :
+    rep * N :=
+    (* Does an allocated block exist at the given address? *)
+    m <- { m : option N | forall l, m = Some l -> In _ (fst r) (addr, l) };
+    Ifopt m as olen
+    Then
+      (* Check whether to block to be reallocated would fit at its current
+         position. If so, just update the length, otherwise deallocate and
+         reallocate it, while copying its contents to the new position. *)
+      let len := proj1_sig len in
+      IfDec len <= olen
+      Then ret (((fun p =>
+                    IF fst p = addr
+                    then snd p = len
+                    else In _ (fst r) p),
+                 (fun p =>
+                    In _ (snd r) p /\
+                    ~ within (addr + len) (addr + olen) (fst p))),
+                addr)
+      Else (
+        (* Is there enough free space to allocate the new block? *)
+        naddr <- { naddr : N
+                 | forall addr' len', In _ (fst r) (addr', len')
+                     -> ~ overlaps naddr len addr' len' };
+        (* Free the old block, allocate the new one, and copy over as
+           many bytes as possible from the previous block. *)
+        ret ((Add _ (Subtract _ (fst r) (addr, olen)) (naddr, len),
+                (fun p =>
+                   IF within naddr (N.min olen len) (fst p)
+                   then IF naddr < addr
+                        then In _ (snd r) (fst p - (addr - naddr), snd p)
+                        else In _ (snd r) (fst p + (naddr - addr), snd p)
+                   else ~ within addr len (fst p) -> In _ (snd r) p)),
+             naddr)
+      )
+    Else (
+      (* Allocate a new block *)
+      addr <- { addr : N
+              | forall addr' len', In _ (fst r) (addr', len')
+                  -> ~ overlaps addr (proj1_sig len) addr' len' };
+      ret ((Add _ (fst r) (addr, proj1_sig len), snd r), addr)),
 
   Def Method1 peekS (r : rep) (addr : N) : rep * option Word8 :=
     (* Retrieve the word at the given location; note that since [pokeS] is the
@@ -114,43 +108,22 @@ Definition HeapSpec := Def ADT {
     p <- { p : option Word8 | forall x, p = Some x -> In _ (snd r) (addr, x) };
     ret (r, p),
 
-  Def Method2 pokeS (r : rep) (addr : N) (w : Word8) : rep * bool :=
+  Def Method2 pokeS (r : rep) (addr : N) (w : Word8) : rep * unit :=
       (* Check whether the address is within an allocated block; if so, set the
        memory location, otherwise do nothing. *)
-    b <- { b | decides b
-                 (exists addr' len',
-                     In _ (fst r) (addr', len') /\
-                     within addr' len' addr) };
-    ret (If b
-         Then ((fst r, Add _ (Setminus _ (snd r) (fun p => fst p = addr))
-                             (addr, w)), true)
-         Else (r, false)),
+    ret ((fst r, Add _ (Setminus _ (snd r) (fun p => fst p = addr))
+                       (addr, w)), tt),
 
-  Def Method3 memcpyS (r : rep) (addr : N) (addr2 : N) (len : N) : rep * bool :=
-    (* Confirm that both blocks are within allocated regions. If they overlap
-       within the same region, then reading from the new location is assumed
-       to be equivalent to reading from the previous location. It is up to the
-       final implementation to preserve this meaning. *)
-    b <- { b | decides b
-                 (exists addr' len' addr2' len2',
-                     In _ (fst r) (addr', len') /\
-                     within    addr' len' addr /\
-                     within_le addr' len' (addr + len) /\
-
-                     In _ (fst r) (addr2', len2') /\
-                     within    addr2' len2' addr2 /\
-                     within_le addr2' len2' (addr2 + len)) };
-    ret (If b
-         Then ((fst r, fun p =>
-                  (* If an attempt is made to access the new region, adjust it
-                     to look like an access to the old location, simulating
-                     the data having been actually copied. *)
-                  IF within addr2 len (fst p)
-                  then IF addr < addr2
-                       then In _ (snd r) (fst p - (addr2 - addr), snd p)
-                       else In _ (snd r) (fst p + (addr - addr2), snd p)
-                  else In _ (snd r) p), true)
-         Else (r, false)),
+  Def Method3 memcpyS (r : rep) (addr : N) (addr2 : N) (len : N) : rep * unit :=
+    ret ((fst r, fun p =>
+           (* If an attempt is made to access the new region, adjust it to
+              look like an access to the old location. *)
+           IF within addr2 len (fst p)
+           then IF addr < addr2
+                then In _ (snd r) (fst p - (addr2 - addr), snd p)
+                else In _ (snd r) (fst p + (addr - addr2), snd p)
+           else In _ (snd r) p),
+         tt),
 
   Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Word8) : rep * bool :=
     (* Check that the memory to be set is within an allocated region. *)
@@ -171,65 +144,60 @@ Definition HeapSpec := Def ADT {
 
 }%ADTParsing.
 
-Definition realloc (r : Rep HeapSpec) (addr : N) (len : N) :
-  Comp (Rep HeapSpec * option N) :=
+Definition realloc (r : Rep HeapSpec) (addr : N) (len : N | 0 < len) :
+  Comp (Rep HeapSpec * N) :=
   Eval simpl in callMeth HeapSpec reallocS r addr len.
 
 Definition peek (r : Rep HeapSpec) (addr : N) :
   Comp (Rep HeapSpec * option Word8) :=
   Eval simpl in callMeth HeapSpec peekS r addr.
 
-(*
+Definition poke (r : Rep HeapSpec) (addr : N) (w : Word8) :
+  Comp (Rep HeapSpec * unit) :=
+  Eval simpl in callMeth HeapSpec pokeS r addr w.
+
+Definition memcpy (r : Rep HeapSpec) (addr : N) (addr2 : N) (len : N) :
+  Comp (Rep HeapSpec * unit) :=
+  Eval simpl in callMeth HeapSpec memcpyS r addr addr2 len.
+
 Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr len, Ensembles.In _ (fst r) (addr, len) -> len > 0.
+  forall addr len, Ensembles.In _ (fst r) (addr, len) -> 0 < len.
 Proof.
   intros.
   generalize dependent len.
   generalize dependent addr.
   ADT induction r.
   - inversion H0.
-  - revert H0'.
-    simplify_ensembles; intros;
-    inv H0'; simplify_ensembles.
-      exact (IHfromADT _ _ H3).
-    exact (IHfromADT _ _ H1).
+  - simplify_ensembles.
+      exact (IHfromADT _ _ H2).
+    destruct x; trivial.
   - revert H0'.
     simplify_ensembles; intros;
     inv H0'; simplify_ensembles.
       exact (IHfromADT _ _ H2).
     exact (IHfromADT _ _ H1).
-  - rename x0 into len'.
-    revert H0; simplify_ensembles.
-    destruct (0 <? len') eqn:Heqe;
-    simplify_ensembles; simpl in *.
-      apply N.ltb_lt, N.lt_gt in Heqe.
-      revert H2; simplify_ensembles.
-        destruct (len' <? n);
-        simplify_ensembles; simpl in *;
-        subst; trivial.
-          exact (IHfromADT _ _ H2).
-        destruct x0;
-        simplify_ensembles; simpl in *;
-        inv H3.
-          inv H1; inv H3; trivial.
-          exact (IHfromADT _ _ H1).
+  - revert H0'.
+    simplify_ensembles;
+    destruct x0; simpl;
+    unfold IfDec_Then_Else; simpl.
+      destruct (x0 <=? n);
+      simplify_ensembles; simpl in *;
+      subst; trivial.
+        exact (IHfromADT _ _ H2).
+      destruct x0;
+      simplify_ensembles; simpl in *;
+      inv H3; inv H1; inv H3; trivial.
         exact (IHfromADT _ _ H1).
       exact (IHfromADT _ _ H1).
-    exact (IHfromADT _ _ H1).
-  - revert H0'.
-    destruct v; simpl; intros;
-    inv H0'; simpl in *;
-    exact (IHfromADT _ _ H1).
-  - revert H0'.
-    destruct v; simpl; intros;
-    inv H0'; simpl in *;
-    exact (IHfromADT _ _ H1).
+    inv H3; inv H1.
+      exact (IHfromADT _ _ H3).
+    inv H3.
+    assumption.
   - revert H0'.
     destruct v; simpl; intros;
     inv H0'; simpl in *;
     exact (IHfromADT _ _ H1).
 Qed.
-*)
 
 Theorem allocations_unique : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr len1 len2,
