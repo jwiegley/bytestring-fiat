@@ -240,6 +240,30 @@ Ltac reduction :=
     | [ |- ~ _ ] => unfold not; intros
     end.
 
+Theorem fromADT_bind
+        {sig} `{adt : ADT sig} (r : Rep adt)
+        A (f : Rep adt -> Comp (Rep adt * A))
+        ResultT (k : Rep adt * A -> Comp ResultT)
+        (prj : ResultT -> Rep adt) :
+  ADTInduction.fromADT adt r
+    -> (forall r r' x,
+          ADTInduction.fromADT adt r
+            -> f r ↝ (r', x)
+            -> ADTInduction.fromADT adt r')
+    -> (forall r r' x,
+          ADTInduction.fromADT adt r
+            -> k (r, x) ↝ r'
+            -> ADTInduction.fromADT adt (prj r'))
+    -> forall r', (x <- f r; k x) ↝ r'
+         -> ADTInduction.fromADT adt (prj r').
+Proof.
+  intros.
+  simplify_ensembles.
+  apply (H0 _ _ _ H) in H2.
+  apply (H1 _ _ _ H2) in H3.
+  exact H3.
+Qed.
+
 Theorem buffer_cons_heap_adt `(_ : Correct ps) : forall ps' x,
   buffer_cons ps x ↝ ps'
     -> ADTInduction.fromADT HeapSpec (psHeap ps').
@@ -255,9 +279,7 @@ Proof.
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
              (psHeap ps) _ H1).
-    eexists.
-    exists x.
-    exists tt.
+    do 3 eexists.
     simplify_ensembles; reduction.
     constructor.
   - unfold poke in H2.
@@ -265,25 +287,87 @@ Proof.
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
              (psHeap ps) _ H1).
-    eexists.
-    exists x.
-    exists tt.
+    do 3 eexists.
     simplify_ensembles; reduction.
     constructor.
   - revert H2.
     rewrite refineEquiv_bind_bind.
-    simpl in *.
-    unfold poke in H2.
-    apply (@ADTInduction.fromADTMethod
-             _ HeapSpec
-             (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))) (* memcpy *)
-             (psHeap ps) _ H1).
-    eexists.
-    eexists.
-    eexists.
-    simplify_ensembles; reduction.
-    simpl.
-    econstructor.
+    remember (fun u => Bind _ _) as k.
+    intros.
+    eapply (@fromADT_bind
+              _ HeapSpec (psHeap ps) unit
+              (fun h => memcpy h (psBuffer ps) (psBuffer ps + 1)
+                                 (psLength ps)) _ k).
+    + assumption.
+    + intros.
+      clear -H3 H4.
+      revert H4.
+      unfold memcpy.
+      intros.
+      simplify_ensembles.
+      inv H4.
+      apply (@ADTInduction.fromADTMethod
+               _ HeapSpec
+               (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))) (* memcpy *)
+               r _ H3).
+      do 4 eexists.
+      constructor.
+    + intros.
+      rewrite Heqk in H4.
+      clear -H3 H4.
+      revert H4.
+      unfold poke.
+      autorewrite with monad laws.
+      simpl.
+      intros.
+      apply (@ADTInduction.fromADTMethod
+               _ HeapSpec
+               (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
+               r _ H3).
+      do 3 eexists.
+      simplify_ensembles; subst.
+      constructor.
+    + apply H2.
+  - revert H2.
+    rewrite refineEquiv_bind_bind.
+    remember (fun u => Bind _ _) as k.
+    intros.
+    eapply (@fromADT_bind
+              _ HeapSpec (psHeap ps) N
+              (fun h => realloc h (psBuffer ps)
+                                  (exist (N.lt 0) (psLength ps + 1)
+                                         (Nlt_plus_1 (psLength ps)))) _ k).
+    + assumption.
+    + intros.
+      clear -H3 H4.
+      revert H4.
+      unfold realloc.
+      intros.
+      simplify_ensembles.
+      apply (@ADTInduction.fromADTMethod
+               _ HeapSpec
+               (Fin.FS (Fin.FS Fin.F1)) (* realloc *)
+               r _ H3).
+      do 3 eexists.
+      econstructor.
+      split; [ exact H | exact H0 ].
+    + intros.
+      rewrite Heqk in H4.
+      clear -H3 H4.
+      revert H4.
+      unfold poke.
+      autorewrite with monad laws.
+      simpl.
+      intros.
+      apply (@ADTInduction.fromADTMethod
+               _ HeapSpec
+               (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
+               r _ H3).
+      do 3 eexists.
+      simplify_ensembles; subst.
+      constructor.
+    + apply H2.
+Qed.
 
 Theorem buffer_cons_correct `(_ : Correct ps) : forall ps' x,
   buffer_cons ps x ↝ ps' -> Correct ps'.
