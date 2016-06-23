@@ -30,15 +30,6 @@ Proof.
   constructor.
 Qed.
 
-Theorem Nsucc_nat : forall n, N.pos (Pos.of_succ_nat n) = N.succ (N.of_nat n).
-Proof.
-  induction n.
-    reflexivity.
-  constructor.
-Qed.
-
-Require Import Omega.
-
 (* Theorem Nsub_add_succ : forall n m, *)
 (*   n > 0 -> n - 1 + N.succ (N.of_nat m) = n + N.of_nat m. *)
 (* Proof. *)
