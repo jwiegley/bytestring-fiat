@@ -38,16 +38,14 @@ Definition within_le (addr : N) (len : N) (a : N) : Prop :=
 Lemma within_refl : forall addr len,
   0 < len -> within addr len addr.
 Proof.
-  intros.
-  unfold within.
-  split.
+  split; intros.
     apply N.le_refl.
   apply N.lt_add_pos_r.
   assumption.
 Qed.
 
-Definition fits (addr len off sz : N) : Prop :=
-  within addr len off /\ off + sz <= len.
+Definition fits (addr1 len1 addr2 len2 : N) : Prop :=
+  within addr1 len1 addr2 /\ within addr1 len1 (addr2 + len2).
 
 Definition overlaps (addr len addr2 len2 : N) : Prop :=
   addr < addr2 + len2 /\ addr2 < addr + len.
@@ -55,16 +53,97 @@ Definition overlaps (addr len addr2 len2 : N) : Prop :=
 Lemma overlaps_sym : forall addr1 len1 addr2 len2,
   overlaps addr1 len1 addr2 len2 <-> overlaps addr2 len2 addr1 len1.
 Proof.
-  unfold overlaps; split; intros;
-  destruct H; split; trivial.
+  split; intros;
+  destruct H; split; assumption.
 Qed.
 
 Lemma overlaps_irr : forall addr len1 len2,
   0 < len1 -> 0 < len2 -> overlaps addr len1 addr len2.
 Proof.
-  unfold overlaps; split; intros;
+  split; intros;
   apply N.lt_add_pos_r; assumption.
 Qed.
+
+Ltac decisions :=
+  repeat
+    match goal with
+    | [ H : context [if ?B then _ else _] |- _ ] =>
+      let Heqe := fresh "Heqe" in
+      destruct B eqn:Heqe
+    | [ |- context [if ?B then _ else _] ] =>
+      let Heqe := fresh "Heqe" in
+      destruct B eqn:Heqe
+
+    | [ H : context[@IfDec_Then_Else _ _ _ _ _] |- _ ] =>
+      unfold IfDec_Then_Else in H; simpl in H
+    | [ |- context[@IfDec_Then_Else _ _ _ _ _] ] =>
+      unfold IfDec_Then_Else; simpl
+    end.
+
+Ltac undecide :=
+  repeat
+    match goal with
+    | [ H : (_ <? _)  = true  |- _ ] => apply N.ltb_lt in H
+    | [ H : (_ <? _)  = false |- _ ] => apply N.ltb_ge in H
+    | [ H : (_ <=? _) = true  |- _ ] => apply N.leb_le in H
+    | [ H : (_ <=? _) = false |- _ ] => apply N.leb_gt in H
+    | [ H : (_ =? _)  = true  |- _ ] => apply N.eqb_eq in H; subst
+    | [ H : (_ =? _)  = false |- _ ] => apply N.eqb_neq in H
+
+    | [ |- (_ <? _)  = true  ] => apply N.ltb_lt
+    | [ |- (_ <? _)  = false ] => apply N.ltb_ge
+    | [ |- (_ <=? _) = true  ] => apply N.leb_le
+    | [ |- (_ <=? _) = false ] => apply N.leb_gt
+    | [ |- (_ =? _)  = true  ] => apply N.eqb_eq
+    | [ |- (_ =? _)  = false ] => apply N.eqb_neq
+    end.
+
+Ltac nomega_reduce :=
+  repeat (
+    match goal with
+    | [ H : (_ && _)%bool = true |- _ ] =>
+      apply Bool.andb_true_iff in H; destruct H
+    | [ H : (_ && _)%bool = false |- _ ] =>
+      apply Bool.andb_false_iff in H; destruct H
+
+    | [ H : _ <  _ <  _ |- _ ] => destruct H
+    | [ H : _ <= _ <  _ |- _ ] => destruct H
+    | [ H : _ <  _ <= _ |- _ ] => destruct H
+    | [ H : _ <= _ <= _ |- _ ] => destruct H
+
+    | [ |- _ <  _ <  _ ] => split
+    | [ |- _ <= _ <  _ ] => split
+    | [ |- _ <  _ <= _ ] => split
+    | [ |- _ <= _ <= _ ] => split
+
+    | [ H : ?N < ?M |- ?N < ?M + ?O ] => apply (N.lt_lt_add_r _ _ _ H)
+    | [ H : 0 < ?M  |- ?N < ?N + ?M ] => apply (N.lt_add_pos_r _ _ H)
+
+    | [ H : context[Z.of_N (_ + _)] |- _ ] => rewrite N2Z.inj_add in H
+    | [ H : context[Z.of_N (_ - _)] |- _ ] => rewrite N2Z.inj_sub in H; trivial
+
+    | [ |- context[Z.of_N (_ + _)] ] => rewrite N2Z.inj_add
+    | [ |- context[Z.of_N (_ - _)] ] => rewrite N2Z.inj_sub
+
+    | [ H : _ = _ |- _ ] => subst
+
+    | [ H : context[_ < _]  |- _ ] => rewrite N2Z.inj_lt in H
+    (* | [ H : context[_ = _]  |- _ ] => apply N2Z.inj_iff in H *)
+    (* | [ H : context[_ <> _] |- _ ] => apply N2Z.inj_iff in H *)
+
+    (* We need to give _ <= _ alone a chance to be used by N2Z.inj_sub. *)
+    | [ H : context[_     <= _ + _] |- _ ] => rewrite N2Z.inj_le in H
+    | [ H : context[_ + _ <= _    ] |- _ ] => rewrite N2Z.inj_le in H
+    | [ H : context[_ + _ <= _ + _] |- _ ] => rewrite N2Z.inj_le in H
+    | [ H : context[_     <= _    ] |- _ ] => rewrite N2Z.inj_le in H
+
+    | [ |- context[_ < _]  ] => rewrite N2Z.inj_lt
+    | [ |- context[_ <= _] ] => rewrite N2Z.inj_le
+    | [ |- context[_ = _]  ] => apply N2Z.inj_iff
+    | [ |- context[_ <> _] ] => apply N2Z.inj_iff
+    end; undecide).
+
+Ltac nomega := solve [ nomega_reduce; abstract omega ].
 
 Lemma overlaps_within : forall addr1 len1 addr2 len2,
   0 < len1 -> overlaps addr1 len1 addr2 len2
@@ -72,37 +151,17 @@ Lemma overlaps_within : forall addr1 len1 addr2 len2,
                     Then within addr1 len1 addr2
                     Else within addr2 len2 addr1.
 Proof.
-  unfold overlaps, within, IfDec_Then_Else; simpl.
+  unfold overlaps, within.
   split; intros.
     destruct H0.
-    rewrite N2Z.inj_lt, N2Z.inj_add in H0, H1.
-    destruct (addr1 <? addr2) eqn:Heqe.
-      apply N.ltb_lt in Heqe.
-      rewrite N2Z.inj_lt in Heqe.
-      split.
-        rewrite N2Z.inj_le;
-        abstract omega.
-      rewrite N2Z.inj_lt, N2Z.inj_add;
-      abstract omega.
-    apply N.ltb_ge in Heqe.
-    rewrite N2Z.inj_le in Heqe.
-    split.
-      rewrite N2Z.inj_le;
-      abstract omega.
-    rewrite N2Z.inj_lt, N2Z.inj_add;
-    abstract omega.
-  destruct (addr1 <? addr2) eqn:Heqe;
-  [ apply N.ltb_lt in Heqe
-  | apply N.ltb_ge in Heqe ];
+    decisions; nomega.
+  decisions;
   destruct H0.
-    split; trivial.
-    apply N.lt_lt_add_r; assumption.
+    nomega.
   split; trivial.
+  undecide.
   apply N.lt_eq_cases in Heqe.
-  destruct Heqe.
-    apply N.lt_lt_add_r; assumption.
-  subst.
-  apply N.lt_add_pos_r; assumption.
+  destruct Heqe; nomega.
 Qed.
 
 Corollary not_overlaps_within : forall addr1 len1 addr2 len2,
@@ -112,18 +171,13 @@ Corollary not_overlaps_within : forall addr1 len1 addr2 len2,
                     Else ~ within addr2 len2 addr1.
 Proof.
   split; intros.
-    unfold IfDec_Then_Else; simpl.
-    destruct (addr1 <? addr2) eqn:Heqe;
+    decisions;
     unfold not; intros;
-    apply H0;
-    apply overlaps_within; trivial;
-    unfold IfDec_Then_Else; simpl;
-    rewrite Heqe;
-    assumption.
-  unfold not; intros.
-  apply overlaps_within in H1; trivial.
-  unfold IfDec_Then_Else in *; simpl in *.
-  destruct (addr1 <? addr2); contradiction.
+    apply H0, overlaps_within; trivial;
+    decisions; firstorder.
+  unfold not; intros;
+  apply overlaps_within in H1; trivial;
+  decisions; firstorder.
 Qed.
 
 Record MemoryBlock := {
@@ -131,6 +185,21 @@ Record MemoryBlock := {
   memSize : N;
   memData : Ensemble (N * Word8)
 }.
+
+Ltac tsubst :=
+  repeat
+    match goal with
+    | [ H : (_, _) = (_, _) |- _ ] => inv H
+    | [ H : (_, _, _) = (_, _, _) |- _ ] => inv H
+    | [ H : (_, _, _, _) = (_, _, _, _) |- _ ] => inv H
+    | [ H : {| memAddr := _
+             ; memSize := _
+             ; memData := _ |} =
+            {| memAddr := _
+             ; memSize := _
+             ; memData := _ |} |- _ ] => inv H
+    end;
+  subst.
 
 Record CorrectMemoryBlock (blk : MemoryBlock) : Prop := {
   _ : 0 < memSize blk;
@@ -143,6 +212,17 @@ Record CorrectMemoryBlock (blk : MemoryBlock) : Prop := {
 
 Definition CorrectHeap (mem : Ensemble MemoryBlock) : Prop :=
   forall blk, mem ↝ blk -> CorrectMemoryBlock blk.
+
+Ltac against_definition function len CorrectHeap0 x0 H tac :=
+  unfold function; intros;
+  try destruct len; simpl in *;
+  simplify_ensembles;
+  decisions;
+  simplify_ensembles;
+  [| tsubst; firstorder ];
+  try (destruct (CorrectHeap0 x0 H); clear H);
+  constructor; intros; decisions; tsubst;
+  tac; decisions; try nomega; firstorder.
 
 Definition shift_address (addr1 addr2 : N) (mem : Ensemble MemoryBlock) :
   Ensemble MemoryBlock :=
@@ -157,12 +237,7 @@ Lemma shift_address_correct `(_ : CorrectHeap mem) :
   forall addr1 addr2 blk', shift_address addr1 addr2 mem ↝ blk'
     -> CorrectMemoryBlock blk'.
 Proof.
-  unfold CorrectHeap in CorrectHeap0.
-  unfold shift_address, IfDec_Then_Else; simpl.
-  intros.
-  simplify_ensembles; subst.
-  destruct (CorrectHeap0 x H).
-  constructor; simpl in *; intros; eauto.
+  against_definition shift_address len CorrectHeap0 x0 H idtac.
 Qed.
 
 Definition fit_to_length (addr : N) (len : N | 0 < len)
@@ -179,19 +254,7 @@ Lemma fit_to_length_correct `(_ : CorrectHeap mem) :
   forall addr len blk', fit_to_length addr len mem ↝ blk'
     -> CorrectMemoryBlock blk'.
 Proof.
-  unfold CorrectHeap in CorrectHeap0.
-  unfold fit_to_length, IfDec_Then_Else; simpl.
-  intros.
-  simplify_ensembles.
-  pose proof (CorrectHeap0 x H).
-  destruct (addr =? memAddr x);
-  [| subst; assumption ].
-  destruct H1; clear H1 H2.
-  simplify_ensembles; subst; simpl.
-  destruct len; simpl.
-  constructor; simpl in *; intros; trivial;
-  unfold Ensembles.In in *; simpl in *; intuition.
-  apply (H3 off val1 val2); assumption.
+  against_definition fit_to_length len CorrectHeap0 x0 H idtac.
 Qed.
 
 Definition set_address (addr : N) (x : Word8) (mem : Ensemble MemoryBlock) :
@@ -210,30 +273,7 @@ Lemma set_address_correct `(_ : CorrectHeap mem) :
   forall addr x blk' b, set_address addr x mem ↝ (blk', b)
     -> CorrectMemoryBlock blk'.
 Proof.
-  unfold CorrectHeap in CorrectHeap0.
-  unfold set_address, IfDec_Then_Else; simpl.
-  intros.
-  simplify_ensembles.
-  pose proof (CorrectHeap0 x0 H).
-  destruct ((memAddr x0 <=? addr) &&
-            (addr <? memAddr x0 + memSize x0))%bool eqn:Heqe; inv H0;
-  [| assumption ].
-  destruct H1.
-  constructor; simpl; intros; trivial.
-  - inv H3; inv H4.
-      apply (H1 off val); assumption.
-    apply Bool.andb_true_iff in Heqe; destruct Heqe.
-    apply N.leb_le in H3.
-    rewrite N2Z.inj_lt, N2Z.inj_sub; trivial.
-    rewrite N2Z.inj_le in H3.
-    apply N.ltb_lt in H4.
-    rewrite N2Z.inj_lt, N2Z.inj_add in H4.
-    omega.
-  - inv H3; inv H4; inv H3; inv H5.
-    + apply (H2 off); assumption.
-    + contradiction H4; constructor.
-    + contradiction H6; constructor.
-    + reflexivity.
+  against_definition set_address len CorrectHeap0 x0 H simplify_ensembles.
 Qed.
 
 Definition copy_memory
@@ -248,7 +288,8 @@ Definition copy_memory
                 ; memSize := memSize dst
                 ; memData :=
                     fun p =>
-                      IfDec within addr2 (proj1_sig len) (fst p)
+                      let off := addr2 - memAddr dst in
+                      IfDec within off (proj1_sig len) (fst p)
                       Then memData src (addr2 + (fst p - addr1), snd p)
                       Else memData dst p |}, true)
          Else (dst, false))
@@ -259,68 +300,8 @@ Lemma copy_memory_correct `(_ : CorrectHeap mem) :
   forall addr1 addr2 len blk' b, copy_memory addr1 addr2 len mem ↝ (blk', b)
     -> CorrectMemoryBlock blk'.
 Proof.
-  unfold CorrectHeap in CorrectHeap0.
-  unfold copy_memory, IfDec_Then_Else; simpl.
-  intros.
-  destruct len; simpl in *.
-  simplify_ensembles.
-  destruct (CorrectHeap0 x0 H); clear H.
-  constructor; simpl; intros; trivial.
-  - clear -H0 H1.
-    destruct ((memAddr x0 <=? addr2) &&
-              (addr2 <? memAddr x0 + memSize x0) &&
-              (addr2 + x <=? memSize x0))%bool; subst;
-    simplify_ensembles;
-    [| inv H0; trivial ].
-    destruct ((memAddr x1 <=? addr1) &&
-              (addr1 <? memAddr x1 + memSize x1) &&
-              (addr1 + x <=? memSize x1))%bool;
-    simplify_ensembles; inv H0; subst; simpl in *; trivial.
-  - clear -H0 H2 H.
-    destruct ((memAddr x0 <=? addr2) &&
-              (addr2 <? memAddr x0 + memSize x0) &&
-              (addr2 + x <=? memSize x0))%bool eqn:Heqe; subst;
-    simplify_ensembles; subst; trivial.
-      destruct ((memAddr x1 <=? addr1) &&
-                (addr1 <? memAddr x1 + memSize x1) &&
-                (addr1 + x <=? memSize x1))%bool;
-      simplify_ensembles; inv H1; subst; simpl in *.
-        unfold Ensembles.In in H; simpl in H.
-        destruct ((addr2 <=? off) && (off <? addr2 + x))%bool eqn:Heqe2.
-          apply Bool.andb_true_iff in Heqe; destruct Heqe.
-          apply Bool.andb_true_iff in Heqe2; destruct Heqe2.
-          clear -H3 H4 H5.
-          apply N.leb_le in H4.
-          apply N.leb_le in H3.
-          rewrite N2Z.inj_le, N2Z.inj_add in H3.
-          rewrite N2Z.inj_le in H4.
-          apply N.ltb_lt in H5.
-          rewrite N2Z.inj_lt, N2Z.inj_add in H5.
-          rewrite N2Z.inj_lt.
-          omega.
-        apply (H2 off val); assumption.
-      apply (H2 off val); assumption.
-    inv H0.
-    apply (H2 off val); assumption.
-  - clear -H0 H H4 H3 CorrectHeap0.
-    destruct ((memAddr x0 <=? addr2) &&
-              (addr2 <? memAddr x0 + memSize x0) &&
-              (addr2 + x <=? memSize x0))%bool; subst;
-    simplify_ensembles; subst; trivial.
-      destruct ((memAddr x1 <=? addr1) &&
-                (addr1 <? memAddr x1 + memSize x1) &&
-                (addr1 + x <=? memSize x1))%bool;
-      simplify_ensembles; inv H1; subst; simpl in *.
-      {
-        destruct (CorrectHeap0 x1 H0).
-        unfold Ensembles.In in *; simpl in *.
-        destruct ((addr2 <=? off) && (off <? addr2 + x))%bool.
-          apply (H5 (addr2 + (off - addr1)) val1 val2); assumption.
-        apply (H3 off val1 val2); assumption.
-      }
-      apply (H3 off val1 val2); assumption.
-    inv H0.
-    apply (H3 off val1 val2); assumption.
+  against_definition copy_memory len CorrectHeap0 x0 H
+                     ltac:(unfold Ensembles.In in *; simpl in *).
 Qed.
 
 Definition set_memory (addr : N) (len : N | 0 < len) (w : Word8)
@@ -330,7 +311,8 @@ Definition set_memory (addr : N) (len : N | 0 < len) (w : Word8)
        Then ({| memAddr := memAddr blk
               ; memSize := memSize blk
               ; memData := fun p =>
-                             IfDec within addr (proj1_sig len) (fst p)
+                             let off := addr - memAddr blk in
+                             IfDec within off (proj1_sig len) (fst p)
                              Then snd p = w
                              Else memData blk p |}, true)
        Else (blk, false)).
@@ -339,49 +321,8 @@ Lemma set_memory_correct `(_ : CorrectHeap mem) :
   forall addr len w blk' b, set_memory addr len w mem ↝ (blk', b)
     -> CorrectMemoryBlock blk'.
 Proof.
-  unfold CorrectHeap in CorrectHeap0.
-  unfold set_memory, IfDec_Then_Else; simpl.
-  intros.
-  destruct len; simpl in *.
-  simplify_ensembles.
-  destruct (CorrectHeap0 x0 H); clear H.
-  constructor; simpl; intros; trivial.
-  - clear -H0 H1.
-    destruct ((memAddr x0 <=? addr) &&
-              (addr <? memAddr x0 + memSize x0) &&
-              (addr + x <=? memSize x0))%bool; subst;
-    simplify_ensembles; inv H0; subst; simpl in *; trivial.
-  - clear -H0 H2 H.
-    destruct ((memAddr x0 <=? addr) &&
-              (addr <? memAddr x0 + memSize x0) &&
-              (addr + x <=? memSize x0))%bool eqn:Heqe; subst;
-    simplify_ensembles; inv H0; subst; simpl in *;
-    [| apply (H2 off val); assumption].
-    unfold Ensembles.In in H; simpl in H.
-    destruct ((addr <=? off) && (off <? addr + x))%bool eqn:Heqe2;
-    [| apply (H2 off val); assumption].
-    destruct H; subst.
-    apply Bool.andb_true_iff in Heqe; destruct Heqe.
-    apply Bool.andb_true_iff in Heqe2; destruct Heqe2.
-    clear -H0 H1 H3.
-    rewrite N2Z.inj_lt.
-    apply N.leb_le in H0.
-    rewrite N2Z.inj_le, N2Z.inj_add in H0.
-    apply N.leb_le in H1.
-    apply N.ltb_lt in H3.
-    rewrite N2Z.inj_lt, N2Z.inj_add in H3.
-    omega.
-  - clear -H0 H H4 H3 CorrectHeap0.
-    destruct ((memAddr x0 <=? addr) &&
-              (addr <? memAddr x0 + memSize x0) &&
-              (addr + x <=? memSize x0))%bool; subst;
-    simplify_ensembles; inv H0; subst; trivial;
-    [| apply (H3 off val1 val2); assumption ].
-    unfold Ensembles.In in *; simpl in *.
-    destruct ((addr <=? off) && (off <? addr + x))%bool;
-    [| apply (H3 off val1 val2); assumption ].
-    destruct H, H4; subst.
-    reflexivity.
+  against_definition set_memory len CorrectHeap0 x0 H
+                     ltac:(unfold Ensembles.In in *; simpl in *).
 Qed.
 
 Definition found_block
@@ -418,14 +359,12 @@ Lemma free_block_impl (addr : N) (blk : MemoryBlock)
   In _ mem blk -> (addr =? memAddr blk) = false
     -> In _ (free_block addr mem) blk.
 Proof.
-  intros.
-  unfold free_block.
+  unfold free_block; intros.
   constructor; trivial.
   unfold not; intros.
   unfold Ensembles.In in *.
-  apply N.eqb_eq in H1.
-  rewrite H0 in H1.
-  discriminate.
+  apply N.eqb_neq in H0.
+  contradiction.
 Qed.
 
 Definition find_free_block (len : N | 0 < len)
@@ -530,12 +469,10 @@ Proof.
   - constructor; inversion H0.
   - destruct x; simpl in *.
     inv H1.
-      apply IHfromADT.
-      exact H2.
-    inv H2.
-    constructor; simpl; trivial; intros; inv H1.
-  - inv H1.
-    exact (IHfromADT _ H0).
+      exact (IHfromADT _ H2).
+    simplify_ensembles.
+    constructor; firstorder.
+  - inv H1; firstorder.
   - exact (fit_to_length_correct (@shift_address_correct _ IHfromADT _ _) H1).
   - destruct v; simpl in *; inv H1.
     exact (set_address_correct IHfromADT H0).
@@ -549,8 +486,7 @@ Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr len data,
     found_block_at_base addr len data r -> 0 < len.
 Proof.
-  unfold found_block_at_base.
-  intros.
+  unfold found_block_at_base; intros.
   generalize dependent data.
   generalize dependent len.
   generalize dependent addr.
@@ -562,48 +498,25 @@ Proof.
   - simplify_ensembles; intros.
     exact (IHfromADT _ _ _ H0).
   - destruct x0; simpl in *.
-    unfold fit_to_length, shift_address, IfDec_Then_Else in H1; simpl in H1.
-    simplify_ensembles; simpl in *.
-    destruct (x1 =? (if x =? memAddr x3 then x1 else memAddr x3)); inv H4.
-      assumption.
-    apply (@IHfromADT (memAddr x3) (memSize x3) (memData x3)).
+    unfold fit_to_length, shift_address in H1; simpl in H1.
+    simplify_ensembles; decisions; tsubst; trivial.
+      undecide; tauto.
     destruct x3.
-    exact H1.
-  - unfold set_address, IfDec_Then_Else in H0; simpl in H0.
-    simplify_ensembles.
-    destruct ((memAddr x1 <=? x) && (x <? memAddr x1 + memSize x1))%bool;
-    inv H1; simpl in *; inv H2.
-      apply (@IHfromADT (memAddr x1) (memSize x1) (memData x1)).
-      destruct x1.
-      exact H0.
+    exact (IHfromADT _ _ _ H1).
+  - unfold set_address in H0;
+    simplify_ensembles; decisions; simpl in *; tsubst;
+    try destruct x1;
     exact (IHfromADT _ _ _ H0).
   - destruct x1; simpl in *.
-    unfold copy_memory, IfDec_Then_Else in H0; simpl in H0.
-    simplify_ensembles.
-    destruct ((memAddr x2 <=? x0) &&
-              (x0 <? memAddr x2 + memSize x2) &&
-              (x0 + x1 <=? memSize x2))%bool;
-    simplify_ensembles.
-      destruct ((memAddr x3 <=? x) &&
-                (x <? memAddr x3 + memSize x3) &&
-                (x + x1 <=? memSize x3))%bool;
-      inv H3; simpl in *; inv H2.
-        apply (@IHfromADT (memAddr x2) (memSize x2) (memData x2)).
-        destruct x2.
-        exact H0.
-      exact (IHfromADT _ _ _ H0).
-    inv H1; simpl in *; inv H2.
+    unfold copy_memory in H0;
+    simplify_ensembles; decisions; simpl in *; tsubst;
+    simplify_ensembles; decisions; simpl in *; tsubst;
+    try destruct x2;
     exact (IHfromADT _ _ _ H0).
   - destruct x0; simpl in *.
-    unfold set_memory, IfDec_Then_Else in H0; simpl in H0.
-    simplify_ensembles.
-    destruct ((memAddr x2 <=? x) &&
-              (x <? memAddr x2 + memSize x2) &&
-              (x + x0 <=? memSize x2))%bool;
-    inv H1; simpl in *; inv H2.
-      apply (@IHfromADT (memAddr x2) (memSize x2) (memData x2)).
-      destruct x2.
-      exact H0.
+    unfold set_memory in H0;
+    simplify_ensembles; decisions; simpl in *; tsubst;
+    try destruct x2;
     exact (IHfromADT _ _ _ H0).
 Qed.
 
@@ -625,141 +538,58 @@ Proof.
   generalize dependent addr.
   ADT induction r.
   - inversion H0.
-  - unfold find_free_block, found_block_at_base in H0.
-    destruct x; simpl in *.
+  - destruct x; simpl in *.
+    unfold find_free_block, found_block_at_base in H0.
     pose proof (within_refl addr l) as H9.
     simplify_ensembles;
-    first [ exact (proj1 (IHfromADT _ _ _ H2 _ _ H3))
-          | exact (proj2 (IHfromADT _ _ _ H2 _ _ H3))
-          | specialize (H0 _ _ _ H3);
-            apply (allocations_have_size H) in H3;
-            apply not_overlaps_within in H0; trivial;
-            unfold IfDec_Then_Else in H0; simpl in H0;
-            rewrite N.ltb_irrefl in H0;
-            contradiction
-          | specialize (H0 _ _ _ H2);
-            apply (allocations_have_size H) in H2;
-            apply not_overlaps_within in H0; trivial;
-            unfold IfDec_Then_Else in H0; simpl in H0;
-            rewrite N.ltb_irrefl in H0;
-            contradiction ].
-  - simplify_ensembles;
-    first [ exact (proj1 (IHfromADT _ _ _ H2 _ _ H0))
-          | exact (proj2 (IHfromADT _ _ _ H2 _ _ H0)) ].
-  - unfold find_free_block, no_block in H0.
-    destruct x0; simpl in *.
-    rename x0 into len.
-    rename x into oaddr.
-    rename x1 into naddr.
-    apply Pick_inv in H0.
-    simplify_ensembles;
-    unfold IfDec_Then_Else in *; simpl in *;
-    destruct (oaddr =? memAddr x0) eqn:Heqe3;
-    destruct (oaddr =? memAddr x1) eqn:Heqe4;
-    rewrite ?N.eqb_refl in *; simpl in *;
-    inv H5; inv H6; trivial.
-    + destruct (addr =? memAddr x1) eqn:Heqe; inv H4.
-        clear Heqe.
-        reflexivity.
-      apply N.eqb_neq in Heqe.
-      tauto.
-    + destruct (addr =? memAddr x0) eqn:Heqe; inv H4.
-        clear Heqe.
-        reflexivity.
-      apply N.eqb_neq in Heqe.
-      tauto.
-    + destruct (naddr =? memAddr x0) eqn:Heqe1;
-      destruct (naddr =? memAddr x1) eqn:Heqe2; inv H4; inv H5.
-      * reflexivity.
-      * rewrite H4 in Heqe2.
-        apply N.eqb_eq in Heqe1.
-        apply N.eqb_neq in Heqe2.
-        contradiction.
-      * rewrite H4 in Heqe2.
-        apply N.eqb_neq in Heqe1.
-        apply N.eqb_eq in Heqe2.
-        contradiction.
-      * destruct x0, x1; simpl in *.
-        rewrite H4 in H1.
-        exact (proj1 (IHfromADT _ _ _ H1 _ _ H2)).
-    + extensionality p.
-      f_equal.
-      destruct x0, x1; simpl in *.
-      apply N.eqb_eq in Heqe3;
-      apply N.eqb_eq in Heqe4; subst.
-      rewrite (proj2 (IHfromADT _ _ _ H1 _ _ H2)).
-      reflexivity.
-    + destruct (addr =? memAddr x1) eqn:Heqe2; inv H4.
-        extensionality p.
-        f_equal.
-        destruct x1; simpl in *.
-        pose proof (allocations_have_size H _ _ _ H1) as H3.
-        unfold found_block_at_base in H0.
-        apply (free_block_impl oaddr) in H1; trivial.
-        specialize (H0 _ _ _ H1).
-        apply not_overlaps_within in H0; trivial.
-        unfold IfDec_Then_Else in H0; simpl in H0.
-        rewrite N.ltb_irrefl in H0.
-        contradiction (within_refl memAddr0 l).
-      apply N.eqb_neq in Heqe2.
-      tauto.
-    + destruct (addr =? memAddr x0) eqn:Heqe2; inv H4.
-        extensionality p.
-        f_equal.
-        destruct x0; simpl in *.
-        pose proof (allocations_have_size H _ _ _ H2) as H3.
-        unfold found_block_at_base in H0.
-        apply (free_block_impl oaddr) in H2; trivial.
-        specialize (H0 _ _ _ H2).
-        apply not_overlaps_within in H0; trivial.
-        unfold IfDec_Then_Else in H0; simpl in H0.
-        rewrite N.ltb_irrefl in H0.
-        contradiction (within_refl memAddr0 l).
-      apply N.eqb_neq in Heqe2.
-      tauto.
-    + destruct (naddr =? memAddr x0) eqn:Heqe1;
-      destruct (naddr =? memAddr x1) eqn:Heqe2; inv H4; inv H5.
-      * extensionality p.
-        f_equal.
-        destruct x0, x1; simpl in *.
-        rewrite H4 in H1.
-        rewrite (proj2 (IHfromADT _ _ _ H1 _ _ H2)).
-        reflexivity.
-      * rewrite H4 in Heqe2.
-        apply N.eqb_eq in Heqe1.
-        apply N.eqb_neq in Heqe2.
-        contradiction.
-      * rewrite H4 in Heqe2.
-        apply N.eqb_neq in Heqe1.
-        apply N.eqb_eq in Heqe2.
-        contradiction.
-      * destruct x0, x1; simpl in *.
-        rewrite H4 in H1.
-        exact (proj2 (IHfromADT _ _ _ H1 _ _ H2)).
-  - unfold set_address, IfDec_Then_Else in H0; simpl in H0.
-    simplify_ensembles.
-    destruct ((memAddr x1 <=? x) && (x <? memAddr x1 + memSize x1))%bool;
-    inv H1; simpl in *; inv H2.
-    + inv H3; reflexivity.
-    + inv H1; reflexivity.
-    + simpl in *; subst.
-      inv H2; reflexivity.
-  - destruct x1; simpl in *.
-    unfold copy_memory, IfDec_Then_Else in H0; simpl in H0.
-    simplify_ensembles;
-    destruct ((memAddr x2 <=? x0) &&
-              (x0 <? memAddr x2 + memSize x2) &&
-              (x0 + x1 <=? memSize x2))%bool;
-    simplify_ensembles;
-    try (simpl in *; subst; inv H2; trivial).
+    first
+      [ exact (proj1 (IHfromADT _ _ _ H2 _ _ H3))
+      | exact (proj2 (IHfromADT _ _ _ H2 _ _ H3))
+      | specialize (H0 _ _ _ H3);
+        apply (allocations_have_size H) in H3;
+        apply not_overlaps_within in H0; trivial;
+        unfold IfDec_Then_Else in H0; simpl in H0;
+        rewrite N.ltb_irrefl in H0;
+        contradiction
+      | specialize (H0 _ _ _ H2);
+        apply (allocations_have_size H) in H2;
+        apply not_overlaps_within in H0; trivial;
+        unfold IfDec_Then_Else in H0; simpl in H0;
+        rewrite N.ltb_irrefl in H0;
+        contradiction ].
+  - simplify_ensembles.
+      exact (proj1 (IHfromADT _ _ _ H2 _ _ H0)).
+    exact (proj2 (IHfromADT _ _ _ H2 _ _ H0)).
   - destruct x0; simpl in *.
-    unfold set_memory, IfDec_Then_Else in H0; simpl in H0.
-    simplify_ensembles;
-    destruct ((memAddr x2 <=? x) &&
-              (x <? memAddr x2 + memSize x2) &&
-              (x + x0 <=? memSize x2))%bool;
-    simplify_ensembles;
-    try (simpl in *; subst; inv H2; trivial).
+    unfold find_free_block, no_block in H0.
+    simplify_ensembles; decisions; simpl in *; tsubst; trivial;
+    destruct x3, x4; simpl in *; subst; undecide; try tauto;
+    try (rewrite (proj1 (IHfromADT _ _ _ H1 _ _ H2)); reflexivity);
+    try (rewrite (proj2 (IHfromADT _ _ _ H1 _ _ H2)); reflexivity);
+    unfold found_block_at_base in H0.
+    + pose proof (allocations_have_size H _ _ _ H2) as H3.
+      apply N.eqb_neq in Heqe2.
+      apply (free_block_impl memAddr1) in H2; trivial.
+      specialize (H0 _ _ _ H2).
+      apply not_overlaps_within in H0; trivial.
+      unfold IfDec_Then_Else in H0; simpl in H0.
+      rewrite N.ltb_irrefl in H0.
+      contradiction (within_refl memAddr0 l).
+    + pose proof (allocations_have_size H _ _ _ H1) as H3.
+      apply N.eqb_neq in Heqe0.
+      apply (free_block_impl memAddr0) in H1; trivial.
+      specialize (H0 _ _ _ H1).
+      apply not_overlaps_within in H0; trivial.
+      unfold IfDec_Then_Else in H0; simpl in H0.
+      rewrite N.ltb_irrefl in H0.
+      contradiction (within_refl memAddr1 l).
+  - unfold set_address in H0;
+    simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
+  - unfold copy_memory in H0;
+    simplify_ensembles; decisions; simpl in *; tsubst;
+    simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
+  - unfold set_memory in H0;
+    simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
 Qed.
 
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
@@ -782,9 +612,8 @@ Proof.
   generalize dependent addr1.
   ADT induction r.
   - inversion H0.
-  - destruct x; simpl in *.
-    unfold find_free_block, no_block in H0.
-    simplify_ensembles; simpl in *.
+  - unfold find_free_block, no_block in H0.
+    simplify_ensembles; decisions; simpl in *; tsubst.
     + exact (IHfromADT _ _ _ H3 _ H2 _ _ H4).
     + clear IHfromADT.
       unfold found_block_at_base in H0.
@@ -798,76 +627,20 @@ Proof.
   - simplify_ensembles.
     exact (IHfromADT _ _ _ H3 _ H2 _ _ H0).
   - unfold find_free_block, found_block_at_base in H0.
-    destruct x0; simpl in *.
-    rename x0 into len.
-    rename x into oaddr.
-    rename x1 into naddr.
-    apply Pick_inv in H0.
-    simplify_ensembles;
-    unfold IfDec_Then_Else in *; simpl in *;
-    destruct (oaddr =? memAddr x0) eqn:Heqe3;
-    destruct (oaddr =? memAddr x1) eqn:Heqe4;
-    rewrite ?N.eqb_refl in *; simpl in *;
-    inv H6; inv H7; trivial.
-    + tauto.
-    + destruct (addr2 =? memAddr x1) eqn:Heqe; inv H5.
-        apply N.eqb_eq in Heqe.
-        firstorder.
-      apply H0 with (data':=memData x1).
-      apply free_block_impl; trivial.
-      destruct x1; simpl in *.
-      apply H1.
-    + destruct (addr1 =? memAddr x0) eqn:Heqe; inv H5.
-        apply N.eqb_eq in Heqe.
-        firstorder.
-      rewrite overlaps_sym.
-      apply H0 with (data':=memData x0).
-      apply free_block_impl; trivial.
-      destruct x0; simpl in *.
-      apply H3.
-    + destruct (naddr =? memAddr x0) eqn:Heqe1;
-      destruct (naddr =? memAddr x1) eqn:Heqe2; inv H5; inv H6.
-      * apply N.eqb_eq in Heqe1;
-        apply N.eqb_eq in Heqe2; subst.
-        rewrite Heqe2 in H2.
-        tauto.
-      * apply N.eqb_eq in Heqe1; subst.
-        apply H0 with (data':=memData x1).
-        apply free_block_impl; trivial.
-        destruct x1; simpl in *.
-        apply H1.
-      * apply N.eqb_eq in Heqe2; subst.
-        rewrite overlaps_sym.
-        apply H0 with (data':=memData x0).
-        apply free_block_impl; trivial.
-        destruct x0; simpl in *.
-        apply H3.
-      * apply IHfromADT with (data1:=memData x1) (data2:=memData x0); trivial.
-          destruct x1; simpl in *.
-          apply H1.
-        destruct x0; simpl in *.
-        apply H3.
-  - unfold set_address, IfDec_Then_Else in H0.
-    simplify_ensembles; simpl in *; subst; inv H3.
-    destruct ((memAddr x1 <=? x) && (x <? memAddr x1 + memSize x1))%bool;
-    inv H1; simpl in *;
-    tauto.
-  - destruct x1; simpl in *.
-    unfold copy_memory, IfDec_Then_Else in H0; simpl in H0.
-    simplify_ensembles; simpl in *; subst; inv H3.
-    destruct ((memAddr x2 <=? x0) &&
-              (x0 <? memAddr x2 + memSize x2) &&
-              (x0 + x1 <=? memSize x2))%bool;
-    simplify_ensembles;
-    try (simpl in *; subst; inv H2; trivial).
-  - destruct x0; simpl in *.
-    unfold set_memory, IfDec_Then_Else in H0; simpl in H0.
-    simplify_ensembles; simpl in *; subst; inv H3.
-    destruct ((memAddr x2 <=? x) &&
-              (x <? memAddr x2 + memSize x2) &&
-              (x + x0 <=? memSize x2))%bool;
-    simplify_ensembles;
-    try (simpl in *; subst; inv H2; trivial).
+    simplify_ensembles; decisions; simpl in *; tsubst; trivial;
+    destruct x3, x4; simpl in *; subst; undecide; try tauto;
+    try (eapply IHfromADT; eassumption);
+    first [ rewrite overlaps_sym; apply H0 with (data':=memData0)
+          | apply H0 with (data':=memData1) ];
+    apply free_block_impl; trivial;
+    apply N.eqb_neq; tauto.
+  - unfold set_address in H0.
+    simplify_ensembles; decisions; simpl in *; tsubst; tauto.
+  - unfold copy_memory in H0;
+    simplify_ensembles; decisions; simpl in *; tsubst;
+    simplify_ensembles; decisions; simpl in *; tsubst; tauto.
+  - unfold set_memory in H0;
+    simplify_ensembles; decisions; simpl in *; tsubst; tauto.
 Qed.
 
 End Heap.
