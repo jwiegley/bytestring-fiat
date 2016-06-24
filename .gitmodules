@@ -4,3 +4,6 @@
 [submodule "fiat"]
 	path = fiat
 	url = https://github.com/JasonGross/coq-scripts.git
+[submodule "bytestring"]
+	path = bytestring
+	url = https://github.com/haskell/bytestring.git
