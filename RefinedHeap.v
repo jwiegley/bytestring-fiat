@@ -21,19 +21,6 @@ Require Import
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
-Tactic Notation "refine" "method" constr(name) :=
-  match goal with
-    | [ _ : constructorType ?A (consDom {| consID := name
-                                         ; consDom := _ |}) |- _ ] =>
-      idtac "Constructor"
-    | [ _ : methodType ?A (methDom {| methID := name
-                                    ; methDom := _
-                                    ; methCod := _ |})  _ |- _ ] =>
-      idtac "Method"
-    | _ =>
-      fail "Incorrect method name"
-  end.
-
 Generalizable All Variables.
 
 Open Scope N_scope.
@@ -396,5 +383,6 @@ Proof.
   {
     admit.
   }
+
   finish_SharpeningADT_WithoutDelegation.
 Abort.

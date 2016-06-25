@@ -10,6 +10,19 @@ Require Import
   Here.LibExt
   Here.Decidable.
 
+Tactic Notation "refine" "method" constr(name) :=
+  match goal with
+    | [ _ : constructorType ?A (consDom {| consID := name
+                                         ; consDom := _ |}) |- _ ] =>
+      idtac "Constructor"
+    | [ _ : methodType ?A (methDom {| methID := name
+                                    ; methDom := _
+                                    ; methCod := _ |})  _ |- _ ] =>
+      idtac "Method"
+    | _ =>
+      fail "Incorrect method name"
+  end.
+
 Generalizable All Variables.
 
 Open Scope N_scope.
@@ -660,6 +673,171 @@ Proof.
   - unfold set_memory in H0;
     simplify_ensembles; decisions; simpl in *; tsubst; tauto.
 Qed.
+
+Require Import
+  Fiat.ADTRefinement
+  Fiat.ADTRefinement.BuildADTRefinements.
+
+Definition fromADTConstructor'
+           {dSig : DecoratedADTSig}
+           (adt : DecoratedADT dSig)
+           (idxMap : BoundedIndex (ConstructorNames dSig)
+                       -> ConstructorIndex dSig)
+           (idx : BoundedIndex (ConstructorNames dSig)) :
+  forall (r : Rep adt),
+    fromConstructor (Constructors adt (idxMap idx)) r
+      -> fromADT adt r :=
+  ADTInduction.fromADTConstructor adt (idxMap idx).
+
+Arguments fromADTConstructor' {dSig} adt idxMap idx r _.
+
+Notation fromCons adt idx :=
+  (fromADTConstructor' adt (fun idx => ibound (indexb idx))
+                           {| bindex := idx |}).
+
+Tactic Notation "check" "constructor" constr(t) :=
+  simpl; intros;
+  apply t;
+  repeat match goal with
+    | [ |- fromConstructor _ _ _ ] => eexists
+    | [ H : _ ↝ _ |- _ ↝ _ ] => exact H
+    | [ H : ?X |- ?X ] => exact H
+    end.
+
+Definition fromADTMethod'
+           {dSig : DecoratedADTSig}
+           (adt : DecoratedADT dSig)
+           (idxMap : BoundedIndex (MethodNames dSig) -> MethodIndex dSig)
+           (idx : BoundedIndex (MethodNames dSig)) :
+  forall (r r' : Rep adt),
+    fromADT adt r
+      -> fromMethod (Methods adt (idxMap idx)) r r'
+      -> fromADT adt r' :=
+  ADTInduction.fromADTMethod (adt:=adt) (idxMap idx).
+
+Arguments fromADTMethod' {dSig} adt idxMap idx r r' _ _.
+
+Notation fromMeth adt idx :=
+  (fromADTMethod' adt (fun idx => ibound (indexb idx)) {| bindex := idx |}).
+
+Tactic Notation "check" "method" constr(t) :=
+  simpl; intros;
+  apply t;
+  repeat match goal with
+    | [ |- fromMethod _ _ _ ] => eexists
+    | [ |- fromMethod' _ _ ] => eexists
+    | [ H : _ ↝ _ |- _ ↝ _ ] => exact H
+    | [ H : ?X |- ?X ] => exact H
+    end.
+
+Lemma empty_fromADT r :
+  callCons HeapSpec emptyS ↝ r -> fromADT HeapSpec r.
+Proof. check constructor (fromCons HeapSpec emptyS r). Qed.
+
+Lemma alloc_fromADT r r' (len : N | 0 < len) (addr : N) :
+  fromADT HeapSpec r
+    -> callMeth HeapSpec allocS r len ↝ (r', addr)
+    -> fromADT HeapSpec r'.
+Proof. check method (fromMeth HeapSpec allocS r r'). Qed.
+
+Lemma free_fromADT r r' (addr : N) :
+  fromADT HeapSpec r
+    -> callMeth HeapSpec freeS r addr ↝ (r', tt)
+    -> fromADT HeapSpec r'.
+Proof. check method (fromMeth HeapSpec freeS r r'). Qed.
+
+Lemma realloc_fromADT r r' (addr : N) (len : N | 0 < len) addr' :
+  fromADT HeapSpec r
+    -> callMeth HeapSpec reallocS r addr len ↝ (r', addr')
+    -> fromADT HeapSpec r'.
+Proof. check method (fromMeth HeapSpec reallocS r r'). Qed.
+
+Lemma peek_fromADT r r' (addr : N) w :
+  fromADT HeapSpec r
+    -> callMeth HeapSpec peekS r addr ↝ (r', w)
+    -> fromADT HeapSpec r'.
+Proof. check method (fromMeth HeapSpec peekS r r'). Qed.
+
+Lemma poke_fromADT r r' (addr : N) w b :
+  fromADT HeapSpec r
+    -> callMeth HeapSpec pokeS r addr w ↝ (r', b)
+    -> fromADT HeapSpec r'.
+Proof. check method (fromMeth HeapSpec pokeS r r'). Qed.
+
+Lemma memcpy_fromADT r r' (addr : N) (addr2 : N) (len : N | 0 < len) b :
+  fromADT HeapSpec r
+    -> callMeth HeapSpec memcpyS r addr addr2 len ↝ (r', b)
+    -> fromADT HeapSpec r'.
+Proof. check method (fromMeth HeapSpec memcpyS r r'). Qed.
+
+Lemma memset_fromADT r r' (addr : N) (len : N | 0 < len) (w : Word8) b :
+  fromADT HeapSpec r
+    -> callMeth HeapSpec memsetS r addr len w ↝ (r', b)
+    -> fromADT HeapSpec r'.
+Proof. check method (fromMeth HeapSpec memsetS r r'). Qed.
+
+Theorem HeapSpecADT : { adt : _ & refineADT HeapSpec adt }.
+Proof.
+  eexists.
+  hone representation using
+    (fun (or : Rep HeapSpec)
+         (nr : { r : Rep HeapSpec | fromADT HeapSpec r }) =>
+       or = proj1_sig nr).
+
+  refine method emptyS.
+  {
+    subst; subst_evars.
+    simplify with monad laws.
+    refine pick val (exist _ (Empty_set _) (empty_fromADT _)); trivial.
+    finish honing.
+  }
+
+  refine method allocS.
+  {
+    subst; subst_evars.
+    apply refine_under_bind; intros.
+    destruct a as [r_n' addr].
+    pose proof alloc_fromADT as H0; simpl in H0.
+    specialize (H0 (` r_n) r_n' d addr (proj2_sig r_n) H).
+    refine pick val (exist _ r_n' H0); trivial.
+    simplify with monad laws; simpl.
+    Fail finish honing.
+    admit.
+  }
+
+  refine method freeS.
+  {
+    admit.
+  }
+
+  refine method reallocS.
+  {
+    admit.
+  }
+
+  refine method peekS.
+  {
+    admit.
+  }
+
+  refine method pokeS.
+  {
+    admit.
+  }
+
+  refine method memcpyS.
+  {
+    admit.
+  }
+
+  refine method memsetS.
+  {
+    admit.
+  }
+
+  apply reflexivityT.
+Fail Defined.
+Abort.
 
 End Heap.
 
