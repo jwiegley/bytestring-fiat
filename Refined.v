@@ -16,6 +16,8 @@ Require Import
 
 Generalizable All Variables.
 
+Open Scope N_scope.
+
 Theorem Nle_zero : forall n : N, 0 <= n.
 Proof.
   destruct n.
@@ -99,6 +101,13 @@ Proof.
   assumption.
 Qed.
 
+Theorem Nsucc_nat : forall n, N.pos (Pos.of_succ_nat n) = N.succ (N.of_nat n).
+Proof.
+  induction n.
+    reflexivity.
+  constructor.
+Qed.
+
 Lemma Nlt_nat_lt : forall n m, (n < N.to_nat m)%nat -> (N.of_nat n < m).
 Proof.
   induction n; simpl in *; intros.
@@ -134,7 +143,10 @@ Record PS := makePS {
 
 Record Correct (ps : PS) : Prop := {
   _ : 0 < psBufLen ps
-        -> In _ (fst (psHeap ps)) (psBuffer ps, psBufLen ps);
+        -> exists data,
+             In _ (psHeap ps) {| memAddr := psBuffer ps
+                               ; memSize := psBufLen ps
+                               ; memData := data |};
   _ : psOffset ps + psLength ps <= psBufLen ps;
   _ : ADTInduction.fromADT HeapSpec (psHeap ps)
 }.
@@ -147,7 +159,7 @@ Definition ByteString_list_AbsR (or : Rep ByteStringSpec) `(_ : Correct nr) :=
      (* each byte in the list matches its corresponding byte in the buffer. *)
        -> forall x, x = nth i or x
           <-> (x <- peek (psHeap nr) (psOffset nr + N.of_nat i);
-               ret (snd x)) ↝ Some x.
+               ret (snd x)) ↝ x.
 
 Definition buffer_cons (r : PS) (d : Word8) : Comp PS :=
   ps <- If 0 <? psOffset r

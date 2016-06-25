@@ -12,21 +12,6 @@ Require Import
 
 Generalizable All Variables.
 
-Open Scope string_scope.
-
-Definition emptyS   := "empty".
-Definition allocS   := "alloc".
-Definition reallocS := "realloc".
-Definition freeS    := "free".
-Definition peekS    := "peek".
-Definition pokeS    := "poke".
-Definition memcpyS  := "memcpy".
-Definition memsetS  := "memset".
-
-Section Heap.
-
-Variable Word8 : Type.
-
 Open Scope N_scope.
 
 Definition within (addr : N) (len : N) (a : N) : Prop :=
@@ -180,6 +165,22 @@ Proof.
   decisions; firstorder.
 Qed.
 
+Open Scope string_scope.
+
+Definition emptyS   := "empty".
+Definition allocS   := "alloc".
+Definition reallocS := "realloc".
+Definition freeS    := "free".
+Definition peekS    := "peek".
+Definition pokeS    := "poke".
+Definition memcpyS  := "memcpy".
+Definition memsetS  := "memset".
+
+Section Heap.
+
+Variable Word8 : Type.
+Variable Zero  : Word8.
+
 Record MemoryBlock := {
   memAddr : N;
   memSize : N;
@@ -332,8 +333,7 @@ Definition found_block
            (mem : Ensemble MemoryBlock) : Prop :=
   In _ mem {| memAddr := addr'
             ; memSize := len'
-            ; memData := data' |}
-  -> within addr' len' addr.
+            ; memData := data' |} /\ within addr' len' addr.
 
 Definition found_block_at_base
            (addr' len' : N)
@@ -348,7 +348,7 @@ Definition no_block (addr : N) (mem : Ensemble MemoryBlock) : Prop :=
     In _ mem {| memAddr := addr'
               ; memSize := len'
               ; memData := data' |}
-    -> ~ within addr' len' addr.
+      -> ~ within addr' len' addr.
 
 Definition free_block (addr : N) (mem : Ensemble MemoryBlock) :
   Ensemble MemoryBlock :=
@@ -406,7 +406,7 @@ Definition HeapSpec := Def ADT {
     p <- { p : Word8
          | forall base len' data',
              found_block addr base len' data' r
-               -> In _ data' (addr - base, p) };
+               -> In _ data' (addr - base, p) \/ p = Zero };
     ret (r, p),
 
   (* Poking an unallocated address is a no-op and returns false. *)
@@ -434,6 +434,10 @@ Definition HeapSpec := Def ADT {
 Definition alloc (r : Rep HeapSpec) (len : N | 0 < len) :
   Comp (Rep HeapSpec * N) :=
   Eval simpl in callMeth HeapSpec allocS r len.
+
+(* Lemma alloc_fromADT : *)
+(*   forall r len addr, *)
+(*     fromADT _ r <-> alloc r len ↝ (r, addr) *)
 
 Definition free (r : Rep HeapSpec) (addr : N) :
   Comp (Rep HeapSpec * unit) :=
@@ -592,6 +596,20 @@ Proof.
     simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
 Qed.
 
+Theorem allocations_unique_cor : forall r : Rep HeapSpec, fromADT _ r ->
+  forall x y,
+       Ensembles.In _ r x
+    -> Ensembles.In _ r y
+    -> x <> y
+    -> memAddr x <> memAddr y.
+Proof.
+  intros.
+  destruct x, y; simpl in *.
+  destruct (memAddr0 =? memAddr1) eqn:Heqe; undecide; trivial.
+  pose proof (allocations_unique H _ _ _ _ _ H0 H1).
+  destruct H3; subst; tauto.
+Qed.
+
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 len1 data1 addr2 len2 data2,
        Ensembles.In _ r {| memAddr := addr1
@@ -644,3 +662,18 @@ Proof.
 Qed.
 
 End Heap.
+
+Ltac tsubst :=
+  repeat
+    match goal with
+    | [ H : (_, _) = (_, _) |- _ ] => inv H
+    | [ H : (_, _, _) = (_, _, _) |- _ ] => inv H
+    | [ H : (_, _, _, _) = (_, _, _, _) |- _ ] => inv H
+    | [ H : {| memAddr := _
+             ; memSize := _
+             ; memData := _ |} =
+            {| memAddr := _
+             ; memSize := _
+             ; memData := _ |} |- _ ] => inv H
+    end;
+  subst.
