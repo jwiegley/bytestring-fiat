@@ -444,6 +444,9 @@ Definition HeapSpec := Def ADT {
 
 }%ADTParsing.
 
+Definition empty : Comp (Rep HeapSpec) :=
+  Eval simpl in callCons HeapSpec emptyS.
+
 Definition alloc (r : Rep HeapSpec) (len : N | 0 < len) :
   Comp (Rep HeapSpec * N) :=
   Eval simpl in callMeth HeapSpec allocS r len.
@@ -695,10 +698,24 @@ Notation fromCons adt idx :=
   (fromADTConstructor' adt (fun idx => ibound (indexb idx))
                            {| bindex := idx |}).
 
+Lemma refine_computes_to {A} {c : Comp A} {v} :
+  c ↝ v -> refine c (ret v).
+Proof.
+  intros.
+  intros ??.
+  inv H0.
+  exact H.
+Qed.
+
+Lemma computes_to_refine {A} {c : Comp A} {v} :
+  refine c (ret v) -> c ↝ v.
+Proof. intros; exact (H _ (ReturnComputes _)). Qed.
+
 Tactic Notation "check" "constructor" constr(t) :=
   simpl; intros;
   apply t;
   repeat match goal with
+    | [ H : refine _ (ret _) |- _ ] => apply computes_to_refine in H
     | [ |- fromConstructor _ _ _ ] => eexists
     | [ H : _ ↝ _ |- _ ↝ _ ] => exact H
     | [ H : ?X |- ?X ] => exact H
@@ -724,6 +741,8 @@ Tactic Notation "check" "method" constr(t) :=
   simpl; intros;
   apply t;
   repeat match goal with
+    | [ H : _ * _ |- _ ] => destruct H; simpl in *
+    | [ H : refine _ (ret _) |- _ ] => apply computes_to_refine in H
     | [ |- fromMethod _ _ _ ] => eexists
     | [ |- fromMethod' _ _ ] => eexists
     | [ H : _ ↝ _ |- _ ↝ _ ] => exact H
@@ -731,113 +750,155 @@ Tactic Notation "check" "method" constr(t) :=
     end.
 
 Lemma empty_fromADT r :
-  callCons HeapSpec emptyS ↝ r -> fromADT HeapSpec r.
+  refine (callCons HeapSpec emptyS) (ret r) -> fromADT HeapSpec r.
 Proof. check constructor (fromCons HeapSpec emptyS r). Qed.
 
-Lemma alloc_fromADT r r' (len : N | 0 < len) (addr : N) :
+Lemma alloc_fromADT r :
   fromADT HeapSpec r
-    -> callMeth HeapSpec allocS r len ↝ (r', addr)
-    -> fromADT HeapSpec r'.
-Proof. check method (fromMeth HeapSpec allocS r r'). Qed.
+    -> forall (len : N | 0 < len) v,
+         refine (callMeth HeapSpec allocS r len) (ret v)
+    -> fromADT HeapSpec (fst v).
+Proof. intros; check method (fromMeth HeapSpec allocS r (fst v)). Qed.
 
-Lemma free_fromADT r r' (addr : N) :
+Lemma free_fromADT r :
   fromADT HeapSpec r
-    -> callMeth HeapSpec freeS r addr ↝ (r', tt)
-    -> fromADT HeapSpec r'.
-Proof. check method (fromMeth HeapSpec freeS r r'). Qed.
+    -> forall (addr : N) v,
+         refine (callMeth HeapSpec freeS r addr) (ret v)
+    -> fromADT HeapSpec (fst v).
+Proof. intros; check method (fromMeth HeapSpec freeS r (fst v)). Qed.
 
-Lemma realloc_fromADT r r' (addr : N) (len : N | 0 < len) addr' :
+Lemma realloc_fromADT r :
   fromADT HeapSpec r
-    -> callMeth HeapSpec reallocS r addr len ↝ (r', addr')
-    -> fromADT HeapSpec r'.
-Proof. check method (fromMeth HeapSpec reallocS r r'). Qed.
+    -> forall (addr : N) (len : N | 0 < len) v,
+         refine (callMeth HeapSpec reallocS r addr len) (ret v)
+    -> fromADT HeapSpec (fst v).
+Proof. intros; check method (fromMeth HeapSpec reallocS r (fst v)). Qed.
 
-Lemma peek_fromADT r r' (addr : N) w :
+Lemma peek_fromADT r :
   fromADT HeapSpec r
-    -> callMeth HeapSpec peekS r addr ↝ (r', w)
-    -> fromADT HeapSpec r'.
-Proof. check method (fromMeth HeapSpec peekS r r'). Qed.
+    -> forall (addr : N) v,
+         refine (callMeth HeapSpec peekS r addr) (ret v)
+    -> fromADT HeapSpec (fst v).
+Proof. intros; check method (fromMeth HeapSpec peekS r (fst v)). Qed.
 
-Lemma poke_fromADT r r' (addr : N) w b :
+Lemma poke_fromADT r :
   fromADT HeapSpec r
-    -> callMeth HeapSpec pokeS r addr w ↝ (r', b)
-    -> fromADT HeapSpec r'.
-Proof. check method (fromMeth HeapSpec pokeS r r'). Qed.
+    -> forall (addr : N) w v,
+         refine (callMeth HeapSpec pokeS r addr w) (ret v)
+    -> fromADT HeapSpec (fst v).
+Proof. intros; check method (fromMeth HeapSpec pokeS r (fst v)). Qed.
 
-Lemma memcpy_fromADT r r' (addr : N) (addr2 : N) (len : N | 0 < len) b :
+Lemma memcpy_fromADT r :
   fromADT HeapSpec r
-    -> callMeth HeapSpec memcpyS r addr addr2 len ↝ (r', b)
-    -> fromADT HeapSpec r'.
-Proof. check method (fromMeth HeapSpec memcpyS r r'). Qed.
+    -> forall (addr : N) (addr2 : N) (len : N | 0 < len) v,
+         refine (callMeth HeapSpec memcpyS r addr addr2 len) (ret v)
+    -> fromADT HeapSpec (fst v).
+Proof. intros; check method (fromMeth HeapSpec memcpyS r (fst v)). Qed.
 
-Lemma memset_fromADT r r' (addr : N) (len : N | 0 < len) (w : Word8) b :
+Lemma memset_fromADT r :
   fromADT HeapSpec r
-    -> callMeth HeapSpec memsetS r addr len w ↝ (r', b)
-    -> fromADT HeapSpec r'.
-Proof. check method (fromMeth HeapSpec memsetS r r'). Qed.
+    -> forall (addr : N) (len : N | 0 < len) (w : Word8) v,
+         refine (callMeth HeapSpec memsetS r addr len w) (ret v)
+    -> fromADT HeapSpec (fst v).
+Proof. intros; check method (fromMeth HeapSpec memsetS r (fst v)). Qed.
+
+Definition Bind_dep (A B : Type) (ca : Comp A)
+           (k : forall v : A, ca ↝ v -> Comp B) : Comp B :=
+  fun b : B =>
+    exists a : A, { H : Ensembles.In A ca a & Ensembles.In B (k a H) b }.
+
+Notation "`( a | H ) <- c ; k" :=
+  (Bind_dep c (fun a H => k))
+    (at level 81, right associativity,
+     format "'[v' `( a | H )  <-  c ; '/' k ']'") : comp_scope.
+
+Lemma refine_reveal_dep : forall A (c : Comp A) B (k : A -> Comp B),
+  refine (x <- c; k x) (`(x | H) <- c; k x).
+Proof.
+  intros.
+  intros x?.
+  destruct H.
+  exists x0.
+  destruct H.
+  split; trivial.
+Qed.
+
+Lemma refine_constructor_fromADT
+      A (c : Comp (A)) (P : A -> Prop)
+      (f : forall v : A, refine c (ret v) -> P v) :
+   refine (r_o' <- c;
+           {r_n0 : {r : A | P r} | r_o' = ` r_n0})
+          (`(r_o' | H) <- c;
+           ret (exist _ r_o' (f r_o' (refine_computes_to H)))).
+Proof.
+  intros x?.
+  destruct H.
+  exists x0.
+  destruct H.
+  split; trivial.
+  destruct i.
+  esplit.
+Qed.
+
+Lemma refine_method_fromADT
+      A B (c : Comp (A * B)) (P : A -> Prop)
+      (f : forall v : A * B, refine c (ret v) -> P (fst v)) :
+   refine (r_o' <- c;
+           r_n' <- {r_n0 : {r : A | P r} | fst r_o' = ` r_n0};
+           ret (r_n', snd r_o'))
+          (`(r_o' | H) <- c;
+           ret (exist _ (fst r_o')
+                        (f r_o' (refine_computes_to H)), snd r_o')).
+Proof.
+  intros x?.
+  destruct H.
+  exists x0.
+  destruct H.
+  split; trivial.
+  destruct i.
+  esplit; split.
+    Focus 2.
+    constructor.
+  constructor.
+Qed.
+
+Import EqNotations.
+
+Ltac resolve_constructor m H0 :=
+  subst; subst_evars;
+  etransitivity;
+  [ apply (refine_constructor_fromADT (fromADT HeapSpec) (c:=m) H0)
+  | finish honing].
+
+Ltac resolve_method r_n m H0 :=
+  subst; subst_evars;
+  etransitivity;
+  [ apply (refine_method_fromADT (fromADT HeapSpec) (c:=m) H0)
+  | finish honing].
 
 Theorem HeapSpecADT : { adt : _ & refineADT HeapSpec adt }.
 Proof.
   eexists.
   hone representation using
     (fun (or : Rep HeapSpec)
-         (nr : { r : Rep HeapSpec | fromADT HeapSpec r }) =>
-       or = proj1_sig nr).
-
-  refine method emptyS.
-  {
-    subst; subst_evars.
-    simplify with monad laws.
-    refine pick val (exist _ (Empty_set _) (empty_fromADT _)); trivial.
-    finish honing.
-  }
-
-  refine method allocS.
-  {
-    subst; subst_evars.
-    apply refine_under_bind; intros.
-    destruct a as [r_n' addr].
-    pose proof alloc_fromADT as H0; simpl in H0.
-    specialize (H0 (` r_n) r_n' d addr (proj2_sig r_n) H).
-    refine pick val (exist _ r_n' H0); trivial.
-    simplify with monad laws; simpl.
-    Fail finish honing.
-    admit.
-  }
-
-  refine method freeS.
-  {
-    admit.
-  }
-
-  refine method reallocS.
-  {
-    admit.
-  }
-
-  refine method peekS.
-  {
-    admit.
-  }
-
-  refine method pokeS.
-  {
-    admit.
-  }
-
-  refine method memcpyS.
-  {
-    admit.
-  }
-
-  refine method memsetS.
-  {
-    admit.
-  }
-
+         (nr : { r : Rep HeapSpec | fromADT HeapSpec r }) => or = ` nr).
+  resolve_constructor empty empty_fromADT.
+  resolve_method r_n (alloc (` r_n) d)
+                     (@alloc_fromADT _ (proj2_sig r_n) d).
+  resolve_method r_n (free (` r_n) d)
+                     (@free_fromADT _ (proj2_sig r_n) d).
+  resolve_method r_n (realloc (` r_n) d d0)
+                     (@realloc_fromADT _ (proj2_sig r_n) d d0).
+  resolve_method r_n (peek (` r_n) d)
+                     (@peek_fromADT _ (proj2_sig r_n) d).
+  resolve_method r_n (poke (` r_n) d d0)
+                     (@poke_fromADT _ (proj2_sig r_n) d d0).
+  resolve_method r_n (memcpy (` r_n) d d0 d1)
+                     (@memcpy_fromADT _ (proj2_sig r_n) d d0 d1).
+  resolve_method r_n (memset (` r_n) d d0 d1)
+                     (@memset_fromADT _ (proj2_sig r_n) d d0 d1).
   apply reflexivityT.
-Fail Defined.
-Abort.
+Defined.
 
 End Heap.
 
