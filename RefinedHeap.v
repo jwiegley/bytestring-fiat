@@ -233,7 +233,7 @@ Proof.
     etransitivity.
       apply refine_bind_dep
        with (x:=(` r_o,
-                  Ifopt List.find
+                 Ifopt List.find
                    (fun p =>
                       let blk := snd p in
                       (* jww (2016-06-24): Unnecessarily inefficient *)

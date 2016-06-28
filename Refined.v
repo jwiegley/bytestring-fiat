@@ -179,6 +179,9 @@ Definition buffer_cons (r : PS) (d : Word8) : Comp PS :=
                  ; psOffset := 0
                  ; psLength := psLength r + 1 |})
           Else (
+            (* jww (2016-06-28): We could make a trade-off here by allocating
+               extra bytes at the beginning in anticipation of future calls to
+               [buffer_cons]. *)
             res <- realloc (psHeap r) (psBuffer r)
                            (exist _ (psLength r + 1)
                                     (Nlt_plus_1 _));

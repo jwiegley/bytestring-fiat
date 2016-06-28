@@ -252,7 +252,15 @@ Definition HeapSpec := Def ADT {
     p <- { p : Word8
          | forall base len' data',
              found_block addr base len' data' r
-               -> In _ data' (addr - base, p) \/ p = Zero };
+               (* There are three cases to consider here:
+                  1. Peeking an allocated, initialized byte. This must
+                     return the same byte that was last poke'd at that
+                     position.
+                  2. Peeking an allocated, uninitialized byte.
+                  3. Peeking at an unallocated location. *)
+               -> forall off v, In _ data' (off, v)
+               -> off = addr - base
+               -> p = v };
     ret (r, p),
 
   (* Poking an unallocated address is a no-op and returns false. *)
@@ -306,7 +314,7 @@ Definition memset (r : Rep HeapSpec)
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memsetS r addr len w.
 
-Theorem allocations_are_correction :
+Theorem allocations_are_correct :
   forall r : Rep HeapSpec, fromADT _ r -> CorrectHeap r.
 Proof.
   unfold CorrectHeap; intros.
