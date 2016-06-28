@@ -124,26 +124,26 @@ Qed.
 
 Definition copy_memory
            (addr1 addr2 : N) (len : N | 0 < len)
-           (mem : Ensemble MemoryBlock) : Comp (MemoryBlock * bool) :=
+           (mem : Ensemble MemoryBlock) : Comp MemoryBlock :=
   dst <- mem;
   IfDec fits (memAddr dst) (memSize dst) addr2 (proj1_sig len)
   Then (
     src <- mem;
     ret (IfDec fits (memAddr src) (memSize src) addr1 (proj1_sig len)
-         Then ({| memAddr := memAddr dst
-                ; memSize := memSize dst
-                ; memData :=
-                    fun p =>
-                      let off := addr2 - memAddr dst in
-                      IfDec within off (proj1_sig len) (fst p)
-                      Then memData src (addr2 + (fst p - addr1), snd p)
-                      Else memData dst p |}, true)
-         Else (dst, false))
+         Then {| memAddr := memAddr dst
+               ; memSize := memSize dst
+               ; memData := fun p =>
+                   let off1 := addr1 - memAddr src in
+                   let off2 := addr2 - memAddr dst in
+                   IfDec within off2 (proj1_sig len) (fst p)
+                   Then memData src (off1 + (fst p - off2), snd p)
+                   Else memData dst p |}
+         Else dst)
   )
-  Else ret (dst, false).
+  Else ret dst.
 
 Lemma copy_memory_correct `(_ : CorrectHeap mem) :
-  forall addr1 addr2 len blk' b, copy_memory addr1 addr2 len mem ↝ (blk', b)
+  forall addr1 addr2 len blk', copy_memory addr1 addr2 len mem ↝ blk'
     -> CorrectMemoryBlock blk'.
 Proof.
   against_definition copy_memory len CorrectHeap0 x0 H
@@ -151,20 +151,20 @@ Proof.
 Qed.
 
 Definition set_memory (addr : N) (len : N | 0 < len) (w : Word8)
-           (mem : Ensemble MemoryBlock) : Comp (MemoryBlock * bool) :=
+           (mem : Ensemble MemoryBlock) : Comp MemoryBlock :=
   blk <- mem;
   ret (IfDec fits (memAddr blk) (memSize blk) addr (proj1_sig len)
-       Then ({| memAddr := memAddr blk
-              ; memSize := memSize blk
-              ; memData := fun p =>
-                             let off := addr - memAddr blk in
-                             IfDec within off (proj1_sig len) (fst p)
-                             Then snd p = w
-                             Else memData blk p |}, true)
-       Else (blk, false)).
+       Then {| memAddr := memAddr blk
+             ; memSize := memSize blk
+             ; memData := fun p =>
+                            let off := addr - memAddr blk in
+                            IfDec within off (proj1_sig len) (fst p)
+                            Then snd p = w
+                            Else memData blk p |}
+       Else blk).
 
 Lemma set_memory_correct `(_ : CorrectHeap mem) :
-  forall addr len w blk' b, set_memory addr len w mem ↝ (blk', b)
+  forall addr len w blk', set_memory addr len w mem ↝ blk'
     -> CorrectMemoryBlock blk'.
 Proof.
   against_definition set_memory len CorrectHeap0 x0 H
@@ -263,16 +263,14 @@ Definition HeapSpec := Def ADT {
      the same block), and the region must fit within both source and
      destination. Otherwise, the operation is a no-op and returns false. *)
   Def Method3 memcpyS (r : rep) (addr : N) (addr2 : N) (len : N | 0 < len) :
-    rep * bool :=
-    res <- copy_memory addr addr2 len r;
-    ret (ret (fst res), snd res),
+    rep * unit :=
+    ret (copy_memory addr addr2 len r, tt),
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op that
      returns false. *)
   Def Method3 memsetS (r : rep) (addr : N) (len : N | 0 < len) (w : Word8) :
-    rep * bool :=
-    res <- set_memory addr len w r;
-    ret (ret (fst res), snd res)
+    rep * unit :=
+    ret (set_memory addr len w r, tt)
 
 }%ADTParsing.
 
@@ -300,12 +298,12 @@ Definition poke (r : Rep HeapSpec) (addr : N) (w : Word8) :
 
 Definition memcpy (r : Rep HeapSpec)
            (addr : N) (addr2 : N) (len : N | 0 < len) :
-  Comp (Rep HeapSpec * bool) :=
+  Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memcpyS r addr addr2 len.
 
 Definition memset (r : Rep HeapSpec)
            (addr : N) (len : N | 0 < len) (w : Word8) :
-  Comp (Rep HeapSpec * bool) :=
+  Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memsetS r addr len w.
 
 Theorem allocations_are_correction :
@@ -323,10 +321,8 @@ Proof.
   - inv H1; firstorder.
   - exact (fit_to_length_correct (@shift_address_correct _ IHfromADT _ _) H1).
   - exact (set_address_correct IHfromADT H1).
-  - destruct v; simpl in *; inv H1.
-    exact (copy_memory_correct IHfromADT H0).
-  - destruct v; simpl in *; inv H1.
-    exact (set_memory_correct IHfromADT H0).
+  - exact (copy_memory_correct IHfromADT H1).
+  - exact (set_memory_correct IHfromADT H1).
 Qed.
 
 Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
@@ -355,13 +351,13 @@ Proof.
     try destruct x1;
     exact (IHfromADT _ _ _ H0).
   - destruct x1; simpl in *.
-    unfold copy_memory in H0;
+    unfold copy_memory in H1;
     simplify_ensembles; decisions; simpl in *; tsubst;
     simplify_ensembles; decisions; simpl in *; tsubst;
     try destruct x2;
     exact (IHfromADT _ _ _ H0).
   - destruct x0; simpl in *.
-    unfold set_memory in H0;
+    unfold set_memory in H1;
     simplify_ensembles; decisions; simpl in *; tsubst;
     try destruct x2;
     exact (IHfromADT _ _ _ H0).
@@ -431,14 +427,53 @@ Proof.
       rewrite N.ltb_irrefl in H0.
       contradiction (within_refl memAddr1 l).
   - unfold set_address in H1, H2.
-    simplify_ensembles; decisions; simpl in *; tsubst;
-    try destruct x1;
-    try destruct x2; simpl in *; subst; admit.
-  - unfold copy_memory in H0;
-    simplify_ensembles; decisions; simpl in *; tsubst;
-    simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
-  - unfold set_memory in H0;
-    simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
+    simplify_ensembles;
+    destruct x1, x2;
+    decisions; simpl in *; tsubst;
+    try first [ exact (proj1 (IHfromADT _ _ _ H1 _ _ H0))
+              | exact (proj2 (IHfromADT _ _ _ H1 _ _ H0)) ].
+    + rewrite (proj2 (IHfromADT _ _ _ H1 _ _ H0)); reflexivity.
+    + rewrite (proj1 (IHfromADT _ _ _ H1 _ _ H0)) in Heqe.
+      rewrite Heqe in Heqe0; discriminate.
+    + rewrite (proj1 (IHfromADT _ _ _ H1 _ _ H0)) in Heqe.
+      rewrite Heqe in Heqe0; discriminate.
+  - unfold copy_memory in H1, H2.
+    simplify_ensembles;
+    destruct x1, x2;
+    decisions; simpl in *; tsubst;
+    simplify_ensembles;
+    try destruct x4;
+    try destruct x3;
+    try destruct x2; simpl in *;
+    decisions; simpl in *; tsubst;
+    try (eapply IHfromADT; eassumption).
+    + rewrite (proj2 (IHfromADT _ _ _ H1 _ _ H0)).
+      extensionality p.
+      decisions; trivial.
+      admit.
+    + rewrite <- (proj2 (IHfromADT _ _ _ H1 _ _ H0)).
+      admit.
+    + rewrite (proj2 (IHfromADT _ _ _ H1 _ _ H0)).
+      admit.
+    + rewrite (proj1 (IHfromADT _ _ _ H1 _ _ H0)) in Heqe.
+      rewrite Heqe in Heqe0.
+      discriminate.
+    + rewrite (proj1 (IHfromADT _ _ _ H1 _ _ H0)) in Heqe.
+      rewrite Heqe in Heqe0.
+      discriminate.
+  - unfold set_memory in H1, H2.
+    simplify_ensembles;
+    destruct x2, x3;
+    decisions; simpl in *; tsubst;
+    try first [ exact (proj1 (IHfromADT _ _ _ H1 _ _ H0))
+              | exact (proj2 (IHfromADT _ _ _ H1 _ _ H0)) ].
+    + rewrite (proj2 (IHfromADT _ _ _ H1 _ _ H0)); reflexivity.
+    + rewrite (proj1 (IHfromADT _ _ _ H1 _ _ H0)) in Heqe.
+      rewrite Heqe in Heqe0.
+      discriminate.
+    + rewrite (proj1 (IHfromADT _ _ _ H1 _ _ H0)) in Heqe.
+      rewrite Heqe in Heqe0.
+      discriminate.
 Admitted.
 
 Theorem allocations_unique_cor : forall r : Rep HeapSpec, fromADT _ r ->
@@ -497,16 +532,26 @@ Proof.
           | apply H0 with (data':=memData1) ];
     apply free_block_impl; trivial;
     apply N.eqb_neq; tauto.
-  - unfold set_address in H1, H3.
-    simplify_ensembles; decisions; simpl in *; tsubst;
-    try destruct x1;
-    try destruct x2; simpl in *; subst; admit.
-  - unfold copy_memory in H0;
-    simplify_ensembles; decisions; simpl in *; tsubst;
-    simplify_ensembles; decisions; simpl in *; tsubst; tauto.
-  - unfold set_memory in H0;
-    simplify_ensembles; decisions; simpl in *; tsubst; tauto.
-Admitted.
+  - unfold set_address in H1, H2.
+    simplify_ensembles;
+    destruct x1, x2;
+    decisions; simpl in *; tsubst;
+    eapply IHfromADT; eassumption.
+  - unfold copy_memory in H1, H2.
+    simplify_ensembles;
+    destruct x1, x2;
+    decisions; simpl in *; tsubst;
+    simplify_ensembles;
+    try destruct x4;
+    try destruct x3; simpl in *;
+    decisions; simpl in *; tsubst;
+    eapply IHfromADT; eassumption.
+  - unfold set_memory in H1, H2.
+    simplify_ensembles;
+    destruct x2, x3;
+    decisions; simpl in *; tsubst;
+    eapply IHfromADT; eassumption.
+Qed.
 
 End Heap.
 
