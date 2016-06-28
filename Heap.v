@@ -1,182 +1,14 @@
 Require Import
   Coq.Sets.Ensembles
-  Coq.NArith.NArith
-  Omega.
-
-Require Import
   Fiat.ADT
   Fiat.ADTNotation
   Here.ADTInduction
+  Here.Nomega
   Here.LibExt
-  Here.Decidable.
-
-Tactic Notation "refine" "method" constr(name) :=
-  match goal with
-    | [ _ : constructorType ?A (consDom {| consID := name
-                                         ; consDom := _ |}) |- _ ] =>
-      idtac "Constructor"
-    | [ _ : methodType ?A (methDom {| methID := name
-                                    ; methDom := _
-                                    ; methCod := _ |})  _ |- _ ] =>
-      idtac "Method"
-    | _ =>
-      fail "Incorrect method name"
-  end.
+  Here.Decidable
+  Here.BindDep.
 
 Generalizable All Variables.
-
-Open Scope N_scope.
-
-Definition within (addr : N) (len : N) (a : N) : Prop :=
-  addr <= a < addr + len.
-
-Definition within_le (addr : N) (len : N) (a : N) : Prop :=
-  addr <= a <= addr + len.
-
-Lemma within_refl : forall addr len,
-  0 < len -> within addr len addr.
-Proof.
-  split; intros.
-    apply N.le_refl.
-  apply N.lt_add_pos_r.
-  assumption.
-Qed.
-
-Definition fits (addr1 len1 addr2 len2 : N) : Prop :=
-  within addr1 len1 addr2 /\ within addr1 len1 (addr2 + len2).
-
-Definition overlaps (addr len addr2 len2 : N) : Prop :=
-  addr < addr2 + len2 /\ addr2 < addr + len.
-
-Lemma overlaps_sym : forall addr1 len1 addr2 len2,
-  overlaps addr1 len1 addr2 len2 <-> overlaps addr2 len2 addr1 len1.
-Proof.
-  split; intros;
-  destruct H; split; assumption.
-Qed.
-
-Lemma overlaps_irr : forall addr len1 len2,
-  0 < len1 -> 0 < len2 -> overlaps addr len1 addr len2.
-Proof.
-  split; intros;
-  apply N.lt_add_pos_r; assumption.
-Qed.
-
-Ltac decisions :=
-  repeat
-    match goal with
-    | [ H : context [if ?B then _ else _] |- _ ] =>
-      let Heqe := fresh "Heqe" in
-      destruct B eqn:Heqe
-    | [ |- context [if ?B then _ else _] ] =>
-      let Heqe := fresh "Heqe" in
-      destruct B eqn:Heqe
-
-    | [ H : context[@IfDec_Then_Else _ _ _ _ _] |- _ ] =>
-      unfold IfDec_Then_Else in H; simpl in H
-    | [ |- context[@IfDec_Then_Else _ _ _ _ _] ] =>
-      unfold IfDec_Then_Else; simpl
-    end.
-
-Ltac undecide :=
-  repeat
-    match goal with
-    | [ H : (_ <? _)  = true  |- _ ] => apply N.ltb_lt in H
-    | [ H : (_ <? _)  = false |- _ ] => apply N.ltb_ge in H
-    | [ H : (_ <=? _) = true  |- _ ] => apply N.leb_le in H
-    | [ H : (_ <=? _) = false |- _ ] => apply N.leb_gt in H
-    | [ H : (_ =? _)  = true  |- _ ] => apply N.eqb_eq in H; subst
-    | [ H : (_ =? _)  = false |- _ ] => apply N.eqb_neq in H
-
-    | [ |- (_ <? _)  = true  ] => apply N.ltb_lt
-    | [ |- (_ <? _)  = false ] => apply N.ltb_ge
-    | [ |- (_ <=? _) = true  ] => apply N.leb_le
-    | [ |- (_ <=? _) = false ] => apply N.leb_gt
-    | [ |- (_ =? _)  = true  ] => apply N.eqb_eq
-    | [ |- (_ =? _)  = false ] => apply N.eqb_neq
-    end.
-
-Ltac nomega_reduce :=
-  repeat (
-    match goal with
-    | [ H : (_ && _)%bool = true |- _ ] =>
-      apply Bool.andb_true_iff in H; destruct H
-    | [ H : (_ && _)%bool = false |- _ ] =>
-      apply Bool.andb_false_iff in H; destruct H
-
-    | [ H : _ <  _ <  _ |- _ ] => destruct H
-    | [ H : _ <= _ <  _ |- _ ] => destruct H
-    | [ H : _ <  _ <= _ |- _ ] => destruct H
-    | [ H : _ <= _ <= _ |- _ ] => destruct H
-
-    | [ |- _ <  _ <  _ ] => split
-    | [ |- _ <= _ <  _ ] => split
-    | [ |- _ <  _ <= _ ] => split
-    | [ |- _ <= _ <= _ ] => split
-
-    | [ H : ?N < ?M |- ?N < ?M + ?O ] => apply (N.lt_lt_add_r _ _ _ H)
-    | [ H : 0 < ?M  |- ?N < ?N + ?M ] => apply (N.lt_add_pos_r _ _ H)
-
-    | [ H : context[Z.of_N (_ + _)] |- _ ] => rewrite N2Z.inj_add in H
-    | [ H : context[Z.of_N (_ - _)] |- _ ] => rewrite N2Z.inj_sub in H; trivial
-
-    | [ |- context[Z.of_N (_ + _)] ] => rewrite N2Z.inj_add
-    | [ |- context[Z.of_N (_ - _)] ] => rewrite N2Z.inj_sub
-
-    | [ H : _ = _ |- _ ] => subst
-
-    | [ H : context[_ < _]  |- _ ] => rewrite N2Z.inj_lt in H
-    (* | [ H : context[_ = _]  |- _ ] => apply N2Z.inj_iff in H *)
-    (* | [ H : context[_ <> _] |- _ ] => apply N2Z.inj_iff in H *)
-
-    (* We need to give _ <= _ alone a chance to be used by N2Z.inj_sub. *)
-    | [ H : context[_     <= _ + _] |- _ ] => rewrite N2Z.inj_le in H
-    | [ H : context[_ + _ <= _    ] |- _ ] => rewrite N2Z.inj_le in H
-    | [ H : context[_ + _ <= _ + _] |- _ ] => rewrite N2Z.inj_le in H
-    | [ H : context[_     <= _    ] |- _ ] => rewrite N2Z.inj_le in H
-
-    | [ |- context[_ < _]  ] => rewrite N2Z.inj_lt
-    | [ |- context[_ <= _] ] => rewrite N2Z.inj_le
-    | [ |- context[_ = _]  ] => apply N2Z.inj_iff
-    | [ |- context[_ <> _] ] => apply N2Z.inj_iff
-    end; undecide).
-
-Ltac nomega := solve [ nomega_reduce; abstract omega ].
-
-Lemma overlaps_within : forall addr1 len1 addr2 len2,
-  0 < len1 -> overlaps addr1 len1 addr2 len2
-                <-> IfDec addr1 < addr2
-                    Then within addr1 len1 addr2
-                    Else within addr2 len2 addr1.
-Proof.
-  unfold overlaps, within.
-  split; intros.
-    destruct H0.
-    decisions; nomega.
-  decisions;
-  destruct H0.
-    nomega.
-  split; trivial.
-  undecide.
-  apply N.lt_eq_cases in Heqe.
-  destruct Heqe; nomega.
-Qed.
-
-Corollary not_overlaps_within : forall addr1 len1 addr2 len2,
-  0 < len1 -> ~ overlaps addr1 len1 addr2 len2
-                <-> IfDec addr1 < addr2
-                    Then ~ within addr1 len1 addr2
-                    Else ~ within addr2 len2 addr1.
-Proof.
-  split; intros.
-    decisions;
-    unfold not; intros;
-    apply H0, overlaps_within; trivial;
-    decisions; firstorder.
-  unfold not; intros;
-  apply overlaps_within in H1; trivial;
-  decisions; firstorder.
-Qed.
 
 Open Scope string_scope.
 
@@ -272,19 +104,19 @@ Proof.
 Qed.
 
 Definition set_address (addr : N) (x : Word8) (mem : Ensemble MemoryBlock) :
-  Comp (MemoryBlock * bool) :=
+  Comp MemoryBlock :=
   blk <- mem;
   ret (IfDec within (memAddr blk) (memSize blk) addr
-       Then ({| memAddr := memAddr blk
-              ; memSize := memSize blk
-              ; memData :=
-                  let off := addr - memAddr blk in
-                  Add _ (Setminus _  (memData blk) (fun p => fst p = off))
-                        (off, x) |}, true)
-       Else (blk, false)).
+       Then {| memAddr := memAddr blk
+             ; memSize := memSize blk
+             ; memData :=
+                 let off := addr - memAddr blk in
+                 Add _ (Setminus _  (memData blk) (fun p => fst p = off))
+                       (off, x) |}
+       Else blk).
 
 Lemma set_address_correct `(_ : CorrectHeap mem) :
-  forall addr x blk' b, set_address addr x mem ↝ (blk', b)
+  forall addr x blk', set_address addr x mem ↝ blk'
     -> CorrectMemoryBlock blk'.
 Proof.
   against_definition set_address len CorrectHeap0 x0 H simplify_ensembles.
@@ -369,7 +201,8 @@ Definition free_block (addr : N) (mem : Ensemble MemoryBlock) :
 
 Lemma free_block_impl (addr : N) (blk : MemoryBlock)
       (mem : Ensemble MemoryBlock) :
-  In _ mem blk -> (addr =? memAddr blk) = false
+  In _ mem blk
+    -> (addr =? memAddr blk) = false
     -> In _ (free_block addr mem) blk.
 Proof.
   unfold free_block; intros.
@@ -423,9 +256,8 @@ Definition HeapSpec := Def ADT {
     ret (r, p),
 
   (* Poking an unallocated address is a no-op and returns false. *)
-  Def Method2 pokeS (r : rep) (addr : N) (w : Word8) : rep * bool :=
-    res <- set_address addr w r;
-    ret (ret (fst res), snd res),
+  Def Method2 pokeS (r : rep) (addr : N) (w : Word8) : rep * unit :=
+    ret (set_address addr w r, tt),
 
   (* Data may only be copied from one allocated block to another (or within
      the same block), and the region must fit within both source and
@@ -451,10 +283,6 @@ Definition alloc (r : Rep HeapSpec) (len : N | 0 < len) :
   Comp (Rep HeapSpec * N) :=
   Eval simpl in callMeth HeapSpec allocS r len.
 
-(* Lemma alloc_fromADT : *)
-(*   forall r len addr, *)
-(*     fromADT _ r <-> alloc r len ↝ (r, addr) *)
-
 Definition free (r : Rep HeapSpec) (addr : N) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec freeS r addr.
@@ -467,7 +295,7 @@ Definition peek (r : Rep HeapSpec) (addr : N) : Comp (Rep HeapSpec * Word8) :=
   Eval simpl in callMeth HeapSpec peekS r addr.
 
 Definition poke (r : Rep HeapSpec) (addr : N) (w : Word8) :
-  Comp (Rep HeapSpec * bool) :=
+  Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec pokeS r addr w.
 
 Definition memcpy (r : Rep HeapSpec)
@@ -494,8 +322,7 @@ Proof.
     constructor; firstorder.
   - inv H1; firstorder.
   - exact (fit_to_length_correct (@shift_address_correct _ IHfromADT _ _) H1).
-  - destruct v; simpl in *; inv H1.
-    exact (set_address_correct IHfromADT H0).
+  - exact (set_address_correct IHfromADT H1).
   - destruct v; simpl in *; inv H1.
     exact (copy_memory_correct IHfromADT H0).
   - destruct v; simpl in *; inv H1.
@@ -523,7 +350,7 @@ Proof.
       undecide; tauto.
     destruct x3.
     exact (IHfromADT _ _ _ H1).
-  - unfold set_address in H0;
+  - unfold set_address in H1;
     simplify_ensembles; decisions; simpl in *; tsubst;
     try destruct x1;
     exact (IHfromADT _ _ _ H0).
@@ -603,14 +430,16 @@ Proof.
       unfold IfDec_Then_Else in H0; simpl in H0.
       rewrite N.ltb_irrefl in H0.
       contradiction (within_refl memAddr1 l).
-  - unfold set_address in H0;
-    simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
+  - unfold set_address in H1, H2.
+    simplify_ensembles; decisions; simpl in *; tsubst;
+    try destruct x1;
+    try destruct x2; simpl in *; subst; admit.
   - unfold copy_memory in H0;
     simplify_ensembles; decisions; simpl in *; tsubst;
     simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
   - unfold set_memory in H0;
     simplify_ensembles; decisions; simpl in *; tsubst; reflexivity.
-Qed.
+Admitted.
 
 Theorem allocations_unique_cor : forall r : Rep HeapSpec, fromADT _ r ->
   forall x y,
@@ -668,237 +497,16 @@ Proof.
           | apply H0 with (data':=memData1) ];
     apply free_block_impl; trivial;
     apply N.eqb_neq; tauto.
-  - unfold set_address in H0.
-    simplify_ensembles; decisions; simpl in *; tsubst; tauto.
+  - unfold set_address in H1, H3.
+    simplify_ensembles; decisions; simpl in *; tsubst;
+    try destruct x1;
+    try destruct x2; simpl in *; subst; admit.
   - unfold copy_memory in H0;
     simplify_ensembles; decisions; simpl in *; tsubst;
     simplify_ensembles; decisions; simpl in *; tsubst; tauto.
   - unfold set_memory in H0;
     simplify_ensembles; decisions; simpl in *; tsubst; tauto.
-Qed.
-
-Require Import
-  Fiat.ADTRefinement
-  Fiat.ADTRefinement.BuildADTRefinements.
-
-Definition fromADTConstructor'
-           {dSig : DecoratedADTSig}
-           (adt : DecoratedADT dSig)
-           (idxMap : BoundedIndex (ConstructorNames dSig)
-                       -> ConstructorIndex dSig)
-           (idx : BoundedIndex (ConstructorNames dSig)) :
-  forall (r : Rep adt),
-    fromConstructor (Constructors adt (idxMap idx)) r
-      -> fromADT adt r :=
-  ADTInduction.fromADTConstructor adt (idxMap idx).
-
-Arguments fromADTConstructor' {dSig} adt idxMap idx r _.
-
-Notation fromCons adt idx :=
-  (fromADTConstructor' adt (fun idx => ibound (indexb idx))
-                           {| bindex := idx |}).
-
-Lemma refine_computes_to {A} {c : Comp A} {v} :
-  c ↝ v -> refine c (ret v).
-Proof.
-  intros.
-  intros ??.
-  inv H0.
-  exact H.
-Qed.
-
-Lemma computes_to_refine {A} {c : Comp A} {v} :
-  refine c (ret v) -> c ↝ v.
-Proof. intros; exact (H _ (ReturnComputes _)). Qed.
-
-Tactic Notation "check" "constructor" constr(t) :=
-  simpl; intros;
-  apply t;
-  repeat match goal with
-    | [ H : refine _ (ret _) |- _ ] => apply computes_to_refine in H
-    | [ |- fromConstructor _ _ _ ] => eexists
-    | [ H : _ ↝ _ |- _ ↝ _ ] => exact H
-    | [ H : ?X |- ?X ] => exact H
-    end.
-
-Definition fromADTMethod'
-           {dSig : DecoratedADTSig}
-           (adt : DecoratedADT dSig)
-           (idxMap : BoundedIndex (MethodNames dSig) -> MethodIndex dSig)
-           (idx : BoundedIndex (MethodNames dSig)) :
-  forall (r r' : Rep adt),
-    fromADT adt r
-      -> fromMethod (Methods adt (idxMap idx)) r r'
-      -> fromADT adt r' :=
-  ADTInduction.fromADTMethod (adt:=adt) (idxMap idx).
-
-Arguments fromADTMethod' {dSig} adt idxMap idx r r' _ _.
-
-Notation fromMeth adt idx :=
-  (fromADTMethod' adt (fun idx => ibound (indexb idx)) {| bindex := idx |}).
-
-Tactic Notation "check" "method" constr(t) :=
-  simpl; intros;
-  apply t;
-  repeat match goal with
-    | [ H : _ * _ |- _ ] => destruct H; simpl in *
-    | [ H : refine _ (ret _) |- _ ] => apply computes_to_refine in H
-    | [ |- fromMethod _ _ _ ] => eexists
-    | [ |- fromMethod' _ _ ] => eexists
-    | [ H : _ ↝ _ |- _ ↝ _ ] => exact H
-    | [ H : ?X |- ?X ] => exact H
-    end.
-
-Lemma empty_fromADT r :
-  refine (callCons HeapSpec emptyS) (ret r) -> fromADT HeapSpec r.
-Proof. check constructor (fromCons HeapSpec emptyS r). Qed.
-
-Lemma alloc_fromADT r :
-  fromADT HeapSpec r
-    -> forall (len : N | 0 < len) v,
-         refine (callMeth HeapSpec allocS r len) (ret v)
-    -> fromADT HeapSpec (fst v).
-Proof. intros; check method (fromMeth HeapSpec allocS r (fst v)). Qed.
-
-Lemma free_fromADT r :
-  fromADT HeapSpec r
-    -> forall (addr : N) v,
-         refine (callMeth HeapSpec freeS r addr) (ret v)
-    -> fromADT HeapSpec (fst v).
-Proof. intros; check method (fromMeth HeapSpec freeS r (fst v)). Qed.
-
-Lemma realloc_fromADT r :
-  fromADT HeapSpec r
-    -> forall (addr : N) (len : N | 0 < len) v,
-         refine (callMeth HeapSpec reallocS r addr len) (ret v)
-    -> fromADT HeapSpec (fst v).
-Proof. intros; check method (fromMeth HeapSpec reallocS r (fst v)). Qed.
-
-Lemma peek_fromADT r :
-  fromADT HeapSpec r
-    -> forall (addr : N) v,
-         refine (callMeth HeapSpec peekS r addr) (ret v)
-    -> fromADT HeapSpec (fst v).
-Proof. intros; check method (fromMeth HeapSpec peekS r (fst v)). Qed.
-
-Lemma poke_fromADT r :
-  fromADT HeapSpec r
-    -> forall (addr : N) w v,
-         refine (callMeth HeapSpec pokeS r addr w) (ret v)
-    -> fromADT HeapSpec (fst v).
-Proof. intros; check method (fromMeth HeapSpec pokeS r (fst v)). Qed.
-
-Lemma memcpy_fromADT r :
-  fromADT HeapSpec r
-    -> forall (addr : N) (addr2 : N) (len : N | 0 < len) v,
-         refine (callMeth HeapSpec memcpyS r addr addr2 len) (ret v)
-    -> fromADT HeapSpec (fst v).
-Proof. intros; check method (fromMeth HeapSpec memcpyS r (fst v)). Qed.
-
-Lemma memset_fromADT r :
-  fromADT HeapSpec r
-    -> forall (addr : N) (len : N | 0 < len) (w : Word8) v,
-         refine (callMeth HeapSpec memsetS r addr len w) (ret v)
-    -> fromADT HeapSpec (fst v).
-Proof. intros; check method (fromMeth HeapSpec memsetS r (fst v)). Qed.
-
-Definition Bind_dep (A B : Type) (ca : Comp A)
-           (k : forall v : A, ca ↝ v -> Comp B) : Comp B :=
-  fun b : B =>
-    exists a : A, { H : Ensembles.In A ca a & Ensembles.In B (k a H) b }.
-
-Notation "`( a | H ) <- c ; k" :=
-  (Bind_dep c (fun a H => k))
-    (at level 81, right associativity,
-     format "'[v' `( a | H )  <-  c ; '/' k ']'") : comp_scope.
-
-Lemma refine_reveal_dep : forall A (c : Comp A) B (k : A -> Comp B),
-  refine (x <- c; k x) (`(x | H) <- c; k x).
-Proof.
-  intros.
-  intros x?.
-  destruct H.
-  exists x0.
-  destruct H.
-  split; trivial.
-Qed.
-
-Lemma refine_constructor_fromADT
-      A (c : Comp (A)) (P : A -> Prop)
-      (f : forall v : A, refine c (ret v) -> P v) :
-   refine (r_o' <- c;
-           {r_n0 : {r : A | P r} | r_o' = ` r_n0})
-          (`(r_o' | H) <- c;
-           ret (exist _ r_o' (f r_o' (refine_computes_to H)))).
-Proof.
-  intros x?.
-  destruct H.
-  exists x0.
-  destruct H.
-  split; trivial.
-  destruct i.
-  esplit.
-Qed.
-
-Lemma refine_method_fromADT
-      A B (c : Comp (A * B)) (P : A -> Prop)
-      (f : forall v : A * B, refine c (ret v) -> P (fst v)) :
-   refine (r_o' <- c;
-           r_n' <- {r_n0 : {r : A | P r} | fst r_o' = ` r_n0};
-           ret (r_n', snd r_o'))
-          (`(r_o' | H) <- c;
-           ret (exist _ (fst r_o')
-                        (f r_o' (refine_computes_to H)), snd r_o')).
-Proof.
-  intros x?.
-  destruct H.
-  exists x0.
-  destruct H.
-  split; trivial.
-  destruct i.
-  esplit; split.
-    Focus 2.
-    constructor.
-  constructor.
-Qed.
-
-Import EqNotations.
-
-Ltac resolve_constructor m H0 :=
-  subst; subst_evars;
-  etransitivity;
-  [ apply (refine_constructor_fromADT (fromADT HeapSpec) (c:=m) H0)
-  | finish honing].
-
-Ltac resolve_method r_n m H0 :=
-  subst; subst_evars;
-  etransitivity;
-  [ apply (refine_method_fromADT (fromADT HeapSpec) (c:=m) H0)
-  | finish honing].
-
-Theorem HeapSpecADT : { adt : _ & refineADT HeapSpec adt }.
-Proof.
-  eexists.
-  hone representation using
-    (fun (or : Rep HeapSpec)
-         (nr : { r : Rep HeapSpec | fromADT HeapSpec r }) => or = ` nr).
-  resolve_constructor empty empty_fromADT.
-  resolve_method r_n (alloc (` r_n) d)
-                     (@alloc_fromADT _ (proj2_sig r_n) d).
-  resolve_method r_n (free (` r_n) d)
-                     (@free_fromADT _ (proj2_sig r_n) d).
-  resolve_method r_n (realloc (` r_n) d d0)
-                     (@realloc_fromADT _ (proj2_sig r_n) d d0).
-  resolve_method r_n (peek (` r_n) d)
-                     (@peek_fromADT _ (proj2_sig r_n) d).
-  resolve_method r_n (poke (` r_n) d d0)
-                     (@poke_fromADT _ (proj2_sig r_n) d d0).
-  resolve_method r_n (memcpy (` r_n) d d0 d1)
-                     (@memcpy_fromADT _ (proj2_sig r_n) d d0 d1).
-  resolve_method r_n (memset (` r_n) d d0 d1)
-                     (@memset_fromADT _ (proj2_sig r_n) d d0 d1).
-  apply reflexivityT.
-Defined.
+Admitted.
 
 End Heap.
 

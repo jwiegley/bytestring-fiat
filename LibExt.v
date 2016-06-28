@@ -306,3 +306,24 @@ Notation "`( a | H ) <- c ; k" :=
      format "'[v' `( a | H )  <-  c ; '/' k ']'") : comp_scope.
 
 Definition subset A (x y : Ensemble A) := refine y x /\ ~ refine x y.
+
+Tactic Notation "refine" "method" constr(name) :=
+  match goal with
+    | [ _ : constructorType ?A (consDom {| consID := name
+                                         ; consDom := _ |}) |- _ ] =>
+      idtac "Constructor"
+    | [ _ : methodType ?A (methDom {| methID := name
+                                    ; methDom := _
+                                    ; methCod := _ |})  _ |- _ ] =>
+      idtac "Method"
+    | _ =>
+      fail "Incorrect method name"
+  end.
+
+Lemma refine_comp_to_pick : forall A (c : Comp A),
+  refine c { x : A | c ↝ x }.
+Proof.
+  intros ????.
+  apply Pick_inv in H.
+  exact H.
+Qed.

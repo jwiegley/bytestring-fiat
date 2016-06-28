@@ -2,12 +2,16 @@
 -R /Users/johnw/bae/rings/fiat/src Fiat
 -R . Here
 ./ADTInduction.v
+./BindDep.v
 ./ByteString.v
 ./ByteStringLib.v
 ./Decidable.v
 ./FixedPoint.v
+./FromADT.v
 ./Heap.v
+./HeapADT.v
 ./IEnsemble.v
 ./LibExt.v
-./Refined.v
+./Nomega.v
+./RefinedHeap.v
 ./Same_set.v

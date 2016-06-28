@@ -1,17 +1,20 @@
-all: ByteString
+all: bstring
 
-ByteString: Makefile.coq			\
+bstring: Makefile.coq				\
 	ADTInduction.v				\
+	BindDep.v				\
 	ByteString.v				\
 	ByteStringLib.v				\
-	Canonical.v				\
+	Decidable.v				\
 	FixedPoint.v				\
+	FromADT.v				\
 	Heap.v					\
+	HeapADT.v				\
 	IEnsemble.v				\
 	LibExt.v				\
-	Properties.v				\
-	Refined.v				\
-	RefinedLib.v
+	Nomega.v				\
+	RefinedHeap.v				\
+	Same_set.v
 	make -f Makefile.coq
 
 Makefile.coq: _CoqProject
@@ -20,7 +23,7 @@ Makefile.coq: _CoqProject
 clean: _CoqProject Makefile.coq
 	make -f Makefile.coq clean
 	rm -f *.glob *.v.d *.vo *.hi *.o Main result *.hp .*.aux
-	rm -f ByteString ByteString.hs
+	rm -f bstring bstring.hs
 
 fullclean: clean
 	rm -f Makefile
