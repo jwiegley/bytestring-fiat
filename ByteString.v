@@ -1,12 +1,11 @@
-Require Import Fiat.ADT Fiat.ADTNotation.
+Require Import
+  Fiat.ADT
+  Fiat.ADTNotation
+  Fiat.ADTInduction.
 
 Require Import
   Coq.Lists.List
   Coq.NArith.NArith.
-
-Require Import
-  Here.LibExt
-  Here.ADTInduction.
 
 Section ByteString.
 

@@ -12,13 +12,13 @@ Module Import F := P.F.
 
 Require Import
   Here.ByteString
-  Here.LibExt
   Here.Heap
   Here.HeapADT
   Here.Nomega
   Here.BindDep
   Here.FunRelation
-  Here.FunMaps.
+  Here.FunMaps
+  Here.Tactics.
 
 Module Import Z := FunMaps N_as_OT.
 

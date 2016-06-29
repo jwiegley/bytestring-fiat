@@ -3,7 +3,7 @@ Require Import
   Coq.NArith.NArith
   Fiat.ADT
   Fiat.ADTNotation
-  Here.ADTInduction
+  Fiat.ADTInduction
   Here.FromADT
   Here.Heap.
 

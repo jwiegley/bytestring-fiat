@@ -295,31 +295,6 @@ Definition get_fin {A : Type} {n : nat} {Bound : Vector.t A n}
                    (idx : BoundedIndex Bound) :=
   ibound (indexb idx).
 
-Definition Bind_dep (A B : Type) (ca : Comp A)
-           (k : forall v : A, ca ↝ v -> Comp B) : Comp B :=
-  fun b : B =>
-    exists a : A, { H : Ensembles.In A ca a & Ensembles.In B (k a H) b }.
-
-Notation "`( a | H ) <- c ; k" :=
-  (Bind_dep c (fun a H => k))
-    (at level 81, right associativity,
-     format "'[v' `( a | H )  <-  c ; '/' k ']'") : comp_scope.
-
-Definition subset A (x y : Ensemble A) := refine y x /\ ~ refine x y.
-
-Tactic Notation "refine" "method" constr(name) :=
-  match goal with
-    | [ _ : constructorType ?A (consDom {| consID := name
-                                         ; consDom := _ |}) |- _ ] =>
-      idtac "Constructor"
-    | [ _ : methodType ?A (methDom {| methID := name
-                                    ; methDom := _
-                                    ; methCod := _ |})  _ |- _ ] =>
-      idtac "Method"
-    | _ =>
-      fail "Incorrect method name"
-  end.
-
 Lemma refine_comp_to_pick : forall A (c : Comp A),
   refine c { x : A | c ↝ x }.
 Proof.

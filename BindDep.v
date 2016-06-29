@@ -79,26 +79,6 @@ Proof.
   constructor.
 Qed.
 
-Lemma refine_bind_dep {A} (c : Comp A) B
-      (k : forall x : A, refine c (ret x) -> Comp B) :
-  forall x (H : refine c (ret x)),
-    refine (`(x | H) <- c; k x H)
-           (k x H).
-Proof.
-  intros.
-  exists x.
-  exists (H _ (ReturnComputes _)).
-  destruct (ReturnComputes x).
-  assert (refine_In (H x (In_singleton A x)) = H).
-    unfold refine_In.
-    extensionality z.
-    extensionality H1.
-    destruct H1.
-    reflexivity.
-  rewrite <- H1 in H0.
-  apply H0.
-Qed.
-
 Lemma refine_bind_dep_ignore {A} (c : Comp A) B (k : A -> Comp B) :
   refine (`(x | _) <- c; k x) (x <- c; k x).
 Proof.

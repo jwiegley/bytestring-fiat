@@ -8,7 +8,6 @@ Require Import
   Here.ByteString
   Here.ByteStringLib
   Here.Refined
-  Here.LibExt
   Here.Same_set.
 
 Import LeastFixedPointFun.

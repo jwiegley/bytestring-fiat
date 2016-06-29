@@ -1,15 +1,15 @@
 Require Import
   Fiat.ADT
-  Fiat.ADTNotation.
+  Fiat.ADTNotation
+  Fiat.ADTInduction.
 
 Require Import
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
 Require Import
-  Here.LibExt
   Here.BindDep
-  Here.ADTInduction.
+  Here.Tactics.
 
 (* Theorem Rep_fromADT *)
 (*         {sigCtors    : nat} *)

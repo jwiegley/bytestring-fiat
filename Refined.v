@@ -7,7 +7,6 @@ Require Import
 
 Require Import
   Here.ByteString
-  Here.LibExt
   Here.Heap.
 
 Require Import

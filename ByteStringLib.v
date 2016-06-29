@@ -4,8 +4,7 @@ Require Import
   Fiat.Computation.FixComp.
 
 Require Import
-  Here.ByteString
-  Here.LibExt.
+  Here.ByteString.
 
 Section ByteStringLib.
 

@@ -1,12 +1,12 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
-  Here.ADTInduction
+  Fiat.ADTInduction
   Here.Nomega
-  Here.LibExt
   Here.Decidable
   Here.BindDep
-  Here.FunRelation.
+  Here.FunRelation
+  Here.Tactics.
 
 Generalizable All Variables.
 
