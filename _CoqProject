@@ -5,6 +5,7 @@ BindDep.v
 ByteString.v
 ByteStringLib.v
 Decidable.v
+FMapExt.v
 FromADT.v
 FunMaps.v
 FunRelation.v

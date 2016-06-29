@@ -1,15 +1,3 @@
-Require Import Fiat.ADT Fiat.ADTNotation.
-
-Require Import
-  Coq.FSets.FMaps
-  Coq.FSets.FMapAVL
-  Coq.FSets.FMapFacts
-  Coq.Structures.OrderedTypeEx.
-
-Module Import M := FMapAVL.Make(N_as_OT).
-Module Import P := FMapFacts.Properties M.
-Module Import F := P.F.
-
 Require Import
   Here.ByteString
   Here.Heap
@@ -18,13 +6,14 @@ Require Import
   Here.BindDep
   Here.FunRelation
   Here.FunMaps
+  Here.FMapExt
   Here.Tactics.
 
-Module Import Z := FunMaps N_as_OT.
+Require Import Coq.Structures.OrderedTypeEx.
+
+Module Import E := FunMaps N_as_OT.
 
 Generalizable All Variables.
-
-Open Scope N_scope.
 
 Section RefinedHeap.
 
@@ -32,90 +21,18 @@ Variable Word8 : Type.
 Variable Zero : Word8.
 
 Definition MemoryBlock := MemoryBlock Word8.
-Definition HeapSpec    := @HeapSpec Word8.
+Definition HeapSpec := @HeapSpec Word8.
 
 Record MemoryBlockC := {
   memCSize : N;
   memCData : M.t Word8
 }.
 
-Ltac tsubst :=
-  Heap.tsubst;
-  repeat
-    match goal with
-    | [ H : {| memCSize := _
-             ; memCData := _ |} =
-            {| memCSize := _
-             ; memCData := _ |} |- _ ] => inv H
-    end;
-  subst.
-
 Require Import
+  Fiat.ADT
+  Fiat.ADTNotation
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
-
-Section for_all.
-
-Variable elt : Type.
-Variable P : M.key -> elt -> bool.
-Variable P_Proper : Proper (eq ==> eq ==> eq) P.
-
-Lemma for_all_empty : P.for_all P (M.empty elt).
-Proof.
-  intros.
-  apply P.for_all_iff; trivial.
-  intros.
-  apply F.empty_mapsto_iff in H.
-  contradiction.
-Qed.
-
-Lemma for_all_add : forall (m : M.t elt) (k : M.key) v,
-  P.for_all P m
-    -> P k v
-    -> P.for_all P (M.add k v m).
-Proof.
-  intros.
-  apply P.for_all_iff; trivial.
-  intros.
-  apply F.add_mapsto_iff in H1.
-  destruct H1; destruct H1.
-    subst.
-    exact H0.
-  eapply P.for_all_iff in H2.
-  - exact H2.
-  - exact P_Proper.
-  - exact H.
-Qed.
-
-Lemma for_all_remove : forall (m : M.t elt) (k : M.key),
-  P.for_all P m
-    -> P.for_all P (M.remove k m).
-Proof.
-  intros.
-  apply P.for_all_iff; trivial.
-  intros.
-  apply F.remove_mapsto_iff in H0.
-  eapply P.for_all_iff in H.
-  - exact H.
-  - exact P_Proper.
-  - tauto.
-Qed.
-
-Lemma for_all_impl : forall (P' : M.key -> elt -> bool) m,
-  P.for_all P m
-    -> Proper (eq ==> eq ==> eq) P'
-    -> (forall k e, P k e -> P' k e)
-    -> P.for_all P' m.
-Proof.
-  intros.
-  apply P.for_all_iff; trivial.
-  intros.
-  eapply P.for_all_iff in H; eauto.
-  apply H1.
-  exact H.
-Qed.
-
-End for_all.
 
 Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
   memSize o = memCSize n /\
@@ -190,7 +107,7 @@ Proof.
 
     AbsR_prep.
     - exact (Empty_SetMap_AbsR _).
-    - apply for_all_empty; auto.
+    - eapply E.for_all_empty; auto.
   }
 
   refine method allocS.
@@ -215,7 +132,7 @@ Proof.
     AbsR_prep.
     - apply Update_SetMap_AbsR; auto.
       exact (Empty_MemoryBlock_AbsR _).
-    - apply for_all_add; simpl; auto.
+    - apply E.for_all_add; simpl; auto.
         eapply for_all_impl; eauto; simpl; intros.
         destruct d; simpl.
         clear -l H2.

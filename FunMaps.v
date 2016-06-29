@@ -1,5 +1,6 @@
 Require Import
   Here.FunRelation
+  Here.FMapExt
   Here.Nomega
   Coq.FSets.FMapAVL
   Coq.FSets.FMapFacts
@@ -7,9 +8,8 @@ Require Import
 
 Module FunMaps (O : OrderedType).
 
-Module M := FMapAVL.Make(O).
-Module P := FMapFacts.Properties M.
-Module F := P.F.
+Module E := FMapExt(O).
+Include E.
 
 Definition SetMap_AbsR {A B}
            (or : FunRel M.key A) (nr : M.t B)
