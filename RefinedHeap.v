@@ -1,12 +1,14 @@
 Require Import Fiat.ADT Fiat.ADTNotation.
 
 Require Import
+  Coq.FSets.FMaps
   Coq.FSets.FMapAVL
   Coq.FSets.FMapFacts
   Coq.Structures.OrderedTypeEx.
 
-Module M := FMapAVL.Make(N_as_OT).
-Module F := FMapFacts.Facts M.
+Module Import M := FMapAVL.Make(N_as_OT).
+Module Import P := FMapFacts.Properties M.
+Module Import F := P.F.
 
 Require Import
   Here.ByteString
@@ -14,7 +16,11 @@ Require Import
   Here.Heap
   Here.HeapADT
   Here.Nomega
-  Here.BindDep.
+  Here.BindDep
+  Here.FunRelation
+  Here.FunMaps.
+
+Module Import Z := FunMaps N_as_OT.
 
 Generalizable All Variables.
 
@@ -26,10 +32,9 @@ Variable Word8 : Type.
 Variable Zero : Word8.
 
 Definition MemoryBlock := MemoryBlock Word8.
-Definition HeapSpec    := @HeapSpec Word8 Zero.
+Definition HeapSpec    := @HeapSpec Word8.
 
 Record MemoryBlockC := {
-  memCAddr : N;
   memCSize : N;
   memCData : M.t Word8
 }.
@@ -38,11 +43,9 @@ Ltac tsubst :=
   Heap.tsubst;
   repeat
     match goal with
-    | [ H : {| memCAddr := _
-             ; memCSize := _
+    | [ H : {| memCSize := _
              ; memCData := _ |} =
-            {| memCAddr := _
-             ; memCSize := _
+            {| memCSize := _
              ; memCData := _ |} |- _ ] => inv H
     end;
   subst.
@@ -51,174 +54,189 @@ Require Import
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
+Section for_all.
+
+Variable elt : Type.
+Variable P : M.key -> elt -> bool.
+Variable P_Proper : Proper (eq ==> eq ==> eq) P.
+
+Lemma for_all_empty : P.for_all P (M.empty elt).
+Proof.
+  intros.
+  apply P.for_all_iff; trivial.
+  intros.
+  apply F.empty_mapsto_iff in H.
+  contradiction.
+Qed.
+
+Lemma for_all_add : forall (m : M.t elt) (k : M.key) v,
+  P.for_all P m
+    -> P k v
+    -> P.for_all P (M.add k v m).
+Proof.
+  intros.
+  apply P.for_all_iff; trivial.
+  intros.
+  apply F.add_mapsto_iff in H1.
+  destruct H1; destruct H1.
+    subst.
+    exact H0.
+  eapply P.for_all_iff in H2.
+  - exact H2.
+  - exact P_Proper.
+  - exact H.
+Qed.
+
+Lemma for_all_remove : forall (m : M.t elt) (k : M.key),
+  P.for_all P m
+    -> P.for_all P (M.remove k m).
+Proof.
+  intros.
+  apply P.for_all_iff; trivial.
+  intros.
+  apply F.remove_mapsto_iff in H0.
+  eapply P.for_all_iff in H.
+  - exact H.
+  - exact P_Proper.
+  - tauto.
+Qed.
+
+Lemma for_all_impl : forall (P' : M.key -> elt -> bool) m,
+  P.for_all P m
+    -> Proper (eq ==> eq ==> eq) P'
+    -> (forall k e, P k e -> P' k e)
+    -> P.for_all P' m.
+Proof.
+  intros.
+  apply P.for_all_iff; trivial.
+  intros.
+  eapply P.for_all_iff in H; eauto.
+  apply H1.
+  exact H.
+Qed.
+
+End for_all.
+
+Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
+  memSize o = memCSize n /\
+  SetMap_AbsR (memData o) (memCData n) eq.
+
+Lemma Empty_MemoryBlock_AbsR : forall n,
+  MemoryBlock_AbsR {| memSize  := n; memData  := Empty N Word8 |}
+                   {| memCSize := n; memCData := M.empty Word8 |}.
+Proof.
+  intros.
+  split; trivial; simpl; intros.
+  exact (Empty_SetMap_AbsR _).
+Qed.
+
+Lemma free_test_proper : forall n,
+  Proper (eq ==> eq ==> eq)
+    (fun (addr : M.key) (blk : MemoryBlockC) => addr + memCSize blk <=? n).
+Proof.
+  unfold Proper, respectful; intros.
+  subst; reflexivity.
+Qed.
+
+Hint Resolve free_test_proper.
+
+Ltac remove_dependency :=
+  repeat
+    match goal with
+      | [ |- refine (_ <- `(_|_) <- ret _;
+                          ret _;
+                     _) _ ] =>
+        rewrite refine_bind_dep_ret
+      | [ |- refine (_ <- `(_|_) <- _;
+                          ret _;
+                     _) _ ] =>
+        rewrite refine_bind_dep_bind_ret; simpl
+      | [ |- refine (`(_|_) <- _;
+                     _) _ ] =>
+        rewrite refine_bind_dep_ignore
+    end.
+
+Definition Heap_AbsR
+           (or : { r : Rep HeapSpec
+                 | ADTInduction.fromADT HeapSpec r})
+           (nr : N * M.t MemoryBlockC) : Prop :=
+  SetMap_AbsR (` or) (snd nr) MemoryBlock_AbsR /\
+  P.for_all (fun addr blk => addr + memCSize blk <=? fst nr) (snd nr).
+
+Ltac AbsR_prep :=
+  repeat
+    match goal with
+    | [ H : Heap_AbsR _ _ |- _ ] => unfold Heap_AbsR in H; simpl in H
+    | [ |- Heap_AbsR _ _ ] => unfold Heap_AbsR; simpl
+    | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
+    | [ |- _ /\ _ ] => split
+    end; simpl.
+
 Lemma HeapImpl : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
-  eapply SharpenStep; [ apply (projT2 (@HeapSpecADT Word8 Zero)) |].
-  hone representation using
-    (fun (or : { r : Ensemble MemoryBlock
-               | ADTInduction.fromADT HeapSpec r})
-         (nr : N * M.t MemoryBlockC) =>
-       forall addr size,
-         (forall data,
-            In _ (` or) {| memAddr := addr
-                         ; memSize := size
-                         ; memData := data |} ->
-            (addr + size <= fst nr /\
-             exists cdata,
-               M.find addr (snd nr)
-                 = Some {| memCAddr := addr
-                         ; memCSize := size
-                         ; memCData := cdata |} /\
-               (forall i v,
-                  In _ data (i, v) <-> M.find i cdata = Some v))) /\
-         (forall cdata,
-            M.find addr (snd nr)
-              = Some {| memCAddr := addr
-                      ; memCSize := size
-                      ; memCData := cdata |} ->
-            (addr + size <= fst nr /\
-             exists data,
-               In _ (` or) {| memAddr := addr
-                            ; memSize := size
-                            ; memData := data |} /\
-               (forall i v,
-                  In _ data (i, v) <-> M.find i cdata = Some v)))).
+  eapply SharpenStep; [ apply (projT2 (@HeapSpecADT Word8)) |].
+
+  hone representation using Heap_AbsR.
 
   refine method emptyS.
   {
     unfold empty.
-    rewrite refine_bind_dep_ret.
+    remove_dependency.
     simplify with monad laws.
+
     refine pick val (0%N, @M.empty _).
       finish honing.
-    simpl; split; intros.
-      inv H0.
-    apply F.find_mapsto_iff, F.empty_mapsto_iff in H0.
-    contradiction.
+
+    AbsR_prep.
+    - exact (Empty_SetMap_AbsR _).
+    - apply for_all_empty; auto.
   }
 
   refine method allocS.
   {
-    unfold alloc, find_free_block.
-    rewrite refine_bind_dep_bind_ret; simpl.
-    rewrite refine_bind_dep_ignore.
+    unfold Heap_AbsR, alloc, find_free_block.
+    remove_dependency.
     simplify with monad laws; simpl.
+
     refine pick val (fst r_n).
-      simplify with monad laws.
-      refine pick val (fst r_n + proj1_sig d,
-                       M.add (fst r_n)
-                             {| memCAddr := fst r_n
-                              ; memCSize := proj1_sig d
-                              ; memCData := M.empty _ |}
-                             (snd r_n)).
-        simplify with monad laws.
-        finish honing.
+      Focus 2.
       intros.
-      destruct (H0 addr size) as [? ?]; clear H0.
-      simpl; split; intros.
-        apply Add_inv in H0.
-        destruct H0.
-          destruct (H1 data H0) as [? ?].
-          split.
-            destruct d; simpl.
-            apply Nle_add_plus; trivial.
-          destruct H4.
-          exists x.
-          split; intros.
-            apply F.find_mapsto_iff, F.add_mapsto_iff.
-            right.
-            split.
-              destruct H4.
-              destruct (H2 _ H4).
-              destruct H7.
-              destruct H7.
-              pose proof (allocations_have_size (proj2_sig r_o) _ _ _ H7).
-              clear -H3 H9.
-              unfold not; intros; subst.
-              eapply Nle_impossible; eassumption.
-            apply F.find_mapsto_iff.
-            apply H4.
-          apply H4.
-        tsubst.
-        split; intros.
-          nomega.
-        exists (M.empty Word8).
-        split; intros.
-          apply F.find_mapsto_iff, F.add_mapsto_iff.
-          left; tauto.
-        split; intros.
-          inv H0.
-        apply F.find_mapsto_iff, F.empty_mapsto_iff in H0.
-        contradiction.
-      apply F.find_mapsto_iff in H0.
-      apply F.add_mapsto_iff in H0.
-      destruct H0; destruct H0; tsubst.
-        split; intros.
-          nomega.
-        exists (Empty_set (N * Word8)).
-        split.
-          right; constructor.
-        split; intros.
-          inv H0.
-        apply F.find_mapsto_iff, F.empty_mapsto_iff in H0.
-        contradiction.
-      apply F.find_mapsto_iff in H3.
-      destruct (H2 _ H3).
-      split.
-        destruct d; simpl in *.
+      admit.
+
+    simplify with monad laws; simpl.
+    refine pick val (fst r_n + proj1_sig d,
+                     M.add (fst r_n)
+                           {| memCSize := proj1_sig d
+                            ; memCData := M.empty _ |} (snd r_n)).
+      simplify with monad laws.
+      finish honing.
+
+    AbsR_prep.
+    - apply Update_SetMap_AbsR; auto.
+      exact (Empty_MemoryBlock_AbsR _).
+    - apply for_all_add; simpl; auto.
+        eapply for_all_impl; eauto; simpl; intros.
+        destruct d; simpl.
+        clear -l H2.
+        undecide.
         apply Nle_add_plus; trivial.
-      destruct H5.
-      exists x.
-      split; intros.
-        left; tauto.
-      apply H5.
-    intros.
-    destruct (H0 addr' len'); clear H0.
-    unfold found_block_at_base in H1.
-    destruct (H2 _ H1).
-    unfold overlaps.
-    nomega.
+      apply N.leb_refl.
   }
 
   refine method freeS.
   {
     unfold free, free_block.
-    rewrite refine_bind_dep_ret.
+    remove_dependency.
     simplify with monad laws; simpl.
 
     refine pick val (fst r_n, M.remove d (snd r_n)).
       simplify with monad laws.
       finish honing.
 
-    intros.
-    destruct (H0 addr size) as [? ?]; simpl in *.
-    split; intros.
-      inv H3.
-      destruct (H1 _ H4) as [? ?].
-      split; trivial.
-      destruct H6.
-      exists x.
-      split.
-        rewrite F.remove_neq_o.
-          apply H6.
-        unfold Ensembles.In in H4.
-        exact H5.
-      apply H6.
-    apply F.find_mapsto_iff, F.remove_mapsto_iff in H3.
-    destruct H3.
-    apply F.find_mapsto_iff in H4.
-    destruct (H2 _ H4).
-    split; trivial.
-    destruct H6.
-    exists x.
-    split.
-      constructor.
-        apply H6.
-      unfold not; intros.
-      unfold Ensembles.In in H7; simpl in H7; subst.
-      tauto.
-    tauto.
+    AbsR_prep.
+    - admit.
+    - apply for_all_remove; auto.
   }
 
   refine method reallocS.
@@ -228,117 +246,53 @@ Proof.
 
   refine method peekS.
   {
-    unfold peek, found_block.
-    rewrite refine_bind_dep_bind_ret.
-    etransitivity.
-      apply refine_bind_dep
-       with (x:=(` r_o,
-                 Ifopt List.find
-                   (fun p =>
-                      let blk := snd p in
-                      (* jww (2016-06-24): Unnecessarily inefficient *)
-                      (fst p =? memCAddr (snd p)) &&
-                      Decidable.Decidable_witness
-                        (P:=within (memCAddr blk) (memCSize blk) d))
-                   (M.elements (snd r_n)) as p
-                 Then let blk := snd p in
-                      Ifopt M.find (d - memCAddr blk) (memCData blk) as v
-                      Then v
-                      Else Zero
-                 Else Zero)).
-    simpl.
+    unfold Heap_AbsR, peek, found_block.
+    remove_dependency.
+    simplify with monad laws; simpl.
 
+    refine pick val
+      (Ifopt List.find (fun p =>
+                          let blk := snd p in
+                          Decidable.Decidable_witness
+                            (P:=within (fst p) (memCSize blk) d))
+                       (M.elements (snd r_n)) as p
+       Then let blk := snd p in
+            Ifopt M.find (d - fst p) (memCData blk) as v
+            Then v
+            Else Zero
+       Else Zero).
+      Focus 2.
+      admit.
+
+    simplify with monad laws; simpl.
     refine pick val r_n.
       simplify with monad laws.
-      unfold If_Opt_Then_Else; simpl.
       finish honing.
 
-    intros.
-    destruct (H0 addr size) as [? ?]; clear H0.
-    split; intros.
-      destruct (H1 _ H0); clear H1 H2.
-      split; trivial.
-    destruct (H2 _ H0); clear H1 H2.
-    split; trivial.
+    AbsR_prep; assumption.
   }
 
   refine method pokeS.
   {
     unfold poke, set_address.
-    rewrite refine_bind_dep_bind_ret; simpl.
-    rewrite refine_bind_dep_ignore.
+    remove_dependency.
     simplify with monad laws; simpl.
     refine pick val
       (fst r_n,
-       M.map (fun blk =>
-                IfDec within (memCAddr blk) (memCSize blk) d
-                Then {| memCAddr := memCAddr blk
-                      ; memCSize := memCSize blk
-                      ; memCData := M.add (d - memCAddr blk) d0
-                                          (memCData blk) |}
-                Else blk) (snd r_n)).
+       M.mapi (fun addr blk =>
+                 IfDec within addr (memCSize blk) d
+                 Then {| memCSize := memCSize blk
+                       ; memCData := M.add (d - addr) d0
+                                           (memCData blk) |}
+                 Else blk) (snd r_n)).
       simplify with monad laws.
       finish honing.
 
-    intros.
-    destruct (H0 addr size) as [? ?]; clear H0; simpl in *.
-    split; intros.
-    {
-      simplify_ensembles; decisions; simpl in *; tsubst;
-      try destruct x; simpl in *.
-      - firstorder.
-      - firstorder.
-      - destruct (H1 _ H0) as [? ?]; clear H1; trivial.
-        destruct H4.
-        exists (M.add (d - memAddr) d0 x).
-        destruct H1.
-        split; intros.
-          apply F.find_mapsto_iff in H1.
-          apply F.find_mapsto_iff.
-          apply F.map_mapsto_iff.
-          exists {| memCAddr := memAddr
-                  ; memCSize := memSize
-                  ; memCData := x |}; simpl.
-          rewrite Heqe.
-          split; trivial.
-        split; intros.
-          rewrite F.add_o.
-          unfold M.E.eq_dec.
-          simplify_ensembles.
-            unfold Ensembles.In in H7; simpl in H7.
-            decisions.
-              rewrite e in H7.
-              tauto.
-            apply H4; assumption.
-          destruct (N.eq_dec (d - memAddr) (d - memAddr)).
-            reflexivity.
-          tauto.
-        rewrite F.add_o in H5.
-        unfold M.E.eq_dec in H5.
-        destruct (N.eq_dec (d - memAddr) i).
-          inv H5.
-          right; constructor.
-        left.
-        constructor.
-          apply H4; assumption.
-        unfold Ensembles.In; simpl.
-        firstorder.
-      - destruct (H1 _ H0) as [? ?]; clear H1; trivial.
-        destruct H4.
-        exists x.
-        destruct H1.
-        apply F.find_mapsto_iff in H1.
-        split.
-          apply F.find_mapsto_iff.
-          apply F.map_mapsto_iff.
-          exists {| memCAddr := addr
-                  ; memCSize := size
-                  ; memCData := x |}; simpl.
-          rewrite Heqe.
-          split; trivial.
-        exact H4.
-    }
-    admit.
+    AbsR_prep.
+    - apply Map_SetMap_AbsR; auto.
+      intros.
+      admit.
+    - admit.
   }
 
   refine method memcpyS.

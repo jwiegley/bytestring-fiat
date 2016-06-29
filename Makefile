@@ -1,20 +1,16 @@
-all: bstring
+MISSING	 =								\
+	find . \( \( -name coq-haskell -o -name fiat \) -prune \)	\
+	    -o \( -name '*.v'						\
+		! -name fiat						\
+		! -name coq-haskell -print \)			|	\
+		xargs egrep -i -Hn '(abort|admit|undefined)'	|	\
+		      egrep -v 'Definition undefined'		|	\
+		      egrep -v '(old|new|research)/'
 
-bstring: Makefile.coq				\
-	ADTInduction.v				\
-	BindDep.v				\
-	ByteString.v				\
-	ByteStringLib.v				\
-	Decidable.v				\
-	FixedPoint.v				\
-	FromADT.v				\
-	Heap.v					\
-	HeapADT.v				\
-	IEnsemble.v				\
-	LibExt.v				\
-	Nomega.v				\
-	RefinedHeap.v				\
-	Same_set.v
+all: bstring
+	-@$(MISSING) || exit 0
+
+bstring: Makefile.coq $(wildcard *.v)
 	make -f Makefile.coq
 
 Makefile.coq: _CoqProject

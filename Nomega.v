@@ -65,19 +65,25 @@ Ltac decisions :=
 Ltac undecide :=
   repeat
     match goal with
-    | [ H : (_ <? _)  = true  |- _ ] => apply N.ltb_lt in H
-    | [ H : (_ <? _)  = false |- _ ] => apply N.ltb_ge in H
+    | [ H : is_true (_ <? _)  |- _ ] => apply N.ltb_lt in H
+    | [ H : (_ <? _) = true   |- _ ] => apply N.ltb_lt in H
+    | [ H : (_ <? _) = false  |- _ ] => apply N.ltb_ge in H
+    | [ H : is_true (_ <=? _) |- _ ] => apply N.leb_le in H
     | [ H : (_ <=? _) = true  |- _ ] => apply N.leb_le in H
     | [ H : (_ <=? _) = false |- _ ] => apply N.leb_gt in H
-    | [ H : (_ =? _)  = true  |- _ ] => apply N.eqb_eq in H; subst
-    | [ H : (_ =? _)  = false |- _ ] => apply N.eqb_neq in H
+    | [ H : is_true (_ =? _)  |- _ ] => apply N.eqb_eq in H; subst
+    | [ H : (_ =? _) = true   |- _ ] => apply N.eqb_eq in H; subst
+    | [ H : (_ =? _) = false  |- _ ] => apply N.eqb_neq in H
 
-    | [ |- (_ <? _)  = true  ] => apply N.ltb_lt
-    | [ |- (_ <? _)  = false ] => apply N.ltb_ge
+    | [ |- is_true (_ <? _)  ] => apply N.ltb_lt
+    | [ |- (_ <? _) = true   ] => apply N.ltb_lt
+    | [ |- (_ <? _) = false  ] => apply N.ltb_ge
+    | [ |- is_true (_ <=? _) ] => apply N.leb_le
     | [ |- (_ <=? _) = true  ] => apply N.leb_le
     | [ |- (_ <=? _) = false ] => apply N.leb_gt
-    | [ |- (_ =? _)  = true  ] => apply N.eqb_eq
-    | [ |- (_ =? _)  = false ] => apply N.eqb_neq
+    | [ |- is_true (_ =? _)  ] => apply N.eqb_eq
+    | [ |- (_ =? _) = true   ] => apply N.eqb_eq
+    | [ |- (_ =? _) = false  ] => apply N.eqb_neq
     end.
 
 Ltac nomega_reduce :=

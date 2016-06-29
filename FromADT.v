@@ -11,6 +11,20 @@ Require Import
   Here.BindDep
   Here.ADTInduction.
 
+(* Theorem Rep_fromADT *)
+(*         {sigCtors    : nat} *)
+(*         {sigCtorSigs : Vector.t consSig sigCtors} *)
+(*         {sigMeths    : nat} *)
+(*         {sigMethSigs : Vector.t methSig sigMeths} *)
+(*         {adt : DecoratedADT (BuildADTSig sigCtorSigs sigMethSigs)} : *)
+(*   forall (r : Rep adt) f, *)
+(*     f ↝ r -> fromADT adt r. *)
+(* Proof. *)
+(*   destruct adt; simpl in *. *)
+(*   induction sigCtorSigs; intros. *)
+(*     inversion H. *)
+(*   apply (fromADTConstructor _ Constructors). *)
+
 Definition fromADTConstructor'
            {dSig : DecoratedADTSig}
            (adt : DecoratedADT dSig)

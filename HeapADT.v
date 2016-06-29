@@ -13,7 +13,7 @@ Variable Word8 : Type.
 Variable Zero  : Word8.
 
 Definition MemoryBlock := MemoryBlock Word8.
-Definition HeapSpec    := @HeapSpec Word8 Zero.
+Definition HeapSpec    := @HeapSpec Word8.
 
 Lemma empty_fromADT r :
   refine (callCons HeapSpec emptyS) (ret r) -> fromADT HeapSpec r.
@@ -80,20 +80,20 @@ Proof.
   hone representation using
     (fun (or : Rep HeapSpec)
          (nr : { r : Rep HeapSpec | fromADT HeapSpec r }) => or = ` nr).
-  resolve_constructor (@empty Word8 Zero) empty_fromADT.
-  resolve_method r_n (@alloc Word8 Zero (` r_n) d)
+  resolve_constructor (@empty Word8) empty_fromADT.
+  resolve_method r_n (@alloc Word8 (` r_n) d)
                      (@alloc_fromADT _ (proj2_sig r_n) d).
-  resolve_method r_n (@free Word8 Zero (` r_n) d)
+  resolve_method r_n (@free Word8 (` r_n) d)
                      (@free_fromADT _ (proj2_sig r_n) d).
-  resolve_method r_n (@realloc Word8 Zero (` r_n) d d0)
+  resolve_method r_n (@realloc Word8 (` r_n) d d0)
                      (@realloc_fromADT _ (proj2_sig r_n) d d0).
-  resolve_method r_n (@peek Word8 Zero (` r_n) d)
+  resolve_method r_n (@peek Word8 (` r_n) d)
                      (@peek_fromADT _ (proj2_sig r_n) d).
-  resolve_method r_n (@poke Word8 Zero (` r_n) d d0)
+  resolve_method r_n (@poke Word8 (` r_n) d d0)
                      (@poke_fromADT _ (proj2_sig r_n) d d0).
-  resolve_method r_n (@memcpy Word8 Zero (` r_n) d d0 d1)
+  resolve_method r_n (@memcpy Word8 (` r_n) d d0 d1)
                      (@memcpy_fromADT _ (proj2_sig r_n) d d0 d1).
-  resolve_method r_n (@memset Word8 Zero (` r_n) d d0 d1)
+  resolve_method r_n (@memset Word8 (` r_n) d d0 d1)
                      (@memset_fromADT _ (proj2_sig r_n) d d0 d1).
   apply reflexivityT.
 Defined.

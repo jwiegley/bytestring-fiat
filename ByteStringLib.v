@@ -1,9 +1,11 @@
-Require Import Fiat.ADT Fiat.ADTNotation.
+Require Import
+  Fiat.ADT
+  Fiat.ADTNotation
+  Fiat.Computation.FixComp.
 
 Require Import
   Here.ByteString
-  Here.LibExt
-  Here.FixedPoint.
+  Here.LibExt.
 
 Section ByteStringLib.
 

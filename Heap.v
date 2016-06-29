@@ -6,7 +6,7 @@ Require Import
   Here.LibExt
   Here.Decidable
   Here.BindDep
-  Here.SetRelation.
+  Here.FunRelation.
 
 Generalizable All Variables.
 
@@ -28,7 +28,7 @@ Variable Zero  : Word8.
 
 Record MemoryBlock := {
   memSize : N;
-  memData : SetRel N Word8
+  memData : FunRel N Word8
 }.
 
 Ltac tsubst :=
@@ -49,7 +49,7 @@ Record CorrectMemoryBlock (blk : MemoryBlock) : Prop := {
   _ : forall off, Member off (memData blk) -> off < memSize blk
 }.
 
-Definition Heap := SetRel N MemoryBlock.
+Definition Heap := FunRel N MemoryBlock.
 
 Definition CorrectHeap (mem : Heap) :=
   All (fun p => CorrectMemoryBlock (snd p)) mem.
@@ -98,7 +98,7 @@ Qed.
 
 Program Definition copy_memory
         (addr1 addr2 : N) (len : N | 0 < len) (mem : Heap) : Heap :=
-  mkSetRel
+  mkFunRel
     (p <- relEns mem;
      let (daddr, dst) := p in
      IfDec fits daddr (memSize dst) addr2 (` len)
@@ -158,12 +158,12 @@ Qed.
 
 Definition found_block_at_base
            (addr' len' : N)
-           (data' : SetRel N Word8) : Heap -> Prop :=
+           (data' : FunRel N Word8) : Heap -> Prop :=
   Lookup addr' {| memSize := len'
                 ; memData := data' |}.
 
 Definition found_block
-           (addr : N) (addr' len' : N) (data' : SetRel N Word8)
+           (addr : N) (addr' len' : N) (data' : FunRel N Word8)
            (mem : Heap) : Prop :=
   found_block_at_base addr' len' data' mem /\ within addr' len' addr.
 
@@ -379,10 +379,10 @@ Proof.
     unfold free_block, find_free_block, found_block_at_base in H0.
     teardown; tsubst; simplify_ensembles.
     + apply H0 with (data':=data1).
-      apply Lookup_Remove_impl with (a':=x); trivial.
+      apply Lookup_Remove with (a':=x); trivial.
     + rewrite overlaps_sym.
       apply H0 with (data':=data2).
-      apply Lookup_Remove_impl with (a':=x); trivial.
+      apply Lookup_Remove with (a':=x); trivial.
     + eapply IHfromADT; eassumption.
   - unfold set_address in H1, H3.
     teardown; decisions; tsubst;
