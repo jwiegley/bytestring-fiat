@@ -41,20 +41,40 @@ Variable H    : SetMap_AbsR or nr R.
 
 Hypothesis Oeq_eq : forall a b, O.eq a b -> a = b.
 
+Ltac reduce :=
+  teardown; subst;
+  try match goal with
+  | [ H1 : SetMap_AbsR _ _ _,
+      H2 : Lookup ?A ?D ?K |- _ ] =>
+    let HA := fresh "HA" in
+    let HB := fresh "HB" in
+    destruct (H1 A) as [HA HB]; clear H1;
+    let HC := fresh "HC" in
+    let HD := fresh "HD" in
+    destruct (HA _ H2) as [cdata [HC HD]]; clear HA HB H2;
+    exists cdata
+  | [ H1 : SetMap_AbsR _ _ _,
+      H2 : M.find ?A ?K = Some ?D |- _ ] =>
+    let HA := fresh "HA" in
+    let HB := fresh "HB" in
+    destruct (H1 A) as [HA HB]; clear H1;
+    let HC := fresh "HC" in
+    let HD := fresh "HD" in
+    destruct (HB _ H2) as [data [HC HD]]; clear HA HB H2;
+    exists data
+  end.
+
 Lemma Update_SetMap_AbsR : forall k v v',
   R v v' -> SetMap_AbsR (Update k v or) (M.add k v' nr) R.
 Proof.
   split; intros.
-    teardown; subst.
+    reduce.
       exists v'.
       split; trivial.
       apply F.find_mapsto_iff, F.add_mapsto_iff.
       left; auto.
-    destruct (H addr); clear H H4.
-    destruct (H3 _ H2); clear H2 H3.
-    exists x.
     intuition.
-    apply F.find_mapsto_iff in H2.
+    apply F.find_mapsto_iff in HC.
     apply F.find_mapsto_iff, F.add_mapsto_iff.
     right; split; auto.
   apply F.find_mapsto_iff, F.add_mapsto_iff in H1.
@@ -63,12 +83,30 @@ Proof.
     split; trivial.
     apply Oeq_eq in H1; subst.
     right; constructor.
-  destruct (H addr); clear H H3.
   apply F.find_mapsto_iff in H2.
-  destruct (H4 _ H2); clear H2 H4.
-  exists x.
-  intuition.
+  reduce; intuition.
   left; constructor; auto.
+  unfold Ensembles.In; simpl.
+  unfold not; intros.
+  subst; auto.
+Qed.
+
+Lemma Remove_SetMap_AbsR : forall k,
+  SetMap_AbsR (Remove k or) (M.remove k nr) R.
+Proof.
+  split; intros.
+    reduce.
+    intuition.
+    apply F.find_mapsto_iff, F.remove_mapsto_iff.
+    split; auto.
+    apply F.find_mapsto_iff.
+    assumption.
+  apply F.find_mapsto_iff, F.remove_mapsto_iff in H0.
+  destruct H0.
+  apply F.find_mapsto_iff in H1.
+  reduce.
+  intuition.
+  constructor; trivial.
   unfold Ensembles.In; simpl.
   unfold not; intros.
   subst; auto.

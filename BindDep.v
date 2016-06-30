@@ -89,3 +89,19 @@ Proof.
   exists H.
   exact H0.
 Qed.
+
+Ltac remove_dependency :=
+  repeat
+    match goal with
+      | [ |- refine (_ <- `(_|_) <- ret _;
+                          ret _;
+                     _) _ ] =>
+        rewrite refine_bind_dep_ret
+      | [ |- refine (_ <- `(_|_) <- _;
+                          ret _;
+                     _) _ ] =>
+        rewrite refine_bind_dep_bind_ret; simpl
+      | [ |- refine (`(_|_) <- _;
+                     _) _ ] =>
+        rewrite refine_bind_dep_ignore
+    end.
