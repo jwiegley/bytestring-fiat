@@ -106,6 +106,51 @@ Proof.
   destruct blk; simpl in *; auto.
 Qed.
 
+(*
+Lemma find_if_found_block : forall addr blk m d,
+  M.find addr m = Some blk
+    -> within addr (memCSize blk) d
+    -> (forall addr2 blk2,
+          addr <> addr2
+            -> M.find addr2 m = Some blk2
+            -> ~ within addr2 (memCSize blk2) d)
+    -> find_if (fun (addr : M.key) (blk : MemoryBlockC) =>
+                  Decidable.Decidable_witness
+                    (P:=within addr (memCSize blk) d)) m = Some (addr, blk).
+Proof.
+  intros.
+  rewrite F.elements_o in H.
+  setoid_rewrite F.elements_o in H1.
+  unfold find_if.
+  rewrite M.fold_1.
+  induction (M.elements (elt:=MemoryBlockC) m).
+    discriminate.
+  destruct a.
+  apply within_reflect in H0.
+  simpl in H, H1.
+  pose proof H1.
+  specialize (H1 k m0).
+  unfold F.eqb, F.eq_dec in H, H1.
+  destruct (N.eq_dec k k); [| tauto].
+  rewrite fold_Some_cons; auto.
+  simpl.
+  destruct (N.eq_dec addr k).
+    inversion H; clear H e; subst.
+    rewrite H0.
+    reflexivity.
+  specialize (H1 n eq_refl).
+  decisions.
+    apply within_reflect in Heqe.
+    contradiction.
+  apply IHl.
+    exact H.
+  intros.
+  apply H2; auto.
+  rewrite H4.
+  unfold F.eqb, F.eq_dec.
+Abort.
+*)
+
 Lemma Heap_AbsR_outside_mem
       {r_o r_n}
       (AbsR : Heap_AbsR r_o r_n)
@@ -221,51 +266,39 @@ Proof.
     simplify with monad laws; simpl.
 
     refine pick val
-      (Ifopt List.find (fun p =>
-                          let blk := snd p in
-                          Decidable.Decidable_witness
-                            (P:=within (fst p) (memCSize blk) d))
-                       (M.elements (snd r_n)) as p
-       Then let blk := snd p in
-            Ifopt M.find (d - fst p) (memCData blk) as v
+      (Ifopt find_if (fun addr blk =>
+                        Decidable.Decidable_witness
+                          (P:=within addr (memCSize blk) d)) (snd r_n) as p
+       Then let addr := fst p in
+            let blk := snd p in
+            Ifopt M.find (d - addr) (memCData blk) as v
             Then v
             Else Zero
        Else Zero).
       Focus 2.
-      simpl; intros; subst.
+      (* pose proof allocations_no_overlap. *)
+      intros; subst.
       destruct H1.
-      apply (@find_found_block _ r_n) in H1; trivial.
-      destruct H1 as [cdata' [? ?]].
-      apply F.find_mapsto_iff in H4.
-      apply F.elements_mapsto_iff in H4.
-      destruct (M.elements (elt:=MemoryBlockC) (snd r_n)).
-        inversion H4.
-      apply SetoidList.InA_cons in H4.
-      destruct H4; simpl.
-        destruct H4.
-        simpl in *; subst.
-        rewrite <- H5; simpl.
-        unfold within in H3.
-        decisions.
-          simpl.
-          destruct (H1 (d - fst p)); clear H1 H6.
-          destruct (H4 _ H2); clear H4 H2.
-          rewrite <- H5; simpl.
-          destruct H1; subst.
-          setoid_rewrite H1.
-          reflexivity.
-        apply Bool.andb_false_iff in Heqe.
-        destruct H3.
-        destruct Heqe;
-        undecide;
-        apply N.nle_gt in H6;
-        firstorder.
-      apply P.of_list_1 in H4.
-        eapply F.elements_mapsto_iff in H4.
-        decisions.
-          simpl.
-          admit.
-        admit.
+      unfold found_block_at_base in H1.
+      destruct H0.
+      destruct (H0 base); clear H0.
+      destruct (H5 _ H1) as [cdata [? ?]]; clear H1 H5 H6.
+      destruct H7.
+      simpl in H1; subst.
+      unfold find_if.
+      rewrite M.fold_1.
+      rewrite F.elements_o in H0.
+      induction (M.elements (elt:=MemoryBlockC) (snd r_n)).
+        inversion H0.
+      rewrite fold_Some_cons; auto.
+      destruct a; simpl in *.
+      (* eapply find_if_found_block in H0; eauto. *)
+      (* rewrite H0; simpl. *)
+      (* destruct (H5 (d - base)); simpl in *; clear H5. *)
+      (* destruct (H1 _ H2); clear H1 H2 H6. *)
+      (* destruct H5. *)
+      (* rewrite H1; simpl. *)
+      (* intuition. *)
       admit.
 
     simplify with monad laws; simpl.

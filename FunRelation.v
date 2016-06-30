@@ -214,6 +214,9 @@ Proof. firstorder. Qed.
 Lemma Lookup_Member : forall a b r, Lookup a b r -> Member a r.
 Proof. firstorder. Qed.
 
+Definition Find (P : A -> B -> Prop) (a : A) (b : B) (r : FunRel) :=
+  Lookup a b r /\ P a b.
+
 Definition FindA (P : A -> Prop) (b : B) (r : FunRel) :=
   forall a, Lookup a b r /\ P a.
 
@@ -239,6 +242,7 @@ Arguments Define : default implicits.
 Arguments Transfer : default implicits.
 Arguments Lookup : default implicits.
 Arguments Member : default implicits.
+Arguments Find : default implicits.
 Arguments FindA : default implicits.
 Arguments FindB : default implicits.
 

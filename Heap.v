@@ -239,9 +239,7 @@ Definition HeapSpec := Def ADT {
                      position.
                   2. Peeking an allocated, uninitialized byte.
                   3. Peeking at an unallocated location. *)
-               -> forall off v, Lookup off v data'
-               -> off = addr - base
-               -> p = v };
+               -> forall v, Lookup (addr - base) v data' -> p = v };
     ret (r, p),
 
   (* Poking an unallocated address is a no-op and returns false. *)
