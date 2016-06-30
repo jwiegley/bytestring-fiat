@@ -261,9 +261,10 @@ Proof.
         apply N.nle_gt in H6;
         firstorder.
       apply P.of_list_1 in H4.
-      eapply F.elements_mapsto_iff in H4.
-      decisions.
-        simpl.
+        eapply F.elements_mapsto_iff in H4.
+        decisions.
+          simpl.
+          admit.
         admit.
       admit.
 
