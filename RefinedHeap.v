@@ -252,8 +252,9 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Map_SetMap_AbsR; auto; intros.
-      admit.
+    - apply Map_SetMap_AbsR; auto; intros; destruct H2.
+      split; rewrite H2; decisions; intuition; simpl.
+      apply Update_SetMap_AbsR; trivial.
     - admit.
   }
 

@@ -58,6 +58,63 @@ Proof.
   - tauto.
 Qed.
 
+Lemma mapi_empty (Oeq_eq : forall a b, O.eq a b -> a = b) :
+  forall (f : M.key -> elt -> elt),
+    M.Equal (M.mapi f (M.empty elt)) (M.empty elt).
+Proof.
+  intros f k.
+  rewrite F.mapi_o, F.empty_o; trivial.
+  intros.
+  apply Oeq_eq in H; subst.
+  reflexivity.
+Qed.
+
+Lemma fold_Some (m : list (M.key * elt))
+      A (z : A) (f : M.key * elt -> option A) :
+  List.fold_left (fun (x : option A) (k : M.key * elt) =>
+                    match x with
+                    | Some _ => x
+                    | None => f k
+                    end) m (Some z) = Some z.
+Proof.
+  induction m; simpl; intros.
+    reflexivity.
+  rewrite IHm.
+  reflexivity.
+Qed.
+
+Lemma fold_Some_cons (m : list (M.key * elt))
+      A (z : A) y (f : M.key * elt -> option A) :
+  List.fold_left (fun (x : option A) (k : M.key * elt) =>
+                    match x with
+                    | Some _ => x
+                    | None => f k
+                    end) (y :: m) None =
+  match f y with
+  | Some x => Some x
+  | None =>
+    List.fold_left (fun (x : option A) (k : M.key * elt) =>
+                      match x with
+                      | Some _ => x
+                      | None => f k
+                      end) m None
+  end.
+Proof.
+  induction m; simpl; intros.
+    destruct (f y); reflexivity.
+  destruct (f y); simpl.
+    rewrite fold_Some; reflexivity.
+  reflexivity.
+Qed.
+
+Lemma for_all_mapi (Oeq_eq : forall a b, O.eq a b -> a = b) :
+  forall elt' (m : M.t elt') (k : M.key)
+         (f : M.key -> elt' -> elt),
+    P.for_all P (M.mapi f m) = true
+      <-> P.for_all (fun k e => P k (f k e)) m = true.
+Proof.
+Abort.
+
 Lemma for_all_impl : forall (P' : M.key -> elt -> bool) m,
   P.for_all P m = true
     -> Proper (O.eq ==> eq ==> eq) P'
