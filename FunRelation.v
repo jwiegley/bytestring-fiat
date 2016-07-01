@@ -223,6 +223,10 @@ Definition FindA (P : A -> Prop) (b : B) (r : FunRel) :=
 Definition FindB (P : B -> Prop) (a : A) (r : FunRel) :=
   forall b, Lookup a b r /\ P b.
 
+Lemma Find_Lookup_iff (P : A -> B -> Prop) (r : FunRel) :
+  forall a b, Find (fun _ _ => True) a b r <-> Lookup a b r.
+Proof. unfold Find; split; intros; firstorder. Qed.
+
 End FunRelation.
 
 Arguments mkFunRel : default implicits.

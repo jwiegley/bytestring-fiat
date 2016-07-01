@@ -72,6 +72,12 @@ Qed.
 
 End for_all.
 
+Import ListNotations.
+
+Definition unique_predicate {elt} (f : M.key -> elt -> bool) (m : M.t elt) :=
+  forall a  b,  M.find a  m = Some b  -> is_true (f a  b)  ->
+  forall a' b', M.find a' m = Some b' -> is_true (f a' b') -> a = a' /\ b = b'.
+
 Definition find_if {elt} (f : M.key -> elt -> bool) (m : M.t elt) :
   option (M.key * elt) :=
   M.fold (fun (k : M.key) (e : elt) x =>
@@ -118,5 +124,66 @@ Proof.
     rewrite fold_Some; reflexivity.
   reflexivity.
 Qed.
+
+Lemma findA_if_invert (Oeq_eq : forall a b, O.eq a b <-> a = b) :
+  forall elt a k e f l,
+    (forall (a2 : M.key) (b2 : elt),
+        (if F.eqb a2 k then Some e else findA (F.eqb a2) l) = Some b2 ->
+        ~ O.eq a a2 -> f a2 b2 = false) ->
+    (forall (a2 : M.key) (b2 : elt),
+        is_true (F.eqb a2 k) ->
+        Some e = Some b2 ->
+        ~ O.eq a a2 -> f a2 b2 = false) \/
+    (forall (a2 : M.key) (b2 : elt),
+        findA (F.eqb a2) l = Some b2 ->
+        ~ O.eq a a2 -> f a2 b2 = false).
+Proof.
+  intros.
+  specialize (H k).
+  unfold F.eqb, M.E.eq_dec in *.
+  destruct (O.eq_dec k k).
+    left; intros.
+    destruct (O.eq_dec a2 k).
+      apply Oeq_eq in e1; subst.
+      firstorder.
+    discriminate.
+  right; intros.
+  contradiction n.
+  apply Oeq_eq.
+  reflexivity.
+Qed.
+
+Lemma map_injective : forall elt a (b b' : elt) m,
+  M.find a m = Some b -> M.find a m = Some b' -> b = b'.
+Proof.
+  intros.
+  rewrite F.elements_o in H, H0.
+  induction (M.elements (elt:=elt) m).
+    discriminate.
+  destruct a0; simpl in *.
+  unfold F.eqb, M.E.eq_dec in *.
+  destruct (O.eq_dec a k).
+    inversion H; inversion H0; subst.
+    assumption.
+  intuition.
+Qed.
+
+Theorem find_if_unique
+        (Oeq_eq : forall a b, O.eq a b <-> a = b)
+        {elt}  (f : M.key -> elt -> bool) (m : M.t elt) :
+  unique_predicate f m
+    -> forall a b,
+         M.find a m = Some b
+           -> is_true (f a b)
+           -> find_if f m = Some (a, b).
+Proof.
+  unfold unique_predicate, find_if; intros.
+  specialize (H _ _ H0 H1).
+  apply F.find_mapsto_iff in H0.
+  apply P.fold_rec_nodep.
+    admit.
+  intros; subst.
+  reflexivity.
+Admitted.
 
 End FMapExt.

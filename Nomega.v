@@ -94,6 +94,8 @@ Ltac nomega_reduce :=
     | [ H : (_ && _)%bool = false |- _ ] =>
       apply Bool.andb_false_iff in H; destruct H
 
+    | [ H : { _ : N | _ } |- _ ] => destruct H; simpl in *
+
     | [ H : _ <  _ <  _ |- _ ] => destruct H
     | [ H : _ <= _ <  _ |- _ ] => destruct H
     | [ H : _ <  _ <= _ |- _ ] => destruct H

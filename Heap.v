@@ -156,21 +156,6 @@ Proof.
   against_definition set_memory len ltac:(unfold Ensembles.In in *; simpl in *).
 Qed.
 
-Definition found_block_at_base
-           (addr' len' : N)
-           (data' : FunRel N Word8) : Heap -> Prop :=
-  Lookup addr' {| memSize := len'
-                ; memData := data' |}.
-
-Definition found_block
-           (addr : N) (addr' len' : N) (data' : FunRel N Word8)
-           (mem : Heap) : Prop :=
-  found_block_at_base addr' len' data' mem /\ within addr' len' addr.
-
-Definition no_block (addr : N) (mem : Heap) : Prop :=
-  forall addr' len' data',
-    found_block_at_base addr' len' data' mem /\ ~ within addr' len' addr.
-
 Definition free_block (addr : N) : Heap -> Heap := Remove addr.
 
 Lemma free_block_correct `(_ : CorrectHeap mem) :
@@ -180,25 +165,21 @@ Proof.
 Qed.
 
 Definition find_free_block (len : N | 0 < len) (mem : Heap) : Comp N :=
-  { addr : N | forall addr' len' data',
-      found_block_at_base addr' len' data' mem
-        -> ~ overlaps addr' len' addr (` len) }.
+  { addr : N | forall addr' blk',
+      ~ Find (fun addr' blk' =>
+                overlaps addr' (memSize blk') addr (` len))
+             addr' blk' mem }.
 
 Lemma find_free_block_spec (len : N | 0 < len) `(_ : CorrectHeap r) :
   forall addr, find_free_block len r ↝ addr -> ~ Member addr r.
 Proof.
-  destruct len; simpl.
-  unfold find_free_block, found_block_at_base; intros.
-  unfold CorrectHeap in CorrectHeap0.
-  apply Pick_inv in H; simpl in H.
+  simplify_ensembles.
   unfold not; intros.
-  apply Member_Lookup in H0.
-  destruct H0.
-  assert (CorrectMemoryBlock x0)
-    by exact (All_Lookup _ _ _ r CorrectHeap0 _ _ H0).
-  destruct x0, H1; simpl in *.
-  specialize (H _ _ _ H0).
-  contradiction (overlaps_irr addr H1 l).
+  apply Member_Lookup in H0; destruct H0.
+  specialize (H addr x).
+  apply (LogicFacts.not_and_implication (Lookup _ _ _)) in H; eauto.
+  destruct (All_Lookup _ _ _ r CorrectHeap0 _ _ H0).
+  contradiction (overlaps_irr addr H1 (proj2_sig len)).
 Qed.
 
 Definition HeapSpec := Def ADT {
@@ -231,15 +212,16 @@ Definition HeapSpec := Def ADT {
   (* Peeking an unallocated address allows any value to be returned. *)
   Def Method1 peekS (r : rep) (addr : N) : rep * Word8 :=
     p <- { p : Word8
-         | forall base len' data',
-             found_block addr base len' data' r
-               (* There are three cases to consider here:
-                  1. Peeking an allocated, initialized byte. This must
-                     return the same byte that was last poke'd at that
-                     position.
-                  2. Peeking an allocated, uninitialized byte.
-                  3. Peeking at an unallocated location. *)
-               -> forall v, Lookup (addr - base) v data' -> p = v };
+         | forall base blk',
+             (* There are three cases to consider here:
+                1. Peeking an allocated, initialized byte. This must
+                   return the same byte that was last poke'd at that
+                   position.
+                2. Peeking an allocated, uninitialized byte.
+                3. Peeking at an unallocated location. *)
+             Find (fun a b => within a (memSize b) addr) base blk' r
+               -> forall v, Lookup (addr - base) v (memData blk')
+               -> p = v };
     ret (r, p),
 
   (* Poking an unallocated address is a no-op and returns false. *)
@@ -315,9 +297,9 @@ Qed.
 
 Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr len data,
-    found_block_at_base addr len data r -> 0 < len.
+    Lookup addr {| memSize := len; memData := data |} r -> 0 < len.
 Proof.
-  unfold found_block_at_base; intros.
+  intros.
   generalize dependent data.
   generalize dependent len.
   generalize dependent addr.
@@ -347,6 +329,64 @@ Proof.
     tsubst; firstorder.
 Qed.
 
+Ltac reveal_no_overlap r :=
+  match goal with
+    [ H1 : forall addr' blk',
+        ~ Find (fun a b => overlaps a (memSize b) ?A1 ?B1) addr' blk' ?R,
+        H2 : Lookup ?A2 ?B2 r |- _ ] =>
+    specialize (H1 A2 B2);
+    apply (LogicFacts.not_and_implication (Lookup _ _ _)) in H1; eauto
+  end.
+
+Theorem allocations_unique : forall r : Rep HeapSpec, fromADT _ r ->
+  forall addr blk1 blk2,
+       Lookup addr blk1 r
+    -> Lookup addr blk2 r
+    -> blk1 = blk2.
+Proof.
+  intros.
+  generalize dependent blk2.
+  generalize dependent blk1.
+  generalize dependent addr.
+  ADT induction r.
+  - inversion H0.
+  - unfold find_free_block in H0.
+    teardown; tsubst; simplify_ensembles.
+    reveal_no_overlap r.
+  - firstorder.
+  - unfold fit_to_length, shift_address in H1, H2.
+    unfold free_block, find_free_block in H0.
+    teardown; tsubst; simplify_ensembles.
+      specialize (IHfromADT _ _ H6 _ H8); subst.
+      reflexivity.
+    eapply IHfromADT; eassumption.
+  - unfold set_address in H1, H2.
+    teardown; decisions; tsubst;
+    specialize (IHfromADT _ _ H2 _ H3); subst; eauto;
+    rewrite Heqe in Heqe0; discriminate.
+  - unfold copy_memory in H1, H2.
+    unfold Lookup, relEns in *.
+    simplify_ensembles; simpl in *; decisions;
+    simplify_ensembles;
+    try destruct m;
+    try destruct m0;
+    try destruct m1;
+    try destruct m2;
+    specialize (IHfromADT _ _ H0 _ H1);
+    tsubst; simpl in *; eauto.
+    + rewrite Heqe0 in Heqe2; discriminate.
+    + rewrite Heqe in Heqe1; discriminate.
+    + rewrite Heqe2 in Heqe0; discriminate.
+    + rewrite Heqe0 in Heqe; discriminate.
+  - unfold set_memory in H1, H2.
+    teardown; decisions; tsubst;
+    try destruct x2;
+    try destruct x3;
+    specialize (IHfromADT _ _ H2 _ H3);
+    tsubst; simpl in *; eauto;
+    rewrite Heqe in Heqe0; discriminate.
+Qed.
+
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 len1 data1 addr2 len2 data2,
        Lookup addr1 {| memSize := len1
@@ -365,21 +405,21 @@ Proof.
   generalize dependent addr1.
   ADT induction r.
   - inversion H0.
-  - unfold find_free_block, no_block in H0.
+  - unfold find_free_block in H0.
     teardown; tsubst; simplify_ensembles.
-    + eapply H0; eassumption.
+    + reveal_no_overlap r.
     + rewrite overlaps_sym.
-      eapply H0; eassumption.
+      reveal_no_overlap r.
     + eapply IHfromADT; eassumption.
   - unfold free_block in H1, H3.
     teardown; eapply IHfromADT; eassumption.
   - unfold fit_to_length, shift_address in H1, H3.
-    unfold free_block, find_free_block, found_block_at_base in H0.
+    unfold free_block, find_free_block in H0.
     teardown; tsubst; simplify_ensembles.
-    + apply H0 with (data':=data1).
+    + clear H9; reveal_no_overlap r.
       apply Lookup_Remove with (a':=x); trivial.
     + rewrite overlaps_sym.
-      apply H0 with (data':=data2).
+      clear H9; reveal_no_overlap r.
       apply Lookup_Remove with (a':=x); trivial.
     + eapply IHfromADT; eassumption.
   - unfold set_address in H1, H3.
@@ -401,6 +441,27 @@ Proof.
     try destruct x2;
     try destruct x3; simpl in *;
     eapply IHfromADT; eassumption.
+Qed.
+
+Theorem allocations_only_one_within : forall r : Rep HeapSpec, fromADT _ r ->
+  forall addr base blk,
+    Find (fun a b => within a (memSize b) addr) base blk r
+      -> forall addr' blk',
+           Lookup addr' blk' r
+             -> within addr' (memSize blk') addr
+             -> base = addr' /\ blk = blk'.
+Proof.
+  intros.
+  destruct H0.
+  destruct (N.eq_dec base addr').
+    subst.
+    pose proof (allocations_unique H _ _ _ H0 H1); subst.
+    firstorder.
+  destruct blk, blk'; simpl in *.
+  pose proof (allocations_no_overlap H _ _ H0 H1 n).
+  unfold within in *.
+  unfold overlaps in H4.
+  nomega.
 Qed.
 
 End Heap.

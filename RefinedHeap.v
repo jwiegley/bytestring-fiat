@@ -87,95 +87,107 @@ Definition Heap_AbsR
   SetMap_AbsR (` or) (snd nr) MemoryBlock_AbsR /\
   P.for_all (within_allocated_mem (fst nr)) (snd nr).
 
-Lemma find_found_block
-      {r_o r_n}
-      (AbsR : Heap_AbsR r_o r_n)
-      addr' len' data' :
-  found_block_at_base addr' len' data' (` r_o)
-    -> exists cdata',
-        SetMap_AbsR data' cdata' eq /\
-        M.find addr' (snd r_n)
-          = Some {| memCSize := len'; memCData := cdata' |}.
+Lemma Lookup_find_block {r_o r_n} (AbsR : Heap_AbsR r_o r_n) addr' blk' :
+  Lookup addr' blk' (` r_o)
+    -> exists cblk',
+        MemoryBlock_AbsR blk' cblk' /\
+        M.find addr' (snd r_n) = Some cblk'.
 Proof.
-  unfold found_block_at_base; intros.
+  intros.
   destruct AbsR.
   destruct (H0 addr'); clear H0.
   destruct (H2 _ H) as [blk [? ?]]; clear H H2 H3.
-  exists (memCData blk).
-  destruct H4; simpl in *; subst.
-  destruct blk; simpl in *; auto.
+  exists blk.
+  tauto.
 Qed.
 
-(*
-Lemma find_if_found_block : forall addr blk m d,
-  M.find addr m = Some blk
-    -> within addr (memCSize blk) d
-    -> (forall addr2 blk2,
-          addr <> addr2
-            -> M.find addr2 m = Some blk2
-            -> ~ within addr2 (memCSize blk2) d)
-    -> find_if (fun (addr : M.key) (blk : MemoryBlockC) =>
-                  Decidable.Decidable_witness
-                    (P:=within addr (memCSize blk) d)) m = Some (addr, blk).
-Proof.
-  intros.
-  rewrite F.elements_o in H.
-  setoid_rewrite F.elements_o in H1.
-  unfold find_if.
-  rewrite M.fold_1.
-  induction (M.elements (elt:=MemoryBlockC) m).
-    discriminate.
-  destruct a.
-  apply within_reflect in H0.
-  simpl in H, H1.
-  pose proof H1.
-  specialize (H1 k m0).
-  unfold F.eqb, F.eq_dec in H, H1.
-  destruct (N.eq_dec k k); [| tauto].
-  rewrite fold_Some_cons; auto.
-  simpl.
-  destruct (N.eq_dec addr k).
-    inversion H; clear H e; subst.
-    rewrite H0.
-    reflexivity.
-  specialize (H1 n eq_refl).
-  decisions.
-    apply within_reflect in Heqe.
-    contradiction.
-  apply IHl.
-    exact H.
-  intros.
-  apply H2; auto.
-  rewrite H4.
-  unfold F.eqb, F.eq_dec.
-Abort.
-*)
-
 Lemma Heap_AbsR_outside_mem
-      {r_o r_n}
-      (AbsR : Heap_AbsR r_o r_n)
+      {r_o r_n} (AbsR : Heap_AbsR r_o r_n)
       (d : {len : N | 0 < len}) :
-  forall addr' len' data',
-    found_block_at_base addr' len' data' (` r_o)
-      -> ~ overlaps addr' len' (fst r_n) (` d).
+  forall addr' blk',
+    ~ Find (fun a b => overlaps a (memSize b) (fst r_n) (` d))
+           addr' blk' (` r_o).
 Proof.
   destruct AbsR; intros.
-  destruct d; simpl in *.
-  eapply find_found_block in H1; eauto;
+  apply LogicFacts.not_and_implication; intros.
+  eapply Lookup_find_block in H1; eauto;
   [| split; [exact H|assumption] ].
-  destruct H1 as [cdata' [? ?]].
-  eapply P.for_all_iff
-    with (k:=addr')
-         (e:={| memCSize := len'
-              ; memCData := cdata' |}) in H0; eauto.
+  destruct H1 as [cblk' [[? ?] ?]].
+  eapply P.for_all_iff with (k:=addr') (e:=cblk') in H0; eauto.
     unfold within_allocated_mem in H0; simpl in H0.
     unfold overlaps.
+    destruct d; simpl in *.
+    rewrite H1.
     clear -H0 l.
     undecide.
     nomega.
   apply F.find_mapsto_iff.
   assumption.
 Qed.
+
+Lemma Heap_Find {r_o r_n} {AbsR : Heap_AbsR r_o r_n} :
+  forall d base blk',
+    Find (fun (a : N) (b : Heap.MemoryBlock Word8) =>
+            within a (memSize b) d) base blk' (` r_o)
+      -> exists cblk',
+           MemoryBlock_AbsR blk' cblk' /\
+           find_if (fun (addr : M.key) (blk : MemoryBlockC) =>
+                      Decidable.Decidable_witness
+                        (P:=within addr (memCSize blk) d)) (snd r_n)
+             = Some (base, cblk').
+Proof.
+  intros; subst.
+  pose proof H as HAA.
+  destruct HAA as [HAA HAB].
+  pose proof (allocations_only_one_within (proj2_sig r_o) H) as HAC.
+  destruct AbsR as [HC _].
+  pose proof HC as HD.
+  destruct (HD base) as [HE _]; clear HD.
+  destruct (HE _ HAA) as [cblk' [HF HG]]; clear HE HAA.
+  remember (fun (_ : M.key) _ => _) as P'.
+  exists cblk'.
+  split; trivial.
+  assert (forall a b : N, a = b <-> a = b) as HL by tauto.
+  assert (unique_predicate P' (snd r_n)) as HM.
+    admit.
+  pose proof (find_if_unique HL P' (snd r_n) HM base cblk' HF).
+  unfold find_if.
+  unfold SetMap_AbsR in HC.
+  rewrite F.elements_o in HF.
+  setoid_rewrite F.elements_o in HC.
+  rewrite M.fold_1.
+  induction (M.elements (elt:=MemoryBlockC) (snd r_n)).
+    discriminate.
+  rewrite fold_Some_cons; auto.
+  destruct a; simpl in *; subst.
+  unfold F.eqb, F.eq_dec in *.
+  destruct (HC k) as [_ HD].
+  destruct (N.eq_dec k k); try tauto; clear e.
+  destruct (HD m eq_refl) as [blk'' [HI HJ]]; clear HD.
+  pose proof (HAC _ _ HI) as HAD.
+  destruct (N.eq_dec base k).
+    inversion HF; subst; clear HF.
+    decisions.
+      reflexivity.
+    apply within_reflect in HAB.
+    destruct HG as [HH ?].
+    rewrite HH in HAB.
+    rewrite HAB in Heqe.
+    discriminate.
+  decisions.
+    apply within_reflect in Heqe.
+    destruct HJ as [HK _]; rewrite <- HK in Heqe.
+    specialize (HAD Heqe).
+    tauto.
+  apply IHl; eauto; clear IHl.
+  split; intros;
+  destruct (HC addr) as [HD HE]; clear HC.
+    clear HE.
+    destruct (HD _ H1) as [cblk [HBF HBG]].
+    exists cblk.
+    admit.
+  admit.
+Admitted.
 
 Ltac AbsR_prep :=
   repeat
@@ -261,7 +273,7 @@ Proof.
 
   refine method peekS.
   {
-    unfold Heap_AbsR, peek, found_block.
+    unfold Heap_AbsR, peek.
     remove_dependency.
     simplify with monad laws; simpl.
 
@@ -275,31 +287,6 @@ Proof.
             Then v
             Else Zero
        Else Zero).
-      Focus 2.
-      (* pose proof allocations_no_overlap. *)
-      intros; subst.
-      destruct H1.
-      unfold found_block_at_base in H1.
-      destruct H0.
-      destruct (H0 base); clear H0.
-      destruct (H5 _ H1) as [cdata [? ?]]; clear H1 H5 H6.
-      destruct H7.
-      simpl in H1; subst.
-      unfold find_if.
-      rewrite M.fold_1.
-      rewrite F.elements_o in H0.
-      induction (M.elements (elt:=MemoryBlockC) (snd r_n)).
-        inversion H0.
-      rewrite fold_Some_cons; auto.
-      destruct a; simpl in *.
-      (* eapply find_if_found_block in H0; eauto. *)
-      (* rewrite H0; simpl. *)
-      (* destruct (H5 (d - base)); simpl in *; clear H5. *)
-      (* destruct (H1 _ H2); clear H1 H2 H6. *)
-      (* destruct H5. *)
-      (* rewrite H1; simpl. *)
-      (* intuition. *)
-      admit.
 
     simplify with monad laws; simpl.
     refine pick val r_n.
@@ -307,6 +294,14 @@ Proof.
       finish honing.
 
     AbsR_prep; assumption.
+
+    intros; subst; clear H.
+    destruct (@Heap_Find _ _ H0 _ _ _ H1) as [cblk' [HA HB]].
+    rewrite HB; simpl; clear HB.
+    destruct HA as [_ HI].
+    destruct (HI (d - base)) as [HJ _]; clear HI.
+    destruct (HJ _ H2) as [cdata [HK HL]]; clear HJ H2; subst.
+    rewrite HK; reflexivity.
   }
 
   refine method pokeS.
