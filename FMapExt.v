@@ -1,11 +1,11 @@
 Require Import
-  Coq.FSets.FMapAVL
+  Coq.FSets.FMapList
   Coq.FSets.FMapFacts
   Coq.Structures.OrderedTypeEx.
 
 Module FMapExt (O : OrderedType).
 
-Module M := FMapAVL.Make(O).
+Module M := FMapList.Make(O).
 Module P := FMapFacts.Properties M.
 Module F := P.F.
 
@@ -87,19 +87,18 @@ Definition find_if {elt} (f : M.key -> elt -> bool) (m : M.t elt) :
             end) m
          None.
 
-Lemma map_injective : forall elt a (b b' : elt) m,
-  M.find a m = Some b -> M.find a m = Some b' -> b = b'.
-Proof.
-  intros.
-  rewrite F.elements_o in H, H0.
-  induction (M.elements (elt:=elt) m).
-    discriminate.
-  destruct a0; simpl in *.
-  unfold F.eqb, M.E.eq_dec in *.
-  destruct (O.eq_dec a k).
-    inversion H; inversion H0; subst.
-    assumption.
-  intuition.
-Qed.
+Definition find_nearest {elt} (k:M.key) (s: M.t elt) : option (M.key * elt) :=
+  let fix go s :=
+    match s with
+    | nil => None
+    | ((k',x)::s') =>
+      match M.E.compare k k' with
+      | LT _ => None
+      | _    => Some (k', x)
+      end
+    end in
+  match s with
+    (@M.Build_slist _ s _) => go s
+  end.
 
 End FMapExt.

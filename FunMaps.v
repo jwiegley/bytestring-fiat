@@ -2,7 +2,7 @@ Require Import
   Here.FunRelation
   Here.FMapExt
   Here.Nomega
-  Coq.FSets.FMapAVL
+  Coq.FSets.FMapList
   Coq.FSets.FMapFacts
   Coq.Structures.OrderedTypeEx.
 

@@ -214,13 +214,11 @@ Proof.
     simplify with monad laws; simpl.
 
     refine pick val
-      (Ifopt find_if (fun addr blk =>
-                        Decidable.Decidable_witness
-                          (P:=within addr (memCSize blk) d)) (snd r_n) as p
-       Then let addr := fst p in
-            let blk := snd p in
-            Ifopt M.find (d - addr) (memCData blk) as v
-            Then v
+      (Ifopt find_nearest d (snd r_n) as p
+       Then IfDec within (fst p) (memCSize (snd p)) d
+            Then Ifopt M.find (d - fst p) (memCData (snd p)) as v
+                 Then v
+                 Else Zero
             Else Zero
        Else Zero).
 
@@ -232,6 +230,7 @@ Proof.
     AbsR_prep; assumption.
 
     intros; subst; clear H.
+    destruct H1.
     admit.
   }
 
