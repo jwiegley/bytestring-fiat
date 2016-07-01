@@ -97,22 +97,22 @@ Proof.
 Qed.
 
 Program Definition copy_memory
-        (addr1 addr2 : N) (len : N | 0 < len) (mem : Heap) : Heap :=
+        (addr1 addr2 : N) (len : N) (mem : Heap) : Heap :=
   mkFunRel
     (p <- relEns mem;
      let (daddr, dst) := p in
-     IfDec fits daddr (memSize dst) addr2 (` len)
+     IfDec fits daddr (memSize dst) addr2 len
      Then (
        src <- relEns mem;
        let (saddr, src) := p in
-       ret (IfDec fits saddr (memSize src) addr1 (` len)
+       ret (IfDec fits saddr (memSize src) addr1 len
             Then (daddr,
                   {| memSize := memSize dst
                    ; memData :=
                        let off1 := addr1 - saddr in
                        let off2 := addr2 - daddr in
                        Transfer (fun a =>
-                                   IfDec within off1 (` len) a
+                                   IfDec within off1 len a
                                    Then Some (off2 + (a - off1))
                                    Else None)
                                 (memData src) (memData dst) |})
@@ -136,17 +136,17 @@ Lemma copy_memory_correct `(_ : CorrectHeap mem) :
   forall addr1 addr2 len, CorrectHeap (copy_memory addr1 addr2 len mem).
 Proof.
   against_definition copy_memory len
-                     ltac:(unfold Ensembles.In in *; simpl in * ).
+                     ltac:(unfold Ensembles.In in *; simpl in * );
   specialize (H1 off); firstorder.
 Qed.
 
-Definition set_memory (addr : N) (len : N | 0 < len) (w : Word8) :
+Definition set_memory (addr : N) (len : N) (w : Word8) :
   Heap -> Heap :=
   Map (fun p =>
          let (base, blk) := p in
-         IfDec fits base (memSize blk) addr (` len)
+         IfDec fits base (memSize blk) addr len
          Then {| memSize := memSize blk
-               ; memData := Define (within (addr - base) (` len)) w
+               ; memData := Define (within (addr - base) len) w
                                    (memData blk) |}
          Else blk).
 
@@ -231,13 +231,13 @@ Definition HeapSpec := Def ADT {
   (* Data may only be copied from one allocated block to another (or within
      the same block), and the region must fit within both source and
      destination. Otherwise, the operation is a no-op and returns false. *)
-  Def Method3 memcpyS (r : rep) (addr : N) (addr2 : N) (len : N | 0 < len) :
+  Def Method3 memcpyS (r : rep) (addr : N) (addr2 : N) (len : N) :
     rep * unit :=
     ret (copy_memory addr addr2 len r, tt),
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op that
      returns false. *)
-  Def Method3 memsetS (r : rep) (addr : N) (len : N | 0 < len) (w : Word8) :
+  Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Word8) :
     rep * unit :=
     ret (set_memory addr len w r, tt)
 
@@ -265,13 +265,11 @@ Definition poke (r : Rep HeapSpec) (addr : N) (w : Word8) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec pokeS r addr w.
 
-Definition memcpy (r : Rep HeapSpec)
-           (addr : N) (addr2 : N) (len : N | 0 < len) :
+Definition memcpy (r : Rep HeapSpec) (addr : N) (addr2 : N) (len : N) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memcpyS r addr addr2 len.
 
-Definition memset (r : Rep HeapSpec)
-           (addr : N) (len : N | 0 < len) (w : Word8) :
+Definition memset (r : Rep HeapSpec) (addr : N) (len : N) (w : Word8) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memsetS r addr len w.
 

@@ -125,70 +125,6 @@ Proof.
   assumption.
 Qed.
 
-Lemma Heap_Find {r_o r_n} {AbsR : Heap_AbsR r_o r_n} :
-  forall d base blk',
-    Find (fun (a : N) (b : Heap.MemoryBlock Word8) =>
-            within a (memSize b) d) base blk' (` r_o)
-      -> exists cblk',
-           MemoryBlock_AbsR blk' cblk' /\
-           find_if (fun (addr : M.key) (blk : MemoryBlockC) =>
-                      Decidable.Decidable_witness
-                        (P:=within addr (memCSize blk) d)) (snd r_n)
-             = Some (base, cblk').
-Proof.
-  intros; subst.
-  pose proof H as HAA.
-  destruct HAA as [HAA HAB].
-  pose proof (allocations_only_one_within (proj2_sig r_o) H) as HAC.
-  destruct AbsR as [HC _].
-  pose proof HC as HD.
-  destruct (HD base) as [HE _]; clear HD.
-  destruct (HE _ HAA) as [cblk' [HF HG]]; clear HE HAA.
-  remember (fun (_ : M.key) _ => _) as P'.
-  exists cblk'.
-  split; trivial.
-  assert (forall a b : N, a = b <-> a = b) as HL by tauto.
-  assert (unique_predicate P' (snd r_n)) as HM.
-    admit.
-  pose proof (find_if_unique HL P' (snd r_n) HM base cblk' HF).
-  unfold find_if.
-  unfold SetMap_AbsR in HC.
-  rewrite F.elements_o in HF.
-  setoid_rewrite F.elements_o in HC.
-  rewrite M.fold_1.
-  induction (M.elements (elt:=MemoryBlockC) (snd r_n)).
-    discriminate.
-  rewrite fold_Some_cons; auto.
-  destruct a; simpl in *; subst.
-  unfold F.eqb, F.eq_dec in *.
-  destruct (HC k) as [_ HD].
-  destruct (N.eq_dec k k); try tauto; clear e.
-  destruct (HD m eq_refl) as [blk'' [HI HJ]]; clear HD.
-  pose proof (HAC _ _ HI) as HAD.
-  destruct (N.eq_dec base k).
-    inversion HF; subst; clear HF.
-    decisions.
-      reflexivity.
-    apply within_reflect in HAB.
-    destruct HG as [HH ?].
-    rewrite HH in HAB.
-    rewrite HAB in Heqe.
-    discriminate.
-  decisions.
-    apply within_reflect in Heqe.
-    destruct HJ as [HK _]; rewrite <- HK in Heqe.
-    specialize (HAD Heqe).
-    tauto.
-  apply IHl; eauto; clear IHl.
-  split; intros;
-  destruct (HC addr) as [HD HE]; clear HC.
-    clear HE.
-    destruct (HD _ H1) as [cblk [HBF HBG]].
-    exists cblk.
-    admit.
-  admit.
-Admitted.
-
 Ltac AbsR_prep :=
   repeat
     match goal with
@@ -296,12 +232,7 @@ Proof.
     AbsR_prep; assumption.
 
     intros; subst; clear H.
-    destruct (@Heap_Find _ _ H0 _ _ _ H1) as [cblk' [HA HB]].
-    rewrite HB; simpl; clear HB.
-    destruct HA as [_ HI].
-    destruct (HI (d - base)) as [HJ _]; clear HI.
-    destruct (HJ _ H2) as [cdata [HK HL]]; clear HJ H2; subst.
-    rewrite HK; reflexivity.
+    admit.
   }
 
   refine method pokeS.

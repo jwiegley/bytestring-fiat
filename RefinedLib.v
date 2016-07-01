@@ -139,6 +139,7 @@ Lemma match_list_pair : forall A (xs : list A) B (z : B) C (w : C) f g,
                end.
 Proof. destruct xs; trivial. Qed.
 
+(*
 Definition tail_Impl_Ensemble :
   partially_refine eq (fDom:=[]) (@tail_Spec Word8).
 Proof.
@@ -147,7 +148,7 @@ Proof.
   simplify with monad laws; unfold uncons; simpl.
     setoid_rewrite If_Opt_Then_Else_fst.
     setoid_rewrite If_Opt_Then_Else_snd.
-Abort.
+*)
 
 Definition tail_Impl_List : fully_refine_List (fDom:=[]) (@tail_Spec Word8).
 Proof.

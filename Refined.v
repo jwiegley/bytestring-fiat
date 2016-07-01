@@ -6,6 +6,9 @@ Require Import
   Coq.NArith.NArith.
 
 Require Import
+  Here.Nomega
+  Here.FunRelation
+  Here.FunMaps
   Here.ByteString
   Here.Heap.
 
@@ -18,47 +21,13 @@ Generalizable All Variables.
 Open Scope N_scope.
 
 Theorem Nle_zero : forall n : N, 0 <= n.
-Proof.
-  destruct n.
-    reflexivity.
-  destruct p; discriminate.
-Qed.
+Proof. destruct n; [ reflexivity | destruct p; discriminate ]. Qed.
 
 Theorem Nlt_plus_1 : forall n : N, 0 < n + 1.
-Proof.
-  destruct n.
-    reflexivity.
-  constructor.
-Qed.
-
-(* Theorem Nsub_add_succ : forall n m, *)
-(*   n > 0 -> n - 1 + N.succ (N.of_nat m) = n + N.of_nat m. *)
-(* Proof. *)
-(*   destruct n; intros. *)
-(*     admit. *)
-(*   admit. *)
-(* Admitted. *)
-
-Theorem Nplus_1_mismatch : forall n m, n > 0 -> n + m = n - 1 -> False.
-Proof.
-  destruct n; intros.
-    discriminate.
-Admitted.
-
-Theorem Nplus_mismatch : forall n m, m > 0 -> ~ (n = n + m).
-Proof.
-  destruct n; intros.
-Admitted.
+Proof. destruct n; [ reflexivity | constructor ]. Qed.
 
 Theorem Nplus_minus : forall n m o, o <= n -> n - o + (m + o) = n + m.
-Proof.
-  destruct n; intros.
-    apply N.le_0_r in H.
-    subst.
-    simpl.
-    rewrite N.add_0_r.
-    reflexivity.
-Admitted.
+Proof. intros; nomega. Qed.
 
 Theorem Nplus_minus_one : forall n m o,
   n + m <= o -> (0 <? n) = true -> n - 1 + (m + 1) <= o.
@@ -73,21 +42,7 @@ Proof.
 Qed.
 
 Theorem Nlt_false : forall n, (0 <? n) = false -> n = 0.
-Proof.
-  destruct n; intros.
-    reflexivity.
-  discriminate.
-Qed.
-
-Theorem within_extended : forall addr len i,
-  within (addr - 1) (len + 1) (N.succ i) -> within addr len i.
-Proof.
-  unfold within; intros.
-  destruct H.
-  split.
-    admit.
-  admit.
-Admitted.
+Proof. destruct n; intros; [ reflexivity | discriminate ]. Qed.
 
 Lemma within_index : forall addr len i,
   (i <? len) -> within addr len (addr + i).
@@ -142,10 +97,9 @@ Record PS := makePS {
 
 Record Correct (ps : PS) : Prop := {
   _ : 0 < psBufLen ps
-        -> exists data,
-             In _ (psHeap ps) {| memAddr := psBuffer ps
-                               ; memSize := psBufLen ps
-                               ; memData := data |};
+        -> exists addr data,
+             Lookup addr {| memSize := psBufLen ps
+                          ; memData := data |} (psHeap ps);
   _ : psOffset ps + psLength ps <= psBufLen ps;
   _ : ADTInduction.fromADT HeapSpec (psHeap ps)
 }.
@@ -439,14 +393,6 @@ Proof.
     eexists.
     eexists.
     eexists.
-    
-    inv 
-    constructor.
-    exists x.
-    exists tt.
-    simpl.
-    inv H2.
-    admit.
   - apply (@ADTInduction.fromADTMethod
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
@@ -482,17 +428,7 @@ Proof.
   autorewrite with monad laws;
   simplify_ensembles; subst; simpl;
   intros; reduction.
-  (* f_equiv; unfold impl, flip; *)
-  (* intros ????; subst; simpl in *; reduction. *)
 Admitted.
-  (* - rewrite (@Nplus_minus (psOffset ps) i 1) in H. *)
-  (*     assumption. *)
-  (*   apply N.ltb_lt in Heqe. *)
-  (*   replace 1 with (N.succ 0); trivial. *)
-  (*   apply N.le_succ_l; assumption. *)
-  (* - apply Nplus_mismatch in H1. *)
-  (*     contradiction. *)
-  (*   admit. *)
 
 Theorem buffer_cons_sound
         (r_o : list Word8) `(r_n : Correct ps)
@@ -529,7 +465,6 @@ Proof.
     simpl in *; subst.
     reduction.
     assert (ADTInduction.fromADT (Heap.HeapSpec Word8) (psHeap ps')).
-      
       unfold ADTInduction.fromADT.
     apply (assignments_unique _ _ _ _ (conj H H2)).
   apply H1.
@@ -571,85 +506,10 @@ Proof.
     simplify with monad laws; simpl.
     finish honing.
   }
-  (*
-  {
-    refine pick val (match r_n with
-                     | nil => (r_o, None)
-                     | List.cons x x0 =>
-                       (Ensemble_map (first Init.Nat.pred)
-                                     (Subtract _ r_o (0, x)), Some x)
-                     end).
-      simplify with monad laws; simpl.
-      refine pick val (match r_n with
-                       | nil => nil
-                       | List.cons _ xs => xs
-                       end).
-        simplify with monad laws; simpl.
-        replace
-          (match r_n with
-           | [] => []
-           | _ :: xs => xs
-           end,
-           snd
-             match r_n with
-             | [] => (r_o, None)
-             | x :: _ =>
-               (Ensemble_map (first Init.Nat.pred)
-                             (Subtract (nat * Word8) r_o (0, x)), Some x)
-             end)
-        with
-        (match r_n with
-           | [] => ([], None)
-           | x :: xs => (xs, Some x)
-           end).
-          finish honing.
-        induction r_n; simpl; trivial.
-      {
-        clear H.
-        destruct r_n; simpl; split; intros.
-        - apply H0 in H.
-          destruct H.
-          exists x0.
-          exact e.
-        - destruct H.
-          inv x0.
-        - simplify_ensembles.
-          apply H0 in H1.
-          destruct n; simpl in *.
-            destruct H1; subst.
-            contradiction H2.
-            constructor.
-          destruct H1.
-          exists x0.
-          exact e.
-        - exists (S i, x).
-          split.
-            constructor.
-              apply H0.
-              destruct H.
-              exists x0.
-              exact e.
-            unfold not; intros.
-            inv H1.
-          constructor.
-      }
-      destruct r_n; simpl in *.
-        reflexivity.
-      split.
-        apply H0.
-        exists eq_refl.
-        reflexivity.
-      reflexivity.
-  }
-  *)
-  admit.
-
-  finish_SharpeningADT_WithoutDelegation.
-  simpl.
-Fail Defined.
+  Fail finish_SharpeningADT_WithoutDelegation.
+Abort.
 
 Fail Definition ByteStringImpl' := Eval simpl in projT1 ByteStringImpl.
 (* Print ByteStringImpl'. *)
 
-Fail End ByteString.
-Abort All.
+End ByteString.

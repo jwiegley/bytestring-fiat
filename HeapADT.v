@@ -58,14 +58,14 @@ Proof. intros; check method (fromMeth HeapSpec pokeS r (fst v)). Qed.
 
 Lemma memcpy_fromADT r :
   fromADT HeapSpec r
-    -> forall (addr : N) (addr2 : N) (len : N | 0 < len) v,
+    -> forall (addr : N) (addr2 : N) (len : N) v,
          refine (callMeth HeapSpec memcpyS r addr addr2 len) (ret v)
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec memcpyS r (fst v)). Qed.
 
 Lemma memset_fromADT r :
   fromADT HeapSpec r
-    -> forall (addr : N) (len : N | 0 < len) (w : Word8) v,
+    -> forall (addr : N) (len : N) (w : Word8) v,
          refine (callMeth HeapSpec memsetS r addr len w) (ret v)
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec memsetS r (fst v)). Qed.

@@ -54,6 +54,44 @@ Ltac reduction :=
     exists blk
   end.
 
+Lemma fold_Some {elt} (m : list (M.key * elt))
+      A (z : A) (f : M.key * elt -> option A) :
+  List.fold_left (fun (x : option A) (k : M.key * elt) =>
+                    match x with
+                    | Some _ => x
+                    | None => f k
+                    end) m (Some z) = Some z.
+Proof.
+  induction m; simpl; intros.
+    reflexivity.
+  rewrite IHm.
+  reflexivity.
+Qed.
+
+Lemma fold_Some_cons {elt} (m : list (M.key * elt))
+      A (z : A) y (f : M.key * elt -> option A) :
+  List.fold_left (fun (x : option A) (k : M.key * elt) =>
+                    match x with
+                    | Some _ => x
+                    | None => f k
+                    end) (y :: m) None =
+  match f y with
+  | Some x => Some x
+  | None =>
+    List.fold_left (fun (x : option A) (k : M.key * elt) =>
+                      match x with
+                      | Some _ => x
+                      | None => f k
+                      end) m None
+  end.
+Proof.
+  induction m; simpl; intros.
+    destruct (f y); reflexivity.
+  destruct (f y); simpl.
+    rewrite fold_Some; reflexivity.
+  reflexivity.
+Qed.
+
 Section FunMaps_AbsR.
 
 Variables A B : Type.
