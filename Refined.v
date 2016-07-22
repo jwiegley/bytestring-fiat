@@ -101,7 +101,7 @@ Record Correct (ps : PS) : Prop := {
              Lookup addr {| memSize := psBufLen ps
                           ; memData := data |} (psHeap ps);
   _ : psOffset ps + psLength ps <= psBufLen ps;
-  _ : ADTInduction.fromADT HeapSpec (psHeap ps)
+  _ : fromADT HeapSpec (psHeap ps)
 }.
 
 Definition ByteString_list_AbsR (or : Rep ByteStringSpec) `(_ : Correct nr) :=
@@ -204,17 +204,17 @@ Theorem fromADT_bind
         A (f : Rep adt -> Comp (Rep adt * A))
         ResultT (k : Rep adt * A -> Comp ResultT)
         (prj : ResultT -> Rep adt) :
-  ADTInduction.fromADT adt r
+  fromADT adt r
     -> (forall r r' x,
-          ADTInduction.fromADT adt r
+          fromADT adt r
             -> f r ↝ (r', x)
-            -> ADTInduction.fromADT adt r')
+            -> fromADT adt r')
     -> (forall r r' x,
-          ADTInduction.fromADT adt r
+          fromADT adt r
             -> k (r, x) ↝ r'
-            -> ADTInduction.fromADT adt (prj r'))
+            -> fromADT adt (prj r'))
     -> forall r', (x <- f r; k x) ↝ r'
-         -> ADTInduction.fromADT adt (prj r').
+         -> fromADT adt (prj r').
 Proof.
   intros.
   simplify_ensembles.
@@ -225,7 +225,7 @@ Qed.
 
 Theorem buffer_cons_heap_adt `(_ : Correct ps) : forall ps' x,
   buffer_cons ps x ↝ ps'
-    -> ADTInduction.fromADT HeapSpec (psHeap ps').
+    -> fromADT HeapSpec (psHeap ps').
 Proof.
   unfold buffer_cons.
   destruct Correct0.
@@ -234,7 +234,7 @@ Proof.
   destruct (psLength ps <? psBufLen ps) eqn:Heqe2;
   simpl in H2.
   - unfold poke in H2.
-    apply (@ADTInduction.fromADTMethod
+    apply (@fromADTMethod
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
              (psHeap ps) _ H1).
@@ -242,7 +242,7 @@ Proof.
     simplify_ensembles; reduction.
     constructor.
   - unfold poke in H2.
-    apply (@ADTInduction.fromADTMethod
+    apply (@fromADTMethod
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
              (psHeap ps) _ H1).
@@ -265,7 +265,7 @@ Proof.
       intros.
       simplify_ensembles.
       inv H4.
-      apply (@ADTInduction.fromADTMethod
+      apply (@fromADTMethod
                _ HeapSpec
                (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))) (* memcpy *)
                r _ H3).
@@ -279,7 +279,7 @@ Proof.
       autorewrite with monad laws.
       simpl.
       intros.
-      apply (@ADTInduction.fromADTMethod
+      apply (@fromADTMethod
                _ HeapSpec
                (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
                r _ H3).
@@ -303,7 +303,7 @@ Proof.
       unfold realloc.
       intros.
       simplify_ensembles.
-      apply (@ADTInduction.fromADTMethod
+      apply (@fromADTMethod
                _ HeapSpec
                (Fin.FS (Fin.FS Fin.F1)) (* realloc *)
                r _ H3).
@@ -318,7 +318,7 @@ Proof.
       autorewrite with monad laws.
       simpl.
       intros.
-      apply (@ADTInduction.fromADTMethod
+      apply (@fromADTMethod
                _ HeapSpec
                (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) (* poke *)
                r _ H3).
@@ -365,7 +365,7 @@ Proof.
     apply N.le_succ_l.
     assumption.
   - apply N.le_refl.
-  - apply (@ADTInduction.fromADTMethod
+  - apply (@fromADTMethod
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
              (psHeap ps) _ H1).
@@ -373,7 +373,7 @@ Proof.
     exists x.
     exists tt.
     constructor.
-  - apply (@ADTInduction.fromADTMethod
+  - apply (@fromADTMethod
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
              (psHeap ps) _ H1).
@@ -382,18 +382,18 @@ Proof.
     exists tt.
     constructor.
   - inv H2.
-    eapply (@ADTInduction.fromADTMethod
+    eapply (@fromADTMethod
               _ HeapSpec
               (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
               (psHeap ps) _ H1).
-    eapply (@ADTInduction.fromADTMethod
+    eapply (@fromADTMethod
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
              (psHeap ps)).
     eexists.
     eexists.
     eexists.
-  - apply (@ADTInduction.fromADTMethod
+  - apply (@fromADTMethod
              _ HeapSpec
              (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
              (psHeap ps) _ H1).
@@ -464,8 +464,8 @@ Proof.
     simplify_ensembles; reduction.
     simpl in *; subst.
     reduction.
-    assert (ADTInduction.fromADT (Heap.HeapSpec Word8) (psHeap ps')).
-      unfold ADTInduction.fromADT.
+    assert (fromADT (Heap.HeapSpec Word8) (psHeap ps')).
+      unfold fromADT.
     apply (assignments_unique _ _ _ _ (conj H H2)).
   apply H1.
     exact H4.

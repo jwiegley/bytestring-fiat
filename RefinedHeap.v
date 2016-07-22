@@ -7,7 +7,9 @@ Require Import
   Here.FunRelation
   Here.FunMaps
   Here.FMapExt
-  Here.Tactics.
+  Here.Same_set
+  Here.Tactics
+  Here.ADTInduction.
 
 Require Import Coq.Structures.OrderedTypeEx.
 
@@ -82,23 +84,122 @@ Hint Resolve within_allocated_mem_Proper.
 
 Definition Heap_AbsR
            (or : { r : Rep HeapSpec
-                 | ADTInduction.fromADT HeapSpec r})
+                 | fromADT HeapSpec r})
            (nr : N * M.t MemoryBlockC) : Prop :=
   SetMap_AbsR (` or) (snd nr) MemoryBlock_AbsR /\
   P.for_all (within_allocated_mem (fst nr)) (snd nr).
 
-Lemma Lookup_find_block {r_o r_n} (AbsR : Heap_AbsR r_o r_n) addr' blk' :
+Corollary Lookup_find_block {r_o r_n} (AbsR : Heap_AbsR r_o r_n) addr' blk' :
   Lookup addr' blk' (` r_o)
     -> exists cblk',
         MemoryBlock_AbsR blk' cblk' /\
         M.find addr' (snd r_n) = Some cblk'.
 Proof.
+  intros; destruct AbsR.
+  reduction; exists cblk; tauto.
+Qed.
+
+Require Import FunctionalExtensionality.
+
+Corollary Proper_within : forall pos,
+   Proper (eq ==> eq ==> eq)
+          (fun b e => Decidable_witness (P:=within b (memCSize e) pos)).
+Proof. intros ???????; subst; reflexivity. Qed.
+
+Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
+  within b (memSize e) pos.
+
+Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
+  Decidable_witness (P:=within b (memCSize e) pos).
+
+Notation "f \oo g" := (fun x y => f (g x y)) (at level 90).
+
+Theorem Partition_partition {r_o r_n} (AbsR : Heap_AbsR r_o r_n) base blk pos :
+  Find (withinMemBlock pos) base blk (` r_o)
+    -> forall a a',
+         Partition (withinMemBlock pos) (` r_o) = (a, a')
+           -> Lookup base blk a
+    -> exists cblk b b',
+         P.partition (withinMemBlockC pos) (snd r_n) = (b, b')
+           /\ SetMap_AbsR a b MemoryBlock_AbsR
+           /\ SetMap_AbsR a' b' MemoryBlock_AbsR
+           /\ M.find base b = Some cblk.
+Proof.
   intros.
+  destruct H.
   destruct AbsR.
-  destruct (H0 addr'); clear H0.
-  destruct (H2 _ H) as [blk [? ?]]; clear H H2 H3.
-  exists blk.
-  tauto.
+  pose proof H3.
+  reduction.
+  intros.
+  exists cblk.
+  exists (P.filter (withinMemBlockC pos) (snd r_n)).
+  exists (P.filter (negb \oo withinMemBlockC pos) (snd r_n)).
+  split.
+    unfold P.partition; f_equal.
+  split.
+    unfold Partition in H0; inv H0.
+    intro addr.
+    split; intros.
+      simpl in H; destruct H.
+      destruct (H3 addr); clear H3 H6.
+      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
+      exists cblk'.
+      split; trivial.
+      admit.
+    destruct (H3 addr); clear H3.
+    admit.
+  split.
+    unfold Partition in H0; inv H0.
+    intro addr.
+    split; intros.
+      simpl in H; destruct H.
+      destruct (H3 addr); clear H3 H6.
+      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
+      exists cblk'.
+      split; trivial.
+      admit.
+    destruct (H3 addr); clear H3.
+    admit.
+  apply F.find_mapsto_iff.
+  apply P.filter_iff.
+    exact (Proper_within _).
+  split.
+    apply F.find_mapsto_iff; assumption.
+  apply within_reflect.
+  destruct HD as [HD _]; rewrite <- HD.
+  assumption.
+Admitted.
+
+Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
+  forall base blk',
+    Find (withinMemBlock pos) base blk' (` r_o)
+      -> forall val : Word8, Lookup (pos - base) val (memData blk')
+      -> exists cblk',
+           find_if (withinMemBlockC pos) (snd r_n) = Some (base, cblk') /\
+           MemoryBlock_AbsR blk' cblk'.
+Proof.
+Admitted.
+
+Theorem Poke_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos val :
+  P.for_all (within_allocated_mem (fst r_n))
+    (M.mapi
+       (fun (addr : M.key) (cblk : MemoryBlockC) =>
+        IfDec within addr (memCSize cblk) pos
+        Then {| memCSize := memCSize cblk
+              ; memCData := M.add (pos - addr) val (memCData cblk) |}
+        Else cblk) (snd r_n)).
+Proof.
+  destruct AbsR as [_ H].
+  unfold P.for_all.
+  apply P.fold_rec_bis; eauto.
+  intros.
+  apply F.mapi_mapsto_iff in H0; do 2 destruct H0;
+  simpl; intros; subst; auto.
+  unfold within_allocated_mem, IfDec_Then_Else; simpl.
+  eapply P.for_all_iff in H; eauto.
+  unfold within_allocated_mem in H.
+  destruct ((k <=? pos) && (pos <? k + memCSize x))%bool; simpl;
+  rewrite H; assumption.
 Qed.
 
 Lemma Heap_AbsR_outside_mem
@@ -214,12 +315,9 @@ Proof.
     simplify with monad laws; simpl.
 
     refine pick val
-      (Ifopt find_nearest d (snd r_n) as p
-       Then IfDec within (fst p) (memCSize (snd p)) d
-            Then Ifopt M.find (d - fst p) (memCData (snd p)) as v
-                 Then v
-                 Else Zero
-            Else Zero
+      (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
+       Then Ifopt M.find (d - fst p) (memCData (snd p)) as v
+            Then v Else Zero
        Else Zero).
 
     simplify with monad laws; simpl.
@@ -230,8 +328,10 @@ Proof.
     AbsR_prep; assumption.
 
     intros; subst; clear H.
-    destruct H1.
-    admit.
+    destruct (Peek_in_heap H0 H1 v H2) as [cblk' [H3 H4]].
+    rewrite H3; simpl.
+    destruct H4; reduction.
+    rewrite HC; auto.
   }
 
   refine method pokeS.
@@ -242,12 +342,11 @@ Proof.
 
     refine pick val
       (fst r_n,
-       M.mapi (fun addr blk =>
-                 IfDec within addr (memCSize blk) d
-                 Then {| memCSize := memCSize blk
-                       ; memCData := M.add (d - addr) d0
-                                           (memCData blk) |}
-                 Else blk) (snd r_n)).
+       M.mapi (fun addr cblk =>
+                 IfDec within addr (memCSize cblk) d
+                 Then {| memCSize := memCSize cblk
+                       ; memCData := M.add (d - addr) d0 (memCData cblk) |}
+                 Else cblk) (snd r_n)).
       simplify with monad laws.
       finish honing.
 
@@ -255,7 +354,7 @@ Proof.
     - apply Map_SetMap_AbsR; auto; intros; destruct H2.
       split; rewrite H2; decisions; intuition; simpl.
       apply Update_SetMap_AbsR; trivial.
-    - admit.
+    - apply (Poke_in_heap (conj H0 H1)).
   }
 
   refine method memcpyS.

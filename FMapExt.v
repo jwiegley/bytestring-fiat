@@ -131,52 +131,12 @@ End for_all.
 
 Import ListNotations.
 
-Definition unique_predicate {elt} (f : M.key -> elt -> bool) (m : M.t elt) :=
-  forall a  b,  M.find a  m = Some b  -> is_true (f a  b)  ->
-  forall a' b', M.find a' m = Some b' -> is_true (f a' b') -> a = a' /\ b = b'.
-
 Definition find_if {elt} (f : M.key -> elt -> bool) (m : M.t elt) :
   option (M.key * elt) :=
   M.fold (fun (k : M.key) (e : elt) x =>
             match x with
             | Some _ => x
             | None => if f k e then Some (k, e) else None
-            end) m
-         None.
-
-Definition find_nearest {elt} (k:M.key) (s: M.t elt) : option (M.key * elt) :=
-  let fix go res s :=
-    match s with
-    | nil => None
-    | ((k',x)::s') =>
-      match M.E.compare k k' with
-      | LT _ => go (Some (k', x)) s'
-      | EQ _ => Some (k', x)
-      | GT _ => res
-      end
-    end in
-  match s with
-    (@M.Build_slist _ s _) => go None s
-  end.
-
-Lemma find_nearest_empty {elt} :
-  forall i, find_nearest i (M.empty elt) = None.
-Proof. reflexivity. Qed.
-
-Lemma find_nearest_add_inv
-      (Oeq_eq : forall a b, O.eq a b -> a = b) {elt} :
-  forall i k e m a v,
-    find_nearest (elt:=elt) i (M.add k e m) = Some (a, v)
-      -> O.lt k a \/ O.eq k a \/ O.lt i k.
-Proof.
-  intros.
-  induction m using P.map_induction_bis.
-  - admit.
-  - simpl in H.
-    destruct (M.E.compare i k); try discriminate.
-    inversion H; subst.
-    right; left; apply O.eq_refl.
-  - admit.
-Abort.
+            end) m None.
 
 End FMapExt.

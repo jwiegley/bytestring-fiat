@@ -1,12 +1,12 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
-  Fiat.ADTInduction
   Here.Nomega
   Here.Decidable
   Here.BindDep
   Here.FunRelation
-  Here.Tactics.
+  Here.Tactics
+  Here.ADTInduction.
 
 Generalizable All Variables.
 
@@ -337,9 +337,9 @@ Ltac reveal_no_overlap r :=
   end.
 
 Theorem allocations_unique : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr blk1 blk2,
+  forall addr blk1,
        Lookup addr blk1 r
-    -> Lookup addr blk2 r
+    -> forall blk2, Lookup addr blk2 r
     -> blk1 = blk2.
 Proof.
   intros.
@@ -386,20 +386,16 @@ Proof.
 Qed.
 
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr1 len1 data1 addr2 len2 data2,
-       Lookup addr1 {| memSize := len1
-                     ; memData := data1 |} r
-    -> Lookup addr2 {| memSize := len2
-                     ; memData := data2 |} r
+  forall addr1 blk1,
+       Lookup addr1 blk1 r
+    -> forall addr2 blk2, Lookup addr2 blk2 r
     -> addr1 <> addr2
-    -> ~ overlaps addr1 len1 addr2 len2.
+    -> ~ overlaps addr1 (memSize blk1) addr2 (memSize blk2).
 Proof.
   intros.
-  generalize dependent data2.
-  generalize dependent len2.
+  generalize dependent blk2.
   generalize dependent addr2.
-  generalize dependent data1.
-  generalize dependent len1.
+  generalize dependent blk1.
   generalize dependent addr1.
   ADT induction r.
   - inversion H0.
@@ -421,9 +417,7 @@ Proof.
       apply Lookup_Remove with (a':=x); trivial.
     + eapply IHfromADT; eassumption.
   - unfold set_address in H1, H3.
-    teardown; decisions; tsubst;
-    try destruct x1;
-    try destruct x2; simpl in *;
+    teardown; decisions; tsubst; simpl;
     eapply IHfromADT; eassumption.
   - unfold copy_memory in H1, H3.
     unfold Lookup, relEns in *.
@@ -435,31 +429,63 @@ Proof.
     try destruct m2;
     eapply IHfromADT; eassumption.
   - unfold set_memory in H1, H3.
-    teardown; decisions; tsubst;
-    try destruct x2;
-    try destruct x3; simpl in *;
+    teardown; decisions; tsubst; simpl;
     eapply IHfromADT; eassumption.
 Qed.
 
-Theorem allocations_only_one_within : forall r : Rep HeapSpec, fromADT _ r ->
+Theorem find_partitions_a_singleton : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr base blk,
     Find (fun a b => within a (memSize b) addr) base blk r
-      -> forall addr' blk',
-           Lookup addr' blk' r
-             -> within addr' (memSize blk') addr
-             -> base = addr' /\ blk = blk'.
+      -> Partition (fun a b => within a (memSize b) addr) r
+           = (Single base blk, Remove base r).
+Proof.
+  unfold Same; intros.
+  destruct H0.
+  pose proof (allocations_no_overlap H _ H0).
+  pose proof (allocations_are_correct H).
+  pose proof (allocations_unique H _ _ H0).
+  destruct (H3 (base, blk)); trivial;
+  simpl in *; clear H3 H5.
+  unfold Same_set, Included, Partition; f_equal.
+    unfold Single.
+    apply Compare.
+    split; intros.
+      unfold Included; intros.
+      simplify_ensembles; simpl in *.
+      destruct (N.eq_dec base n).
+        subst; specialize (H4 _ H7); subst.
+        constructor.
+      specialize (H2 _ _ H7 n0).
+      unfold within, overlaps in *; nomega.
+    simplify_ensembles.
+  unfold Remove.
+  apply Compare.
+  split; intros.
+    unfold Included; intros.
+    simplify_ensembles; simpl in *.
+    destruct (N.eq_dec base n).
+      subst; specialize (H4 _ H7); subst.
+      contradiction.
+    apply not_eq_sym.
+    exact n0.
+  simplify_ensembles.
+  unfold Ensembles.In in H5; simpl in H5.
+  apply not_eq_sym in H5.
+  specialize (H2 _ _ H3 H5).
+  unfold within, overlaps in *; nomega.
+Qed.
+
+Corollary allocations_disjoint : forall r : Rep HeapSpec, fromADT _ r ->
+  forall addr blk, Lookup addr blk r
+    -> forall pos, within addr (memSize blk) pos
+    -> forall addr' blk',
+        Lookup addr' blk' r
+          -> addr <> addr'
+          -> ~ within addr' (memSize blk') pos.
 Proof.
   intros.
-  destruct H0.
-  destruct (N.eq_dec base addr').
-    subst.
-    pose proof (allocations_unique H _ _ _ H0 H1); subst.
-    firstorder.
-  destruct blk, blk'; simpl in *.
-  pose proof (allocations_no_overlap H _ _ H0 H1 n).
-  unfold within in *.
-  unfold overlaps in H4.
-  nomega.
+  pose proof (allocations_no_overlap H _ H0 _ H2 H3).
+  unfold within, overlaps in *; nomega.
 Qed.
 
 End Heap.
@@ -476,3 +502,7 @@ Ltac tsubst :=
              ; memData := _ |} |- _ ] => inv H
     end;
   subst.
+
+Theorem neg_x_y_eq__x_y_eq : forall x y : bool,
+  negb x = negb y -> x = y.
+Proof. destruct 0, x; auto. Qed.

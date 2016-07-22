@@ -193,3 +193,17 @@ Proof.
   split; intros; try nomega.
   apply Bool.andb_true_iff; split; nomega.
 Qed.
+
+Lemma not_within_reflect : forall x y a,
+  ~ within x y a <-> ((x <=? a) && (a <? x + y) = false)%bool.
+Proof.
+  intros.
+  unfold within.
+  split; intros; try nomega.
+  apply Bool.andb_false_iff.
+  apply Decidable.not_and in H.
+    destruct H.
+      left; nomega.
+    right; nomega.
+  unfold Decidable.decidable; nomega.
+Qed.

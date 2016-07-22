@@ -11,13 +11,32 @@ Variable B : Type.
 
 Record FunRel := mkFunRel {
   relEns : Ensemble (A * B);
-  _      : forall a b b',
-             In _ relEns (a, b)  ->
-             In _ relEns (a, b') -> b = b'
+  _ : forall a b b',
+        In _ relEns (a, b)  ->
+        In _ relEns (a, b') -> b = b'
 }.
 
 Program Definition Empty : FunRel := mkFunRel (Empty_set (A * B)) _.
 Obligation 1. inversion H. Qed.
+
+Definition Same (r r' : FunRel) : Prop := Same_set _ (relEns r) (relEns r').
+
+Definition Compare : forall a b Ha Hb,
+  Same_set _ a b -> mkFunRel a Ha = mkFunRel b Hb.
+Proof.
+  intros.
+  apply Extensionality_Ensembles in H; subst.
+  f_equal.
+  Require Import Coq.Logic.ProofIrrelevance.
+  apply proof_irrelevance.
+Qed.
+
+Program Definition Single (a : A) (b : B) : FunRel :=
+  mkFunRel (Ensembles.Singleton _ (a, b)) _.
+Obligation 1.
+  inversion H; inversion H0; subst; subst.
+  reflexivity.
+Qed.
 
 Program Definition Insert
         (a : A) (b : B) (r : FunRel)
@@ -141,6 +160,9 @@ Proof.
   firstorder.
 Qed.
 
+Lemma Lookup_Single : forall a b, Lookup a b (Single a b).
+Proof. firstorder. Qed.
+
 Lemma Lookup_Remove_inv : forall a b a' r,
   Lookup a b (Remove a' r) -> a <> a' /\ Lookup a b r.
 Proof. firstorder. Qed.
@@ -227,11 +249,70 @@ Lemma Find_Lookup_iff (P : A -> B -> Prop) (r : FunRel) :
   forall a b, Find (fun _ _ => True) a b r <-> Lookup a b r.
 Proof. unfold Find; split; intros; firstorder. Qed.
 
+Program Definition Partition (P : A -> B -> Prop) (xs : FunRel) :
+  FunRel * FunRel :=
+  (mkFunRel (fun (x : A * B) =>
+               P (fst x) (snd x) /\ Ensembles.In _ (relEns xs) x) _,
+   mkFunRel (fun (x : A * B) =>
+               ~ P (fst x) (snd x) /\ Ensembles.In _ (relEns xs) x) _).
+Obligation 1.
+  destruct xs, H, H0.
+  eapply e.
+    exact H1.
+  exact H2.
+Defined.
+Obligation 2.
+  destruct xs, H, H0.
+  eapply e.
+    exact H1.
+  exact H2.
+Defined.
+
+Lemma Partition_iff_1 :
+  forall (P : A -> B -> Prop) (xs xs' : FunRel),
+  xs' = fst (Partition P xs) ->
+  forall a b, Lookup a b xs' <-> Lookup a b xs /\ P a b.
+Proof.
+  unfold Partition; split; intros; subst; simpl in *; intuition.
+Qed.
+
+Lemma Partition_iff_2 :
+  forall (P : A -> B -> Prop) (xs xs' : FunRel),
+  xs' = snd (Partition P xs) ->
+  forall a b, Lookup a b xs' <-> Lookup a b xs /\ ~ P a b.
+Proof.
+  unfold Partition; split; intros; subst; simpl in *; intuition.
+Qed.
+
+Lemma cons_split : forall A B (x : A * B) a b,
+  x = (a, b) -> a = fst x /\ b = snd x.
+Proof.
+  intros.
+  destruct x; simpl.
+  inversion H.
+  intuition.
+Qed.
+
+Lemma Partition_iff :
+  forall (P : A -> B -> Prop) (xs : FunRel) xi xn,
+    Partition P xs = (xi, xn)
+      -> (forall a b, Ensembles.In _ (relEns xi) (a, b) -> P a b) /\
+         (forall a b, Ensembles.In _ (relEns xn) (a, b) -> ~ P a b).
+Proof.
+  unfold Partition; intros.
+  apply cons_split in H; simpl in H.
+  destruct H; subst; simpl.
+  unfold Ensembles.In; simpl.
+  intuition.
+Qed.
+
 End FunRelation.
 
 Arguments mkFunRel : default implicits.
 Arguments relEns : default implicits.
 Arguments Empty : default implicits.
+Arguments Single : default implicits.
+Arguments Same : default implicits.
 Arguments Insert : default implicits.
 Arguments Remove : default implicits.
 Arguments Update : default implicits.
@@ -249,6 +330,7 @@ Arguments Member : default implicits.
 Arguments Find : default implicits.
 Arguments FindA : default implicits.
 Arguments FindB : default implicits.
+Arguments Partition : default implicits.
 
 Ltac teardown :=
   repeat

@@ -1,7 +1,7 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
-  Fiat.ADTInduction.
+  Here.ADTInduction.
 
 Require Import
   Coq.Lists.List

@@ -1,7 +1,7 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
-  Fiat.ADTInduction.
+  Here.ADTInduction.
 
 Require Import
   Fiat.ADTRefinement
@@ -20,7 +20,7 @@ Definition fromADTConstructor'
   forall (r : Rep adt),
     fromConstructor (Constructors adt (idxMap idx)) r
       -> fromADT adt r :=
-  ADTInduction.fromADTConstructor adt (idxMap idx).
+  fromADTConstructor adt (idxMap idx).
 
 Arguments fromADTConstructor' {dSig} adt idxMap idx r _.
 
@@ -60,7 +60,7 @@ Definition fromADTMethod'
     fromADT adt r
       -> fromMethod (Methods adt (idxMap idx)) r r'
       -> fromADT adt r' :=
-  ADTInduction.fromADTMethod (adt:=adt) (idxMap idx).
+  fromADTMethod (adt:=adt) (idxMap idx).
 
 Arguments fromADTMethod' {dSig} adt idxMap idx r r' _ _.
 
