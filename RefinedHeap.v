@@ -89,11 +89,126 @@ Definition Heap_AbsR
   SetMap_AbsR (` or) (snd nr) MemoryBlock_AbsR /\
   P.for_all (within_allocated_mem (fst nr)) (snd nr).
 
+Program Definition Empty_Heap : { r : Rep HeapSpec | fromADT HeapSpec r} :=
+  exist _ (Empty N MemoryBlock) (empty_fromADT _).
+Obligation 1. reflexivity. Qed.
+
+Lemma Empty_Heap_AbsR : Heap_AbsR Empty_Heap (0, M.empty MemoryBlockC).
+Proof.
+  split; simpl; intros.
+    intro addr; split; intros; inv H.
+  apply for_all_empty.
+  intros ??????; subst; reflexivity.
+Qed.
+
+Definition Extend (k : N) (v : MemoryBlock)
+           (or : { r : Rep HeapSpec | fromADT HeapSpec r}) :
+  ~ Member k (` or)
+    -> 0 < memSize v
+    -> All (fun p => fst p < memSize v) (memData v)
+    -> memData v = Empty N Word8
+    -> (forall addr' blk',
+          ~ Find (fun addr' blk' =>
+                    overlaps addr' (memSize blk') k (memSize v))
+                 addr' blk' (` or))
+    -> { r : Rep HeapSpec | fromADT HeapSpec r}.
+Proof.
+  intros.
+  exists (Update k v (` or)).
+  apply fromADTMethod with (midx:=Fin.FS (Fin.FS Fin.F1)) (r:=` or).
+    exact (proj2_sig or).
+  unfold fromMethod, fromMethod'; simpl.
+  exists k; exists (exist _ (memSize v) H0); exists k; simpl.
+  unfold find_free_block, free_block; simpl.
+  apply BindComputes with (a:=false).
+    apply PickComputes; intros.
+    apply LogicFacts.not_exists_forall with (a:=blk) in H.
+    simpl; unfold not, Lookup; intros.
+    contradiction.
+  apply BindComputes with (a:=k).
+    apply PickComputes; intros.
+    unfold not; intros.
+    specialize (H3 addr' blk').
+    destruct H4.
+    apply Lookup_Remove_inv in H4; destruct H4.
+    unfold Find in H3.
+    apply (LogicFacts.not_and_implication
+             (Lookup _ _ _) (overlaps _ _ _ _)) in H3; eauto.
+  unfold fit_to_length, shift_address; simpl.
+  destruct v; simpl in *; subst.
+  apply ReturnComputes.
+Defined.
+
+Definition ExtendC (k : N) (v : MemoryBlockC) (nr : N * M.t MemoryBlockC) :
+  fst nr <= k -> ~ M.In k (snd nr) -> N * M.t MemoryBlockC.
+Proof.
+  intros.
+  exact (k + memCSize v, M.add k v (snd nr)).
+Defined.
+
+Lemma Extend_Heap_AbsR :
+  forall k v v', MemoryBlock_AbsR v v' ->
+  forall or nr
+    (H1 : ~ Member k (` or))
+    (H2 : 0 < memSize v)
+    (H3 : All (fun p => fst p < memSize v) (memData v))
+    (H4 : memData v = Empty N Word8)
+    (H5 : (forall addr' blk',
+             ~ Find (fun addr' blk' =>
+                       overlaps addr' (memSize blk') k (memSize v))
+                    addr' blk' (` or)))
+    (H6 : fst nr <= k)
+    (H7 : ~ M.In k (snd nr)),
+    Heap_AbsR or nr
+      -> Heap_AbsR (@Extend k v or H1 H2 H3 H4 H5) (@ExtendC k v' nr H6 H7).
+Proof.
+  unfold Extend, ExtendC; intros.
+  destruct H0.
+  split; intros.
+    intro addr;
+    split; simpl in *; intros.
+      inv H9; simplify_ensembles; simpl in *.
+        destruct (H0 addr).
+        destruct (H10 _ H9) as [cblk [? ?]].
+        exists cblk; intuition.
+        unfold Ensembles.In in H11; simpl in H11.
+        apply F.find_mapsto_iff.
+        apply F.add_mapsto_iff.
+        right; split.
+          intuition.
+        apply F.find_mapsto_iff.
+        assumption.
+      specialize (H5 addr blk).
+      unfold Find in H5.
+      apply (LogicFacts.not_and_implication
+               (Lookup _ _ _) (overlaps _ _ _ _)) in H5; eauto.
+        admit.
+      admit.
+    admit.
+  admit.
+Admitted.
+
+(*
+Theorem Heap_ind
+        (P : forall (or : { r : Rep HeapSpec | fromADT HeapSpec r})
+                    (nr : N * M.t MemoryBlockC)
+                    (AbsR : Heap_AbsR or nr), Prop)
+        (P0 : P Empty_Heap (0, M.empty MemoryBlockC) Empty_Heap_AbsR)
+        (PE : forall or nr AbsR, P or nr AbsR
+                -> forall v v' (H : MemoryBlock_AbsR v v'),
+                   forall k, P (Extend k v or) (ExtendC k v' nr)
+                               (Extend_Heap_AbsR k H AbsR)) :
+  forall (or : { r : Rep HeapSpec | fromADT HeapSpec r})
+         (nr : N * M.t MemoryBlockC)
+         (AbsR : Heap_AbsR or nr), P or nr AbsR.
+Proof.
+Admitted.
+*)
+
 Corollary Lookup_find_block {r_o r_n} (AbsR : Heap_AbsR r_o r_n) addr' blk' :
   Lookup addr' blk' (` r_o)
     -> exists cblk',
-        MemoryBlock_AbsR blk' cblk' /\
-        M.find addr' (snd r_n) = Some cblk'.
+         MemoryBlock_AbsR blk' cblk' /\ M.find addr' (snd r_n) = Some cblk'.
 Proof.
   intros; destruct AbsR.
   reduction; exists cblk; tauto.
@@ -170,15 +285,92 @@ Proof.
   assumption.
 Admitted.
 
+Theorem Peek_not_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
+  forall base blk',
+    ~ Find (withinMemBlock pos) base blk' (` r_o)
+      -> find_if (withinMemBlockC pos) (snd r_n) = None.
+Proof.
+  intros.
+Admitted.
+
+Lemma withinMemAbsR : forall base blk cblk pos,
+  withinMemBlock pos base blk
+    -> MemoryBlock_AbsR blk cblk
+    -> withinMemBlockC pos base cblk = true.
+Proof.
+  intros.
+  unfold withinMemBlock, withinMemBlockC in *; simpl in *.
+  apply within_reflect in H.
+  destruct H0 as [H0 _]; rewrite <- H0.
+  assumption.
+Qed.
+
+Lemma Sorted_cons_skip : forall A P (x : A) y l,
+  Sorted.Sorted P (x :: y :: l)%list -> Sorted.Sorted P (x :: l)%list.
+Proof.
+Abort.
+
+Lemma elements_add : forall k e l m',
+  M.elements (elt:=MemoryBlockC) m' = ((k, e) :: l)%list
+    -> ~ M.In k (P.of_list l) /\
+       P.Add k e (P.of_list l) (P.of_list ((k, e) :: l)%list).
+Proof.
+Abort.
+
+Lemma find_within : forall elt (m : M.t elt) k e P,
+  M.find k m = Some e
+    -> P k e = true
+    -> (forall k' e', k' <> k -> P k' e' = false)
+    -> find_if P m = Some (k, e).
+Proof.
+  intros.
+  unfold find_if.
+  revert H.
+  generalize dependent e.
+  apply P.fold_rec; intros.
+    apply P.elements_Empty in H.
+    rewrite F.elements_o in H2.
+    rewrite H in H2.
+    inversion H2.
+Admitted.
+
+Lemma map_elements_ind :
+  forall elt (P : list (M.key * elt) -> Prop) (m : M.t elt),
+    P []%list
+      -> (forall (k : M.key) (v : elt) (l : list (M.key * elt)),
+            P l -> M.find k m = Some v -> P ((k, v) :: l)%list)
+      -> P (M.elements (elt:=elt) m).
+Proof.
+  intros.
+  setoid_rewrite F.elements_o in H0.
+  induction m using P.map_induction.
+    apply P.elements_Empty in H1.
+    rewrite H1.
+    assumption.
+  clear H.
+  setoid_rewrite <- F.elements_o in H0.
+  setoid_rewrite <- F.elements_o in IHm1.
+  pose proof H0.
+  specialize (H x e (M.elements (elt:=elt) m1)).
+  specialize (H2 x).
+Abort.
+
 Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
   forall base blk',
     Find (withinMemBlock pos) base blk' (` r_o)
-      -> forall val : Word8, Lookup (pos - base) val (memData blk')
       -> exists cblk',
            find_if (withinMemBlockC pos) (snd r_n) = Some (base, cblk') /\
            MemoryBlock_AbsR blk' cblk'.
 Proof.
-Admitted.
+  intros.
+  destruct H.
+  pose proof (allocations_disjoint (proj2_sig r_o) _ H H0).
+  destruct AbsR; reduction; exists cblk.
+  apply find_within with (P:=withinMemBlockC pos) in HC; auto.
+    eapply withinMemAbsR; eauto.
+  intros.
+  apply not_within_reflect.
+Abort.
 
 Theorem Poke_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos val :
   P.for_all (within_allocated_mem (fst r_n))
@@ -328,10 +520,11 @@ Proof.
     AbsR_prep; assumption.
 
     intros; subst; clear H.
-    destruct (Peek_in_heap H0 H1 v H2) as [cblk' [H3 H4]].
-    rewrite H3; simpl.
-    destruct H4; reduction.
-    rewrite HC; auto.
+    admit.
+    (* destruct (Peek_in_heap H0 H1) as [? [H3 H4]]. *)
+    (* rewrite H3; simpl. *)
+    (* destruct H4; reduction; subst. *)
+    (* rewrite HC; reflexivity. *)
   }
 
   refine method pokeS.

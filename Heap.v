@@ -206,8 +206,13 @@ Definition HeapSpec := Def ADT {
      identify an allociated region, a new memory block is returned without any
      bytes moved. *)
   Def Method2 reallocS (r : rep) (addr : N) (len : N | 0 < len) : rep * N :=
+    b <- { b : bool | forall blk, decides b (Lookup addr blk r) };
     naddr <- find_free_block len (free_block addr r);
-    ret (fit_to_length naddr len (shift_address addr naddr r), naddr),
+    ret (If b
+         Then fit_to_length naddr len (shift_address addr naddr r)
+         Else Update naddr {| memSize := ` len
+                            ; memData := Empty _ _ |} r,
+         naddr),
 
   (* Peeking an unallocated address allows any value to be returned. *)
   Def Method1 peekS (r : rep) (addr : N) : rep * Word8 :=
@@ -287,7 +292,12 @@ Proof.
     simplify_ensembles.
     constructor; firstorder.
   - inv H1; firstorder.
-  - exact (fit_to_length_correct (@shift_address_correct _ IHfromADT _ _) H1).
+  - destruct x0; simpl in *.
+    destruct v.
+      exact (fit_to_length_correct (@shift_address_correct _ IHfromADT _ _) H1).
+    inv H1; firstorder.
+      inv H2; trivial.
+    inv H2; inv H1.
   - exact (set_address_correct IHfromADT H1).
   - exact (copy_memory_correct IHfromADT H1).
   - exact (set_memory_correct IHfromADT H1).
@@ -308,9 +318,11 @@ Proof.
     firstorder.
   - firstorder.
   - destruct x0; simpl in *.
-    destruct H1; destruct H1;
-    tsubst; firstorder; simpl in *.
-    inv H2; assumption.
+    unfold Lookup in H1.
+    destruct v; simplify_ensembles.
+      inv H3; simpl in *.
+      eapply IHfromADT; eauto.
+    eapply IHfromADT; eauto.
   - unfold set_address in H1.
     teardown; destruct x1;
     decisions; firstorder;
@@ -329,9 +341,14 @@ Qed.
 
 Ltac reveal_no_overlap r :=
   match goal with
-    [ H1 : forall addr' blk',
-        ~ Find (fun a b => overlaps a (memSize b) ?A1 ?B1) addr' blk' ?R,
-        H2 : Lookup ?A2 ?B2 r |- _ ] =>
+  | [ H1 : forall addr' blk',
+        ~ Find (fun a b => overlaps a (memSize b) ?A1 ?B1) addr' blk' _,
+        H2 : Lookup ?A2 ?B2 _ |- _ ] =>
+    specialize (H1 A2 B2);
+    apply (LogicFacts.not_and_implication (Lookup _ _ _)) in H1; eauto
+  | [ H1 : forall addr' blk',
+        ~ Find (fun a b => overlaps a (memSize b) ?A1 ?B1) addr' blk' _,
+        H2 : Ensembles.In _ _ (?A2, ?B2) |- _ ] =>
     specialize (H1 A2 B2);
     apply (LogicFacts.not_and_implication (Lookup _ _ _)) in H1; eauto
   end.
@@ -352,12 +369,11 @@ Proof.
     teardown; tsubst; simplify_ensembles.
     reveal_no_overlap r.
   - firstorder.
-  - unfold fit_to_length, shift_address in H1, H2.
+  - destruct x0; simpl in *.
+    unfold fit_to_length, shift_address in H1, H2.
     unfold free_block, find_free_block in H0.
-    teardown; tsubst; simplify_ensembles.
-      specialize (IHfromADT _ _ H6 _ H8); subst.
-      reflexivity.
-    eapply IHfromADT; eassumption.
+    destruct v; unfold Lookup in *;
+    simplify_ensembles; simpl in *; tsubst; eauto.
   - unfold set_address in H1, H2.
     teardown; decisions; tsubst;
     specialize (IHfromADT _ _ H2 _ H3); subst; eauto;
@@ -385,6 +401,17 @@ Proof.
     rewrite Heqe in Heqe0; discriminate.
 Qed.
 
+Corollary allocations_unique_r : forall r : Rep HeapSpec, fromADT _ r ->
+  forall addr1 blk,
+       Lookup addr1 blk r
+    -> forall addr2, ~ Lookup addr2 blk r
+    -> addr1 <> addr2.
+Proof.
+  intros.
+  unfold not; intros; subst.
+  ADT induction r.
+Qed.
+
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 blk1,
        Lookup addr1 blk1 r
@@ -407,15 +434,31 @@ Proof.
     + eapply IHfromADT; eassumption.
   - unfold free_block in H1, H3.
     teardown; eapply IHfromADT; eassumption.
-  - unfold fit_to_length, shift_address in H1, H3.
-    unfold free_block, find_free_block in H0.
-    teardown; tsubst; simplify_ensembles.
-    + clear H9; reveal_no_overlap r.
+  - destruct x0; simpl in *.
+    unfold fit_to_length, shift_address,
+           free_block, find_free_block in *.
+    destruct v; simpl in *;
+    teardown; tsubst; simplify_ensembles; simpl in *.
+    + inv H6. reveal_no_overlap r.
       apply Lookup_Remove with (a':=x); trivial.
-    + rewrite overlaps_sym.
-      clear H9; reveal_no_overlap r.
+    + inv H7. reveal_no_overlap r.
+        unfold not; intros.
+        apply overlaps_sym in H7.
+        contradiction.
       apply Lookup_Remove with (a':=x); trivial.
-    + eapply IHfromADT; eassumption.
+    + inv H6; inv H7.
+      eapply IHfromADT; eassumption.
+    + inv H1; inv H3; simplify_ensembles.
+      * eapply IHfromADT; eassumption.
+      * reveal_no_overlap r.
+        apply Lookup_Remove with (a':=x); trivial.
+        eapply allocations_unique_r; eauto.
+      * reveal_no_overlap r.
+          unfold not; intros.
+          apply overlaps_sym in H1.
+          contradiction.
+        apply Lookup_Remove with (a':=x); trivial.
+        eapply allocations_unique_r; eauto.
   - unfold set_address in H1, H3.
     teardown; decisions; tsubst; simpl;
     eapply IHfromADT; eassumption.
