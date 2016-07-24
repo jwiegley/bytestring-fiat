@@ -282,6 +282,64 @@ Proof.
   intuition.
 Qed.
 
+(*
+Theorem Partition_partition {r_o r_n} (AbsR : Heap_AbsR r_o r_n) base blk pos :
+  Find (withinMemBlock pos) base blk (proj1_sig r_o)
+    -> forall a a',
+         Partition (withinMemBlock pos) (proj1_sig r_o) = (a, a')
+           -> Lookup base blk a
+    -> exists cblk b b',
+         P.partition (withinMemBlockC pos) (snd r_n) = (b, b')
+           /\ SetMap_AbsR a b MemoryBlock_AbsR
+           /\ SetMap_AbsR a' b' MemoryBlock_AbsR
+           /\ M.find base b = Some cblk.
+Proof.
+  intros.
+  destruct H.
+  destruct AbsR.
+  pose proof H3.
+  reduction.
+  intros.
+  exists cblk.
+  exists (P.filter (withinMemBlockC pos) (snd r_n)).
+  exists (P.filter (negb \oo withinMemBlockC pos) (snd r_n)).
+  split.
+    unfold P.partition; f_equal.
+  split.
+    unfold Partition in H0; inv H0.
+    intro addr.
+    split; intros.
+      simpl in H; destruct H.
+      destruct (H3 addr); clear H3 H6.
+      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
+      exists cblk'.
+      split; trivial.
+      admit.
+    destruct (H3 addr); clear H3.
+    admit.
+  split.
+    unfold Partition in H0; inv H0.
+    intro addr.
+    split; intros.
+      simpl in H; destruct H.
+      destruct (H3 addr); clear H3 H6.
+      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
+      exists cblk'.
+      split; trivial.
+      admit.
+    destruct (H3 addr); clear H3.
+    admit.
+  apply F.find_mapsto_iff.
+  apply P.filter_iff.
+    exact (Proper_within _).
+  split.
+    apply F.find_mapsto_iff; assumption.
+  apply within_reflect.
+  destruct HD as [HD _]; rewrite <- HD.
+  assumption.
+Admitted.
+*)
+
 End FunMaps_AbsR.
 
 End FunMaps.
