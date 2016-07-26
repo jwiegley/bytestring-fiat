@@ -6,6 +6,8 @@ ByteString.v
 ByteStringLib.v
 Decidable.v
 FMapExt.v
+FiniteHeap.v
+FinRelation.v
 FromADT.v
 FunMaps.v
 FunRelation.v

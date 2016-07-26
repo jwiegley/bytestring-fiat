@@ -11,6 +11,11 @@ Module FunMaps (O : OrderedType).
 Module E := FMapExt(O).
 Include E.
 
+Program Definition to_rel {A} (m : M.t A) : FunRel M.key A :=
+  M.fold (fun k e r => Insert k e r _) m (Empty M.key A).
+Obligation 1.
+Admitted.
+
 Definition SetMap_AbsR {A B}
            (or : FunRel M.key A) (nr : M.t B)
            (AbsR : A -> B -> Prop) : Prop :=
@@ -282,63 +287,48 @@ Proof.
   intuition.
 Qed.
 
-(*
-Theorem Partition_partition {r_o r_n} (AbsR : Heap_AbsR r_o r_n) base blk pos :
-  Find (withinMemBlock pos) base blk (proj1_sig r_o)
-    -> forall a a',
-         Partition (withinMemBlock pos) (proj1_sig r_o) = (a, a')
-           -> Lookup base blk a
-    -> exists cblk b b',
-         P.partition (withinMemBlockC pos) (snd r_n) = (b, b')
-           /\ SetMap_AbsR a b MemoryBlock_AbsR
-           /\ SetMap_AbsR a' b' MemoryBlock_AbsR
-           /\ M.find base b = Some cblk.
+Lemma foo : forall A x y (z : A),
+  (x = Some z <-> y = Some z)
+    -> (x = None <-> y = None)
+    -> x = y.
+Proof.
+Admitted.
+
+Lemma Equal_SetMap_AbsR : forall a b b',
+  SetMap_AbsR a b R
+    -> SetMap_AbsR a b' R
+    -> M.Equal b b'.
 Proof.
   intros.
-  destruct H.
-  destruct AbsR.
-  pose proof H3.
-  reduction.
+  intro addr.
+  destruct (H0 addr), (H1 addr).
+  destruct (M.find (elt:=B) addr b').
+  apply foo with (z:=b0); split; intros; trivial.
+Abort.
+
+Lemma Single_SetMap_AbsR : forall base blk cblk,
+  R blk cblk -> SetMap_AbsR (Single base blk) (singleton base cblk) R.
+Proof.
   intros.
-  exists cblk.
-  exists (P.filter (withinMemBlockC pos) (snd r_n)).
-  exists (P.filter (negb \oo withinMemBlockC pos) (snd r_n)).
-  split.
-    unfold P.partition; f_equal.
-  split.
-    unfold Partition in H0; inv H0.
-    intro addr.
-    split; intros.
-      simpl in H; destruct H.
-      destruct (H3 addr); clear H3 H6.
-      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
-      exists cblk'.
-      split; trivial.
-      admit.
-    destruct (H3 addr); clear H3.
-    admit.
-  split.
-    unfold Partition in H0; inv H0.
-    intro addr.
-    split; intros.
-      simpl in H; destruct H.
-      destruct (H3 addr); clear H3 H6.
-      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
-      exists cblk'.
-      split; trivial.
-      admit.
-    destruct (H3 addr); clear H3.
-    admit.
-  apply F.find_mapsto_iff.
-  apply P.filter_iff.
-    exact (Proper_within _).
-  split.
-    apply F.find_mapsto_iff; assumption.
-  apply within_reflect.
-  destruct HD as [HD _]; rewrite <- HD.
-  assumption.
-Admitted.
-*)
+  intro addr.
+  split; intros;
+  [exists cblk|exists blk].
+    inversion H1; subst.
+    split; trivial.
+    unfold singleton.
+    rewrite F.elements_o; simpl.
+    rewrite eqb_refl.
+    reflexivity.
+  rewrite F.elements_o in H1; simpl in H1.
+  unfold F.eqb in H1.
+  destruct (O.eq_dec addr base).
+    inversion H1.
+    apply Oeq_eq in e.
+    subst.
+    split; trivial.
+    apply Lookup_Single.
+  discriminate.
+Qed.
 
 End FunMaps_AbsR.
 

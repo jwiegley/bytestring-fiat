@@ -89,6 +89,10 @@ Program Definition Filter (P : A * B -> Prop) (r : FunRel) : FunRel :=
   mkFunRel (fun p => P p /\ relEns r p) _.
 Obligation 1. destruct r; simpl in *; firstorder. Qed.
 
+Program Definition FilterA (P : A -> Prop) (r : FunRel) : FunRel :=
+  mkFunRel (fun p => P (fst p) /\ relEns r p) _.
+Obligation 1. destruct r; simpl in *; firstorder. Qed.
+
 Program Definition Map (f : A * B -> B) (r : FunRel) : FunRel :=
   mkFunRel (fun p : A * B =>
               exists b : B,
@@ -136,13 +140,18 @@ Obligation 1.
   reflexivity.
 Qed.
 
-Program Definition Transfer (P : A -> option A) (r r' : FunRel) : FunRel :=
-  mkFunRel (fun p => forall a,
-              IF P a = Some (fst p)
-              then relEns r (a, snd p)
-              else relEns r' p) _.
+Definition isSome {a} (x : option a) := if x then True else False.
+
+(* [P] relates possible destination addresses in [r'] with source addresses in
+   [r]. *)
+Program Definition Overlay (P : A -> option A) (r' r : FunRel) : FunRel :=
+  mkFunRel (fun p =>
+              forall a,
+                IF P (fst p) = Some a
+                then relEns r (a, snd p)
+                else relEns r' p) _.
 Obligation 1.
-  destruct r, r'; simpl in *.
+  destruct r', r; simpl in *.
   unfold In in *; simpl in *.
   specialize (H a).
   specialize (H0 a).
@@ -324,7 +333,7 @@ Arguments RemoveIf : default implicits.
 Arguments All : default implicits.
 Arguments Any : default implicits.
 Arguments Define : default implicits.
-Arguments Transfer : default implicits.
+Arguments Overlay : default implicits.
 Arguments Lookup : default implicits.
 Arguments Member : default implicits.
 Arguments Find : default implicits.

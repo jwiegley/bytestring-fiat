@@ -5,6 +5,7 @@ Require Import
   Here.Decidable
   Here.BindDep
   Here.FunRelation
+  Here.FinRelation
   Here.Tactics
   Here.ADTInduction.
 
@@ -96,48 +97,78 @@ Proof.
   against_definition set_address len simplify_ensembles.
 Qed.
 
-Program Definition copy_memory
-        (addr1 addr2 : N) (len : N) (mem : Heap) : Heap :=
-  mkFunRel
-    (p <- relEns mem;
-     let (daddr, dst) := p in
-     IfDec fits daddr (memSize dst) addr2 len
-     Then (
-       src <- relEns mem;
-       let (saddr, src) := p in
-       ret (IfDec fits saddr (memSize src) addr1 len
-            Then (daddr,
-                  {| memSize := memSize dst
-                   ; memData :=
-                       let off1 := addr1 - saddr in
-                       let off2 := addr2 - daddr in
-                       Transfer (fun a =>
-                                   IfDec within off1 len a
-                                   Then Some (off2 + (a - off1))
-                                   Else None)
-                                (memData src) (memData dst) |})
-            Else p))
-     Else ret p) _.
-Obligation 1.
-  destruct mem.
-  simplify_ensembles;
-  decisions;
-  simplify_ensembles;
-  simpl in *; tsubst;
-  try destruct b';
-  specialize (e _ _ _ H H0);
-  clear H H0;
-  subst; firstorder;
-  simpl in *;
-  nomega.
-Qed.
+Definition copy_memory
+        (addr1 addr2 : N) (len : N) (mem : Heap) : Comp (Heap * unit) :=
+  ms <- { ms : option (N * MemoryBlock)
+        | forall addr' blk', ms = Some (addr', blk') ->
+            0 < len /\ Find (fun addr' blk' =>
+                               fits addr' (memSize blk') addr1 len)
+                            addr' blk' mem };
+  md <- { md : option (N * MemoryBlock)
+        | forall addr' blk', md = Some (addr', blk') ->
+            0 < len /\ Find (fun addr' blk' =>
+                               fits addr' (memSize blk') addr2 len)
+                            addr' blk' mem };
+  ret (match ms, md with
+       | Some (saddr, sblk), Some (daddr, dblk) =>
+         Update daddr {| memSize := memSize dblk
+                       ; memData :=
+                           let soff := addr1 - saddr in
+                           let doff := addr2 - daddr in
+                           Overlay (fun a =>
+                                      IfDec within doff len a
+                                      Then Some (soff + (a - doff))
+                                      Else None)
+                                   (memData dblk) (memData sblk) |} mem
+       | _, _ => mem
+       end, tt).
 
 Lemma copy_memory_correct `(_ : CorrectHeap mem) :
-  forall addr1 addr2 len, CorrectHeap (copy_memory addr1 addr2 len mem).
+  forall addr1 addr2 len mem',
+    copy_memory addr1 addr2 len mem ↝ (mem', tt) -> CorrectHeap mem'.
 Proof.
-  against_definition copy_memory len
-                     ltac:(unfold Ensembles.In in *; simpl in * );
-  specialize (H1 off); firstorder.
+  unfold CorrectHeap, All, copy_memory; intros.
+  simplify_ensembles; simpl in *.
+  destruct x, x0;
+  simplify_ensembles; simpl in *; decisions; tsubst.
+  - inv H0.
+      firstorder.
+    inv H2.
+    rename n1 into saddr.
+    rename m1 into sblk.
+    rename n into daddr.
+    rename m0 into dblk.
+    destruct (H saddr sblk eq_refl); clear H.
+    destruct (H1 daddr dblk eq_refl); clear H1 H0.
+    destruct H2, H3.
+    destruct (CorrectHeap0 _ H0).
+    destruct (CorrectHeap0 _ H2).
+    simpl in *.
+    constructor; auto; simpl; intros.
+    destruct H8.
+    unfold Overlay, Ensembles.In in *; simpl in *.
+    specialize (H8 (addr1 - saddr + (off - (addr2 - daddr)))).
+    decisions.
+    + destruct H8; teardown; intuition.
+      unfold Member in *.
+      specialize (H5 (addr1 - saddr + (off - (addr2 - daddr)))).
+      assert (exists b : Word8,
+                 In (N * Word8) (relEns (memData sblk))
+                    (addr1 - saddr + (off - (addr2 - daddr)), b)).
+        exists x.
+        assumption.
+      specialize (H5 H10).
+      unfold fits in *.
+      teardown.
+      unfold within in *.
+      clear -H1 H12 H H3 H11 H4 H5 H6 Heqe.
+      nomega.
+    + destruct H8; teardown.
+        discriminate.
+      firstorder.
+  - firstorder.
+  - firstorder.
+  - firstorder.
 Qed.
 
 Definition set_memory (addr : N) (len : N) (w : Word8) :
@@ -236,9 +267,8 @@ Definition HeapSpec := Def ADT {
   (* Data may only be copied from one allocated block to another (or within
      the same block), and the region must fit within both source and
      destination. Otherwise, the operation is a no-op and returns false. *)
-  Def Method3 memcpyS (r : rep) (addr : N) (addr2 : N) (len : N) :
-    rep * unit :=
-    ret (copy_memory addr addr2 len r, tt),
+  Def Method3 memcpyS (r : rep) (addr1 : N) (addr2 : N) (len : N) :
+    rep * unit := copy_memory addr1 addr2 len r,
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op that
      returns false. *)
@@ -299,44 +329,19 @@ Proof.
       inv H2; trivial.
     inv H2; inv H1.
   - exact (set_address_correct IHfromADT H1).
-  - exact (copy_memory_correct IHfromADT H1).
+  - destruct x2.
+    pose proof (copy_memory_correct IHfromADT H0).
+    exact (H2 _ H1).
   - exact (set_memory_correct IHfromADT H1).
 Qed.
 
-Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
+Corollary allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr len data,
     Lookup addr {| memSize := len; memData := data |} r -> 0 < len.
 Proof.
   intros.
-  generalize dependent data.
-  generalize dependent len.
-  generalize dependent addr.
-  ADT induction r.
-  - inversion H0.
-  - teardown; tsubst.
-      destruct x; simpl; assumption.
-    firstorder.
-  - firstorder.
-  - destruct x0; simpl in *.
-    unfold Lookup in H1.
-    destruct v; simplify_ensembles.
-      inv H3; simpl in *.
-      eapply IHfromADT; eauto.
-    eapply IHfromADT; eauto.
-  - unfold set_address in H1.
-    teardown; destruct x1;
-    decisions; firstorder;
-    tsubst; firstorder.
-  - unfold copy_memory, Lookup in H1, IHfromADT.
-    simplify_ensembles; decisions;
-    simplify_ensembles; decisions;
-    try destruct m;
-    try destruct m0; simpl in *;
-    eapply IHfromADT; eassumption.
-  - unfold set_memory in H1.
-    teardown; destruct x2;
-    decisions; firstorder;
-    tsubst; firstorder.
+  destruct (allocations_are_correct H _ H0) as [H1 _].
+  exact H1.
 Qed.
 
 Ltac reveal_no_overlap r :=
@@ -378,20 +383,13 @@ Proof.
     teardown; decisions; tsubst;
     specialize (IHfromADT _ _ H2 _ H3); subst; eauto;
     rewrite Heqe in Heqe0; discriminate.
-  - unfold copy_memory in H1, H2.
-    unfold Lookup, relEns in *.
-    simplify_ensembles; simpl in *; decisions;
+  - unfold copy_memory in H0.
+    unfold Lookup in *.
+    simplify_ensembles; simpl in *;
+    destruct x3, x4;
+    simplify_ensembles; tsubst;
     simplify_ensembles;
-    try destruct m;
-    try destruct m0;
-    try destruct m1;
-    try destruct m2;
-    specialize (IHfromADT _ _ H0 _ H1);
-    tsubst; simpl in *; eauto.
-    + rewrite Heqe0 in Heqe2; discriminate.
-    + rewrite Heqe in Heqe1; discriminate.
-    + rewrite Heqe2 in Heqe0; discriminate.
-    + rewrite Heqe0 in Heqe; discriminate.
+    exact (IHfromADT _ _ H1 _ H2).
   - unfold set_memory in H1, H2.
     teardown; decisions; tsubst;
     try destruct x2;
@@ -462,15 +460,19 @@ Proof.
   - unfold set_address in H1, H3.
     teardown; decisions; tsubst; simpl;
     eapply IHfromADT; eassumption.
-  - unfold copy_memory in H1, H3.
-    unfold Lookup, relEns in *.
-    simplify_ensembles; simpl in *; decisions;
+  - unfold copy_memory in H0.
+    unfold Lookup in *.
+    simplify_ensembles; simpl in *.
+    destruct x3, x4;
+    try destruct p;
+    try destruct p0;
+    try specialize (H0 n m eq_refl);
+    try specialize (H4 n0 m0 eq_refl);
+    simplify_ensembles; tsubst;
     simplify_ensembles;
-    try destruct m;
-    try destruct m0;
-    try destruct m1;
-    try destruct m2;
-    eapply IHfromADT; eassumption.
+    try destruct H6;
+    try destruct H7;
+    eapply IHfromADT; try eassumption.
   - unfold set_memory in H1, H3.
     teardown; decisions; tsubst; simpl;
     eapply IHfromADT; eassumption.

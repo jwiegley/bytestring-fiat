@@ -137,81 +137,60 @@ Proof.
   assumption.
 Qed.
 
-Lemma Sorted_cons_skip : forall A P (x : A) y l,
-  Sorted.Sorted P (x :: y :: l)%list -> Sorted.Sorted P (x :: l)%list.
-Proof.
-Abort.
-
-Lemma elements_add : forall k e l m',
-  M.elements (elt:=MemoryBlockC) m' = ((k, e) :: l)%list
-    -> ~ M.In k (P.of_list l) /\
-       P.Add k e (P.of_list l) (P.of_list ((k, e) :: l)%list).
-Proof.
-Abort.
-
-Lemma find_if_empty : forall elt (P : M.key -> elt -> bool) m,
-  M.Empty m -> find_if P m = None.
+Theorem Partition_partition {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
+  forall a a',
+    Partition (withinMemBlock pos) (proj1_sig r_o) = (a, a')
+      -> exists b b',
+           P.partition (withinMemBlockC pos) (snd r_n) = (b, b')
+             /\ SetMap_AbsR a b MemoryBlock_AbsR
+             /\ SetMap_AbsR a' b' MemoryBlock_AbsR.
 Proof.
   intros.
-  unfold find_if.
-  apply P.fold_rec; auto; intros.
-  apply P.elements_Empty in H.
-  apply F.find_mapsto_iff in H0.
-  rewrite F.elements_o in H0.
-  rewrite H in H0.
-  inversion H0.
-Qed.
-
-Lemma find_if_add : forall elt (P : M.key -> elt -> bool) m m' k k' e e',
-  ((k = k' /\ e = e' /\ P k e) \/ find_if P m = Some (k', e')) ->
-  P.Add k e m m' ->
-  find_if P m' = Some (k', e').
-Proof.
-Admitted.
-
-Lemma find_within : forall elt (m : M.t elt) k e P,
-  M.find k m = Some e
-    -> P k e = true
-    (* -> (forall k' e', k' <> k -> M.find k' m = Some e' -> P k' e' = false) *)
-    -> find_if P m = Some (k, e).
-Proof.
+(*
+  destruct H.
+  destruct AbsR.
+  pose proof H3.
+  reduction.
   intros.
-  induction m using P.map_induction.
-    apply P.elements_Empty in H1.
-    rewrite F.elements_o in H.
-    rewrite H1 in H.
-    inversion H.
-  apply find_if_add with (m:=m1) (k:=x) (e:=e0); auto.
-  rewrite H2 in H.
-  apply F.find_mapsto_iff in H.
-  apply F.add_mapsto_iff in H.
-  destruct H; destruct H; subst; auto.
-  right.
-  apply IHm1.
+  exists cblk.
+  exists (P.filter (withinMemBlockC pos) (snd r_n)).
+  exists (P.filter (negb \oo withinMemBlockC pos) (snd r_n)).
+  split.
+    unfold P.partition; f_equal.
+  split.
+    unfold Partition in H0; inv H0.
+    intro addr.
+    split; intros.
+      simpl in H; destruct H.
+      destruct (H3 addr); clear H3 H6.
+      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
+      exists cblk'.
+      split; trivial.
+      admit.
+    destruct (H3 addr); clear H3.
+    admit.
+  split.
+    unfold Partition in H0; inv H0.
+    intro addr.
+    split; intros.
+      simpl in H; destruct H.
+      destruct (H3 addr); clear H3 H6.
+      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
+      exists cblk'.
+      split; trivial.
+      admit.
+    destruct (H3 addr); clear H3.
+    admit.
   apply F.find_mapsto_iff.
+  apply P.filter_iff.
+    exact (Proper_within _).
+  split.
+    apply F.find_mapsto_iff; assumption.
+  apply within_reflect.
+  destruct HD as [HD _]; rewrite <- HD.
   assumption.
-Qed.
-
-Lemma map_elements_ind :
-  forall elt (P : list (M.key * elt) -> Prop) (m : M.t elt),
-    P []%list
-      -> (forall (k : M.key) (v : elt) (l : list (M.key * elt)),
-            P l -> M.find k m = Some v -> P ((k, v) :: l)%list)
-      -> P (M.elements (elt:=elt) m).
-Proof.
-  intros.
-  setoid_rewrite F.elements_o in H0.
-  induction m using P.map_induction.
-    apply P.elements_Empty in H1.
-    rewrite H1.
-    assumption.
-  clear H.
-  setoid_rewrite <- F.elements_o in H0.
-  setoid_rewrite <- F.elements_o in IHm1.
-  pose proof H0.
-  specialize (H x e (M.elements (elt:=elt) m1)).
-  specialize (H2 x).
-Abort.
+*)
+Admitted.
 
 Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
   forall base blk',
@@ -221,14 +200,17 @@ Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
            MemoryBlock_AbsR blk' cblk'.
 Proof.
   intros.
-  destruct H.
-  pose proof (allocations_disjoint (proj2_sig r_o) _ H H0).
-  destruct AbsR.
-  pose proof H2.
-  reduction; exists cblk.
-  apply find_within with (P:=withinMemBlockC pos) in HC; auto.
-  eapply withinMemAbsR; eauto.
-Qed.
+  pose proof (find_partitions_a_singleton (proj2_sig r_o) H).
+  eapply Partition_partition in H0; eauto; reduction.
+  unfold P.partition in H0; inv H0.
+  destruct H, AbsR; reduction.
+  destruct (H1 base); clear H3.
+  destruct (H _ (Lookup_Single _ _ _ _)) as [cblk' [? ?]]; clear H.
+  exists cblk'; split; trivial.
+  apply find_if_filter.
+    admit.
+  intro addr.
+Admitted.
 
 Theorem Poke_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos val :
   P.for_all (within_allocated_mem (fst r_n))
@@ -409,9 +391,9 @@ Proof.
 
   refine method memcpyS.
   {
-    unfold memcpy.
-    remove_dependency.
-    simplify with monad laws; simpl.
+    unfold memcpy, copy_memory.
+    (* remove_dependency. *)
+    (* simplify with monad laws; simpl. *)
 
     admit.
   }
