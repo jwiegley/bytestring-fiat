@@ -85,12 +85,28 @@ Lemma Lookup_Single_inv : forall a b c d,
   Lookup a b (Single c d) -> a = c /\ b = d.
 Proof. split; inversion H; reflexivity. Qed.
 
+Lemma Lookup_Insert : forall a b c d r H,
+  (a = c /\ b = d) \/ (a <> c /\ Lookup a b r)
+    -> Lookup a b (Insert c d r H).
+Proof.
+  intros.
+  intuition; subst.
+    right; constructor.
+  left.
+  exact H2.
+Qed.
+
 Lemma Lookup_Insert_inv : forall a b c d r H,
-  Lookup a b (Insert c d r H) -> (a = c /\ b = d) \/ Lookup a b r.
+  Lookup a b (Insert c d r H)
+    -> (a = c /\ b = d) \/ (a <> c /\ Lookup a b r).
 Proof.
   intros.
   inversion H0; clear H0.
+    subst.
+    right.
     firstorder.
+    unfold not; intros; subst.
+    contradiction (H b).
   inversion H1; clear H1.
   firstorder.
 Qed.
@@ -106,6 +122,18 @@ Proof. firstorder. Qed.
 Lemma Lookup_Remove_inv : forall a b a' r,
   Lookup a b (Remove a' r) -> a <> a' /\ Lookup a b r.
 Proof. firstorder. Qed.
+
+Lemma Lookup_Update : forall a b a' b' r,
+  (a = a' /\ b = b') \/ (a <> a' /\ Lookup a b r)
+    -> Lookup a b (Update a' b' r).
+Proof.
+  intros.
+  intuition; subst.
+    right; constructor.
+  left; constructor.
+    exact H1.
+  exact H.
+Qed.
 
 Lemma Lookup_Update_inv : forall a b a' b' r,
   Lookup a b (Update a' b' r)
@@ -257,6 +285,18 @@ Ltac teardown :=
   | [ H : Member _ (Define _ _ _)  |- _ ] => unfold Member in H
   | [ H : Member _ (Modify _ _ _)  |- _ ] => unfold Member in H
   | [ H : Member _ (Overlay _ _ _) |- _ ] => unfold Member in H
+
+  | [ |- Lookup _ _ Empty           ] => apply Lookup_Empty
+  | [ |- Lookup _ _ (Single _ _)    ] => apply Lookup_Single
+  | [ |- Lookup _ _ (Insert _ _ _)  ] => apply Lookup_Insert
+  | [ |- Lookup _ _ (Remove _ _)    ] => apply Lookup_Remove
+  | [ |- Lookup _ _ (Update _ _ _)  ] => apply Lookup_Update
+  (* | [ |- Lookup _ _ (Move _ _ _)    ] => apply Lookup_Move *)
+  | [ |- Lookup _ _ (Map _ _)       ] => apply Lookup_Map
+  | [ |- Lookup _ _ (Filter _ _)    ] => apply Lookup_Filter
+  (* | [ |- Lookup _ _ (Define _ _ _)  ] => apply Lookup_Define *)
+  (* | [ |- Lookup _ _ (Modify _ _ _)  ] => apply Lookup_Modify *)
+  (* | [ |- Lookup _ _ (Overlay _ _ _) ] => apply Lookup_Overlay *)
 
   | [ H : Lookup ?X ?Y ?R |- Member ?X ?R ] => exists Y; exact H
 
