@@ -2,8 +2,6 @@ Require Import
   Fiat.ADT
   Fiat.ADTNotation
   Here.TupleEnsembles
-  Coq.Sets.Finite_sets
-  Coq.Sets.Finite_sets_facts
   Here.Nomega
   Here.Decidable
   Here.BindDep
@@ -347,10 +345,10 @@ Proof.
   split; intros; inspect.
     destruct (N.eq_dec base a); subst.
       specialize (H3 _ H5); subst.
-      apply Lookup_Single; assumption.
+      inspect.
     specialize (H2 _ _ H5 n).
     unfold overlaps, within in *; nomega.
-  apply Lookup_Filter; intuition.
+  split; trivial.
 Qed.
 
 Corollary allocations_disjoint : forall r : Rep HeapSpec, fromADT _ r ->
@@ -366,22 +364,6 @@ Proof.
 Qed.
 
 Require Import Here.TupleEnsemblesFinite.
-
-Ltac finitary :=
-  repeat match goal with
-    | [ |- Finite _ Empty            ] => eapply Empty_Finite
-    | [ |- Finite _ (Single _ _)     ] => eapply Single_Finite
-    | [ |- Finite _ (Insert _ _ _ _) ] => eapply Insert_Finite
-    | [ |- Finite _ (Remove _ _)     ] => eapply Remove_Finite
-    | [ |- Finite _ (Setminus _)     ] => eapply Setminus_preserves_finite
-    | [ |- Finite _ (Update _ _ _)   ] => eapply Update_Finite
-    | [ |- Finite _ (Move _ _ _)     ] => eapply Move_Finite
-    | [ |- Finite _ (Filter _ _)     ] => eapply Filter_Finite
-    | [ |- Finite _ (Map _ _)        ] => eapply Map_Finite
-    | [ |- Finite _ (Modify _ _ _)   ] => eapply Modify_Finite
-    | [ |- Finite _ (Define _ _ _)   ] => eapply Define_Finite
-    | [ |- Finite _ (Overlay _ _ _)  ] => eapply Overlay_Finite
-    end; eauto.
 
 Theorem finite_heap : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
 Proof. intros; ADT induction r; inspect; finitary. Qed.

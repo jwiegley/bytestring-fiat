@@ -78,3 +78,19 @@ Proof.
 Admitted.
 
 End TupleEnsembleFinite.
+
+Ltac finitary :=
+  repeat match goal with
+    | [ |- Finite _ Empty            ] => eapply Empty_Finite
+    | [ |- Finite _ (Single _ _)     ] => eapply Single_Finite
+    | [ |- Finite _ (Insert _ _ _ _) ] => eapply Insert_Finite
+    | [ |- Finite _ (Remove _ _)     ] => eapply Remove_Finite
+    | [ |- Finite _ (Setminus _)     ] => eapply Setminus_preserves_finite
+    | [ |- Finite _ (Update _ _ _)   ] => eapply Update_Finite
+    | [ |- Finite _ (Move _ _ _)     ] => eapply Move_Finite
+    | [ |- Finite _ (Filter _ _)     ] => eapply Filter_Finite
+    | [ |- Finite _ (Map _ _)        ] => eapply Map_Finite
+    | [ |- Finite _ (Modify _ _ _)   ] => eapply Modify_Finite
+    | [ |- Finite _ (Define _ _ _)   ] => eapply Define_Finite
+    | [ |- Finite _ (Overlay _ _ _)  ] => eapply Overlay_Finite
+    end; eauto.

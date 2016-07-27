@@ -1,4 +1,4 @@
-Require Import Coq.Sets.Ensembles.
+Require Export Coq.Sets.Ensembles.
 
 Generalizable All Variables.
 

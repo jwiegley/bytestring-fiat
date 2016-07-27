@@ -8,6 +8,7 @@ ByteStringLib.v
 Decidable.v
 FMapExt.v
 FromADT.v
+FunMaps.v
 Heap.v
 HeapADT.v
 LibExt.v
