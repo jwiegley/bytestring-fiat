@@ -39,6 +39,14 @@ Proof.
   destruct H; split; assumption.
 Qed.
 
+Lemma not_overlaps_sym : forall addr1 len1 addr2 len2,
+  ~ overlaps addr1 len1 addr2 len2 <-> ~ overlaps addr2 len2 addr1 len1.
+Proof.
+  unfold not; split; intros;
+  apply overlaps_sym in H0;
+  contradiction.
+Qed.
+
 Lemma overlaps_irr : forall addr len1 len2,
   0 < len1 -> 0 < len2 -> overlaps addr len1 addr len2.
 Proof.
@@ -184,6 +192,9 @@ Proof.
   apply N.add_le_mono_l in H0.
   nomega.
 Qed.
+
+Theorem Nadd_minus : forall n m, n <= m -> n + (m - n) = m.
+Proof. intros; nomega. Qed.
 
 Lemma within_reflect : forall x y a,
   within x y a <-> ((x <=? a) && (a <? x + y) = true)%bool.

@@ -7,7 +7,6 @@ Require Import
 
 Require Import
   Here.Nomega
-  Here.FunRelation
   Here.FunMaps
   Here.ByteString
   Here.Heap.

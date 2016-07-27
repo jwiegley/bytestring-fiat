@@ -4,7 +4,6 @@ Require Import
   Here.HeapADT
   Here.Nomega
   Here.BindDep
-  Here.FunRelation
   Here.FunMaps
   Here.FMapExt
   Here.Same_set

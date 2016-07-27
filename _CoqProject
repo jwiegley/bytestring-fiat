@@ -1,16 +1,13 @@
 -R /Users/johnw/bae/rings/coq-haskell/src Hask
 -R /Users/johnw/bae/rings/fiat/src Fiat
 -R . Here
+ADTInduction.v
 BindDep.v
 ByteString.v
 ByteStringLib.v
 Decidable.v
 FMapExt.v
-FiniteHeap.v
-FinRelation.v
 FromADT.v
-FunMaps.v
-FunRelation.v
 Heap.v
 HeapADT.v
 LibExt.v
@@ -18,3 +15,5 @@ Nomega.v
 RefinedHeap.v
 Same_set.v
 Tactics.v
+TupleEnsembles.v
+TupleEnsemblesFinite.v
