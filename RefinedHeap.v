@@ -8,7 +8,8 @@ Require Import
   Here.FMapExt
   Here.Same_set
   Here.Tactics
-  Here.ADTInduction.
+  Here.ADTInduction
+  Here.TupleEnsembles.
 
 Require Import Coq.Structures.OrderedTypeEx.
 
@@ -32,17 +33,20 @@ Record MemoryBlockC := {
 }.
 
 Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
-  memSize o = memCSize n /\
-  SetMap_AbsR (memData o) (memCData n) eq.
+  memSize o = memCSize n /\ Map_AbsR eq (memData o) (memCData n).
 
-Lemma Empty_MemoryBlock_AbsR : forall n,
-  MemoryBlock_AbsR {| memSize  := n; memData  := Empty N Word8 |}
+Corollary Empty_MemoryBlock_AbsR : forall n,
+  MemoryBlock_AbsR {| memSize  := n; memData  := Empty |}
                    {| memCSize := n; memCData := M.empty Word8 |}.
-Proof.
-  intros.
-  split; trivial; simpl; intros.
-  exact (Empty_SetMap_AbsR _).
-Qed.
+Proof. split; trivial; simpl; intros; apply Empty_Map_AbsR. Qed.
+
+Corollary MemoryBlock_AbsR_impl : forall s s' d d',
+    s = s' -> Map_AbsR eq d d' ->
+    MemoryBlock_AbsR {| memSize  := s;  memData  := d |}
+                     {| memCSize := s'; memCData := d' |}.
+Proof. intros; subst; split; intros; trivial. Qed.
+
+Hint Extern 1 => apply MemoryBlock_AbsR_impl.
 
 End MemoryBlock.
 
@@ -85,11 +89,11 @@ Definition Heap_AbsR
            (or : { r : Rep HeapSpec
                  | fromADT HeapSpec r})
            (nr : N * M.t MemoryBlockC) : Prop :=
-  SetMap_AbsR (` or) (snd nr) MemoryBlock_AbsR /\
+  Map_AbsR MemoryBlock_AbsR (` or) (snd nr) /\
   P.for_all (within_allocated_mem (fst nr)) (snd nr).
 
 Program Definition Empty_Heap : { r : Rep HeapSpec | fromADT HeapSpec r} :=
-  exist _ (Empty N MemoryBlock) (empty_fromADT _).
+  exist _ Empty (empty_fromADT _).
 Obligation 1. reflexivity. Qed.
 
 Lemma Empty_Heap_AbsR : Heap_AbsR Empty_Heap (0, M.empty MemoryBlockC).
@@ -136,80 +140,21 @@ Proof.
   assumption.
 Qed.
 
-Theorem Partition_partition {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
-  forall a a',
-    Partition (withinMemBlock pos) (proj1_sig r_o) = (a, a')
-      -> exists b b',
-           P.partition (withinMemBlockC pos) (snd r_n) = (b, b')
-             /\ SetMap_AbsR a b MemoryBlock_AbsR
-             /\ SetMap_AbsR a' b' MemoryBlock_AbsR.
-Proof.
-  intros.
-(*
-  destruct H.
-  destruct AbsR.
-  pose proof H3.
-  reduction.
-  intros.
-  exists cblk.
-  exists (P.filter (withinMemBlockC pos) (snd r_n)).
-  exists (P.filter (negb \oo withinMemBlockC pos) (snd r_n)).
-  split.
-    unfold P.partition; f_equal.
-  split.
-    unfold Partition in H0; inv H0.
-    intro addr.
-    split; intros.
-      simpl in H; destruct H.
-      destruct (H3 addr); clear H3 H6.
-      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
-      exists cblk'.
-      split; trivial.
-      admit.
-    destruct (H3 addr); clear H3.
-    admit.
-  split.
-    unfold Partition in H0; inv H0.
-    intro addr.
-    split; intros.
-      simpl in H; destruct H.
-      destruct (H3 addr); clear H3 H6.
-      destruct (H5 _ H0) as [cblk' [? ?]]; clear H0 H5.
-      exists cblk'.
-      split; trivial.
-      admit.
-    destruct (H3 addr); clear H3.
-    admit.
-  apply F.find_mapsto_iff.
-  apply P.filter_iff.
-    exact (Proper_within _).
-  split.
-    apply F.find_mapsto_iff; assumption.
-  apply within_reflect.
-  destruct HD as [HD _]; rewrite <- HD.
-  assumption.
-*)
-Admitted.
-
 Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
   forall base blk',
-    Find (withinMemBlock pos) base blk' (` r_o)
+    Lookup base blk' (` r_o)
+      -> withinMemBlock pos base blk'
       -> exists cblk',
            find_if (withinMemBlockC pos) (snd r_n) = Some (base, cblk') /\
            MemoryBlock_AbsR blk' cblk'.
 Proof.
   intros.
-  pose proof (find_partitions_a_singleton (proj2_sig r_o) H).
-  eapply Partition_partition in H0; eauto; reduction.
-  unfold P.partition in H0; inv H0.
-  destruct H, AbsR; reduction.
-  destruct (H1 base); clear H3.
-  destruct (H _ (Lookup_Single _ _ _ _)) as [cblk' [? ?]]; clear H.
-  exists cblk'; split; trivial.
-  apply find_if_filter.
-    admit.
-  intro addr.
-Admitted.
+  pose proof (find_partitions_a_singleton (proj2_sig r_o) _ H H0).
+  destruct AbsR; reduction.
+  exists cblk; split; trivial.
+  Fail apply find_if_filter.
+    Fail apply Proper_within.
+Abort.
 
 Theorem Poke_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos val :
   P.for_all (within_allocated_mem (fst r_n))
@@ -236,23 +181,18 @@ Qed.
 Lemma Heap_AbsR_outside_mem
       {r_o r_n} (AbsR : Heap_AbsR r_o r_n)
       (d : {len : N | 0 < len}) :
-  forall addr' blk',
-    ~ Find (fun a b => overlaps a (memSize b) (fst r_n) (` d))
-           addr' blk' (` r_o).
+  All (fun addr' blk' =>
+         ~ overlaps addr' (memSize blk') (fst r_n) (` d)) (` r_o).
 Proof.
-  destruct AbsR; intros.
+  destruct AbsR; intros ???.
   apply LogicFacts.not_and_implication; intros.
-  eapply Lookup_find_block in H1; eauto;
-  [| split; [exact H|assumption] ].
-  destruct H1 as [cblk' [[? ?] ?]].
-  eapply P.for_all_iff with (k:=addr') (e:=cblk') in H0; eauto.
+  reduction.
+  eapply P.for_all_iff with (k:=a) (e:=cblk) in H0; eauto.
     unfold within_allocated_mem in H0; simpl in H0.
-    unfold overlaps.
-    destruct d; simpl in *.
-    rewrite H1.
-    clear -H0 l.
-    undecide.
-    nomega.
+    rewrite (proj1 HD).
+    unfold not; intros.
+    clear -H0 H1.
+    undecide; nomega.
   apply F.find_mapsto_iff.
   assumption.
 Qed.
@@ -265,6 +205,14 @@ Ltac AbsR_prep :=
     | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
     | [ |- _ /\ _ ] => split
     end; simpl.
+
+Corollary eq_impl_eq : forall a b : N, a = b <-> a = b.
+Proof. split; intros; assumption. Qed.
+Hint Resolve eq_impl_eq.
+
+Corollary neq_impl_neq : forall a b : N, a <> b <-> a <> b.
+Proof. split; intros; assumption. Qed.
+Hint Resolve neq_impl_neq.
 
 Lemma HeapImpl : FullySharpened HeapSpec.
 Proof.
@@ -283,13 +231,13 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Empty_SetMap_AbsR; trivial.
+    - apply Empty_Map_AbsR; trivial.
     - apply E.for_all_empty; trivial.
   }
 
   refine method allocS.
   {
-    unfold Heap_AbsR, alloc, find_free_block.
+    unfold Heap_AbsR, alloc.
     remove_dependency.
     simplify with monad laws; simpl.
 
@@ -306,8 +254,9 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Update_SetMap_AbsR; trivial.
-      apply Empty_MemoryBlock_AbsR; trivial.
+    - apply Update_Map_AbsR; auto.
+      apply MemoryBlock_AbsR_impl; auto.
+      apply Empty_Map_AbsR; auto.
     - apply E.for_all_add; trivial.
         eapply E.for_all_impl; eauto; intros.
         destruct d; simpl.
@@ -317,7 +266,7 @@ Proof.
 
   refine method freeS.
   {
-    unfold free, free_block.
+    unfold free.
     remove_dependency.
     simplify with monad laws; simpl.
 
@@ -326,13 +275,13 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Remove_SetMap_AbsR; trivial.
+    - apply Remove_Map_AbsR; trivial.
     - apply E.for_all_remove; trivial.
   }
 
   refine method reallocS.
   {
-    unfold Heap_AbsR, realloc, find_free_block.
+    unfold Heap_AbsR, realloc.
     remove_dependency.
     simplify with monad laws; simpl.
 
@@ -357,17 +306,17 @@ Proof.
       finish honing.
 
     AbsR_prep; assumption.
-
-    intros; subst; clear H.
-    destruct (Peek_in_heap H0 H1) as [? [H3 H4]].
-    rewrite H3; simpl.
-    destruct H4; reduction; subst.
-    rewrite HC; reflexivity.
+    - intros; subst; clear H.
+      Fail destruct (Peek_in_heap H0 H1) as [? [H3 H4]].
+      Fail rewrite H3; simpl.
+      Fail destruct H4; reduction; subst.
+      Fail rewrite HC; reflexivity.
+      admit.
   }
 
   refine method pokeS.
   {
-    unfold poke, set_address.
+    unfold poke.
     remove_dependency.
     simplify with monad laws; simpl.
 
@@ -382,17 +331,25 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Map_SetMap_AbsR; auto; intros; destruct H2.
-      split; rewrite H2; decisions; intuition; simpl.
-      apply Update_SetMap_AbsR; trivial.
-    - apply (Poke_in_heap (conj H0 H1)).
+    - eapply Map_Map_AbsR; auto.
+      split; subst; destruct H3.
+        decisions; simpl; auto;
+        rewrite H3; reflexivity.
+      decisions; simpl; auto.
+      + apply Update_Map_AbsR; auto.
+      + rewrite H2 in Heqe; intuition.
+        rewrite Heqe in Heqe0; discriminate.
+      + rewrite H2 in Heqe; intuition.
+        rewrite Heqe in Heqe0; discriminate.
+    - decisions.
+      admit.
   }
 
   refine method memcpyS.
   {
-    unfold memcpy, copy_memory.
-    (* remove_dependency. *)
-    (* simplify with monad laws; simpl. *)
+    unfold Heap_AbsR, memcpy.
+    remove_dependency.
+    simplify with monad laws; simpl.
 
     admit.
   }

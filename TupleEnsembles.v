@@ -1,4 +1,6 @@
 Require Export Coq.Sets.Ensembles.
+Require Export Coq.Classes.Morphisms.
+Require Export Coq.Classes.RelationClasses.
 
 Generalizable All Variables.
 
@@ -15,6 +17,13 @@ Definition Lookup (a : A) (b : B) (r : Ensemble (A * B)) := In _ r (a, b).
 
 Definition Same (x y : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b x <-> Lookup a b y.
+
+Global Program Instance Lookup_Proper :
+  Proper (eq ==> eq ==> Same ==> Basics.impl) Lookup.
+Obligation 1.
+  intros ??????????; subst.
+  apply H1; assumption.
+Qed.
 
 Definition Member (a : A) (r : Ensemble (A * B)) :=
   exists b, Lookup a b r.
@@ -40,10 +49,39 @@ Definition Move (a a' : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
 
 Definition Map (f : A -> B -> B) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
-  fun p : A * B =>
-    exists b : B,
-      Lookup (fst p) b r /\
-      Lookup (fst p) (snd p) (Singleton _ (fst p, f (fst p) b)).
+  fun p => exists b : B, Lookup (fst p) b r /\ snd p = f (fst p) b.
+
+Lemma Map_identity : forall r,
+  Same r (Map (fun _ x => x) r).
+Proof.
+  unfold Map; split; intros.
+    exists b.
+    intuition; constructor.
+  destruct H.
+  destruct H.
+  inversion H0; subst.
+  assumption.
+Qed.
+
+Lemma Map_composition : forall f g r,
+  Same (Map (fun k e => f k (g k e)) r) (Map f (Map g r)).
+Proof.
+  unfold Map; split; intros.
+    destruct H.
+    destruct H; simpl in *.
+    subst.
+    exists (g a x); simpl in *.
+    split; trivial.
+    exists x; simpl.
+    intuition.
+  destruct H.
+  destruct H; simpl in *.
+  subst.
+  destruct H; simpl in *.
+  exists x0; simpl in *.
+  destruct H; subst.
+  intuition.
+Qed.
 
 Definition Filter (P : A -> B -> Prop) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
@@ -73,7 +111,7 @@ Definition All (P : A -> B -> Prop) (r : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b r -> P a b.
 
 Definition Any (P : A -> B -> Prop) (r : Ensemble (A * B)) : Prop :=
-  exists a b, Lookup a b r -> P a b.
+  exists a b, Lookup a b r /\ P a b.
 
 Lemma Lookup_Empty : forall a b, ~ Lookup a b Empty.
 Proof. firstorder. Qed.
@@ -160,8 +198,6 @@ Lemma Lookup_Map_inv : forall a b f r,
 Proof.
   intros.
   inversion H; clear H.
-    firstorder.
-  inversion H0; clear H0.
   firstorder.
 Qed.
 

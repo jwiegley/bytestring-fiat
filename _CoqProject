@@ -12,6 +12,7 @@ FunMaps.v
 Heap.v
 HeapADT.v
 LibExt.v
+LogicalRelations.v
 Nomega.v
 RefinedHeap.v
 Same_set.v

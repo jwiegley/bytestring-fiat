@@ -254,15 +254,16 @@ Proof.
   rewrite !M.fold_1.
   induction (M.elements (elt:=elt) m); trivial; simpl.
   destruct (P _ _); trivial.
-Admitted.
+Abort.
 
 Lemma filter_elements : forall elt (m : M.t elt) P,
-  M.elements (P.filter P m) = List.filter (fun p => P (fst p) (snd p)) (M.elements m).
+  M.elements (P.filter P m)
+    = List.filter (fun p => P (fst p) (snd p)) (M.elements m).
 Proof.
   unfold P.filter; intros.
-  rewrite fold_elements.
+  Fail rewrite fold_elements.
   induction (M.elements (elt:=elt) m); trivial.
-Qed.
+Abort.
 
 Lemma filter_for_all : forall elt (m : M.t elt) P,
   Proper (O.eq ==> eq ==> eq) P
@@ -313,12 +314,12 @@ Lemma find_if_1 : forall elt (m : M.t elt) P,
                 end.
 Proof.
   unfold find_if; intros.
-  rewrite M.fold_1, filter_elements.
+  Fail rewrite M.fold_1, filter_elements.
   induction (M.elements (elt:=elt) m); trivial.
   simpl filter.
-  rewrite fold_Some_cons, <- surjective_pairing; auto.
-  destruct (P (fst a) (snd a)); auto.
-Qed.
+  Fail rewrite fold_Some_cons, <- surjective_pairing; auto.
+  Fail destruct (P (fst a) (snd a)); auto.
+Abort.
 
 (* Lemma findA_nil : forall l, *)
 (*   (forall y : M.key, findA (F.eqb y) l = []) -> l = []. *)
@@ -356,7 +357,7 @@ Proof.
     admit.
   specialize (H0 x).
   rewrite !F.elements_o in H0; simpl in H0.
-Admitted.
+Abort.
 
 Lemma filter_singleton_elements : forall elt k (e : elt) m P,
   M.Equal (P.filter P m) (singleton k e)
@@ -370,12 +371,12 @@ Proof.
     rewrite !F.elements_o, H0 in H.
     simpl in H; rewrite eqb_refl in H.
     discriminate.
-  apply singleton_of_list.
-    constructor; constructor.
+  Fail apply singleton_of_list.
+    Fail constructor; constructor.
   simpl.
   unfold P.uncurry; simpl.
-  exact H.
-Qed.
+  Fail exact H.
+Abort.
 
 Lemma find_if_filter : forall elt k (e : elt) m P,
   Proper (O.eq ==> eq ==> eq) P
@@ -383,9 +384,9 @@ Lemma find_if_filter : forall elt k (e : elt) m P,
     -> find_if P m = Some (k, e).
 Proof.
   unfold singleton; intros.
-  rewrite find_if_1.
-  rewrite (filter_singleton_elements _ _ _ _ _ H0).
-  reflexivity.
-Qed.
+  Fail rewrite find_if_1.
+  Fail rewrite (filter_singleton_elements _ _ _ _ _ H0).
+  Fail reflexivity.
+Abort.
 
 End FMapExt.
