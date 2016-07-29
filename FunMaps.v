@@ -91,47 +91,27 @@ Ltac reduction :=
     destruct (HB _ H2) as [blk [HC HD]]; clear HA HB H2
   end.
 
-Ltac simplify_maps :=
-  match goal with
-  | [ H : M.find (elt:=?T) ?A (M.add ?K ?E ?M) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, F.add_mapsto_iff in H;
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    destruct H as [[H1 H2]|[H3 H4]];
-    [subst|apply F.find_mapsto_iff in H4]
-  | [ H : M.find (elt:=?T) ?A (M.remove ?KE ?M) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, F.remove_mapsto_iff in H;
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    destruct H as [H1 H2];
-    apply F.find_mapsto_iff in H2
-  | [ H : M.find (elt:=?T) ?A (M.map ?F ?M) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, F.map_mapsto_iff in H;
-    let cblk := fresh "cblk" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    destruct H as [cblk [H1 H2]];
-    apply F.find_mapsto_iff in H2
-  | [ H : M.find (elt:=?T) ?A (P.filter ?F ?M) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, P.filter_iff in H;
-    [let H1 := fresh "H1" in
-     let H2 := fresh "H2" in
-     destruct H as [H1 H2];
-     apply F.find_mapsto_iff in H1|]
-  | [ H : M.find (elt:=?T) ?A (M.mapi ?F ?M) = Some ?B |- _ ] =>
-    rewrite F.mapi_o, <- F.map_o in H
-  | [ H : M.find (elt:=?T) ?A (M.empty ?U) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, F.empty_mapsto_iff in H;
-    contradiction
-  | [ H1 : M.find (elt:=?T) ?A ?M = Some ?B,
-      H2 : M.Empty (elt:=?T) ?M |- _ ] =>
-    apply P.elements_Empty in H2;
-    rewrite F.elements_o in H1;
-    rewrite H2 in H1;
-    inversion H1
-  end.
+Global Program Instance Map_AbsR_Proper :
+  forall A (RA : relation A) `{Reflexive _ RA}
+         B (RB : relation B) `{Reflexive _ RB},
+    Proper ((RA ==> RB ==> iff)
+              ==> @Same _ _ ==> @M.Equal _ ==> iff) (@Map_AbsR A B).
+Obligation 1.
+  intros ?????????;
+  split; intros; split; intros; subst.
+  - apply H2 in H5; reduction.
+      rewrite <- H3; assumption.
+    eapply H1 in HC0; eauto.
+  - rewrite <- H3 in H5; reduction.
+      apply H2 in HC; assumption.
+    eapply H1 in HD; eauto.
+  - apply H2 in H5; reduction.
+      rewrite H3; assumption.
+    eapply H1 in HC0; eauto.
+  - rewrite H3 in H5; reduction.
+      apply H2; assumption.
+    eapply H1 in HD; eauto.
+Qed.
 
 Corollary Map_AbsR_A {A B} (R : A -> B -> Prop)
           (or : Ensemble (M.key * A))
@@ -206,10 +186,10 @@ Export LogicalRelationNotations.
 
 Open Scope lsignature_scope.
 
-Program Instance Empty_Map_AbsR : Empty [R Map_AbsR R] (M.empty _).
+Global Program Instance Empty_Map_AbsR : Empty [R Map_AbsR R] (M.empty _).
 Obligation 1. split; intros; [ inversion H | simplify_maps ]. Qed.
 
-Program Instance Single_Map_AbsR :
+Global Program Instance Single_Map_AbsR :
   (@Single _ _) [R O.eq ===> R ===> Map_AbsR R] singleton.
 Obligation 1.
   intros ??????.
@@ -231,7 +211,7 @@ Obligation 1.
   discriminate.
 Qed.
 
-Program Instance Lookup_Map_AbsR
+Global Program Instance Lookup_Map_AbsR
         `{LogicalImpl _ _ R eq} `{LogicalDep _ _ R eq} :
   (@Lookup _ _) [R O.eq ===> R ===> Map_AbsR R ===> iff]
   (fun k e m => M.find k m = Some e).
@@ -243,7 +223,7 @@ Obligation 1.
   subst; assumption.
 Qed.
 
-Program Instance Lookup_MapsTo_Map_AbsR
+Global Program Instance Lookup_MapsTo_Map_AbsR
         `{LogicalImpl _ _ R eq} `{LogicalDep _ _ R eq} :
   (@Lookup _ _) [R O.eq ===> R ===> Map_AbsR R ===> iff]
   (fun k e m => M.find k m = Some e).
@@ -255,7 +235,7 @@ Obligation 1.
   subst; assumption.
 Qed.
 
-Program Instance Same_Map_AbsR
+Global Program Instance Same_Map_AbsR
         `{LogicalImpl _ _ R eq} `{LogicalDep _ _ R eq} :
   (@Same _ _) [R Map_AbsR R ===> Map_AbsR R ===> iff] M.Equal.
 Obligation 1.
@@ -289,7 +269,7 @@ Obligation 1.
   subst; assumption.
 Qed.
 
-Program Instance Member_Map_AbsR :
+Global Program Instance Member_Map_AbsR :
   (@Member _ _) [R O.eq ===> Map_AbsR R ===> boolR] (@M.mem _).
 Obligation 1.
   unfold Member; intros ??????.
@@ -315,7 +295,7 @@ Proof.
   reflexivity.
 Qed.
 
-Program Instance Member_In_Map_AbsR :
+Global Program Instance Member_In_Map_AbsR :
   (@Member _ _) [R O.eq ===> Map_AbsR R ===> iff] (@M.In _).
 Obligation 1.
   unfold Member; intros ??????.
@@ -335,7 +315,7 @@ Qed.
 
 (* Insert *)
 
-Program Instance Remove_Map_AbsR :
+Global Program Instance Remove_Map_AbsR :
   (@Remove _ _) [R O.eq ===> Map_AbsR R ===> Map_AbsR R] (@M.remove _).
 Obligation 1.
   intros ??????.
@@ -347,7 +327,7 @@ Obligation 1.
     teardown; equalities.
 Qed.
 
-Program Instance Update_Map_AbsR :
+Global Program Instance Update_Map_AbsR :
   (@Update _ _) [R O.eq ===> R ===> Map_AbsR R ===> Map_AbsR R] (@M.add _).
 Obligation 1.
   intros ?????????.
@@ -368,7 +348,7 @@ Qed.
 
 (* Move *)
 
-Program Instance Map_Map_AbsR :
+Global Program Instance Map_Map_AbsR :
   (@Map _ _) [R (O.eq ===> R ===> R) ===> Map_AbsR R ===> Map_AbsR R]
   (@M.mapi _ _).
 Obligation 1.
@@ -395,7 +375,7 @@ Obligation 1.
     intros; equalities.
 Qed.
 
-Program Instance Filter_Map_AbsR :
+Global Program Instance Filter_Map_AbsR :
   (@Filter _ _) [R (O.eq ===> R ===> boolR) ===> Map_AbsR R ===> Map_AbsR R]
   (@P.filter _).
 Obligation 1.
@@ -418,7 +398,7 @@ Qed.
 (* Modify *)
 (* Overlay *)
 
-Program Instance All_Map_AbsR :
+Global Program Instance All_Map_AbsR :
   (@All _ _) [R (O.eq ===> R ===> boolR) ===> Map_AbsR R ===> boolR]
   (@P.for_all _).
 Obligation 1.
@@ -446,7 +426,7 @@ Obligation 1.
   destruct (y k e) eqn:Heqe; intuition.
 Qed.
 
-Program Instance Any_Map_AbsR :
+Global Program Instance Any_Map_AbsR :
   (@Any _ _) [R (O.eq ===> R ===> boolR) ===> Map_AbsR R ===> boolR]
   (@P.exists_ _).
 Obligation 1.
@@ -473,21 +453,5 @@ Obligation 1.
 Qed.
 
 End FunMaps_AbsR.
-
-Program Instance Same_set_Map_AbsR : forall A B (R : A -> B -> Prop),
-  Proper (eq ==> @Same _ _ ==> @M.Equal _ ==> iff) (@Map_AbsR A B).
-Obligation 1.
-  intros ?????????.
-  split; intros;
-  split; intros; subst.
-  - apply H0 in H3; reduction.
-    rewrite <- H1; assumption.
-  - rewrite <- H1 in H3; reduction.
-    apply H0 in HC; assumption.
-  - apply H0 in H3; reduction.
-    rewrite H1; assumption.
-  - rewrite H1 in H3; reduction.
-    apply H0; assumption.
-Qed.
 
 End FunMaps.

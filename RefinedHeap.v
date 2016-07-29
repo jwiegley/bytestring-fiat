@@ -7,6 +7,7 @@ Require Import
   Here.FunMaps
   Here.FMapExt
   Here.Same_set
+  Here.LogicalRelations
   Here.Tactics
   Here.ADTInduction
   Here.TupleEnsembles.
@@ -34,6 +35,41 @@ Record MemoryBlockC := {
 
 Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
   memSize o = memCSize n /\ Map_AbsR eq (memData o) (memCData n).
+
+Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
+  memSize x = memSize y /\ Same (memData x) (memData y).
+
+Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
+  memCSize x = memCSize y /\ M.Equal (memCData x) (memCData y).
+
+Global Program Instance MemoryBlock_AbsR_Proper :
+  Proper (MemoryBlock_Same ==> MemoryBlockC_Equal ==> iff) MemoryBlock_AbsR.
+Obligation 1.
+  intros ??????;
+  split; intros;
+  split; intros;
+  destruct H, H0, H1.
+  - congruence.
+  - split; intros.
+      rewrite <- H2 in H5.
+      reduction; exists cblk; subst.
+      rewrite H3 in HC.
+      intuition.
+    rewrite <- H3 in H5.
+    reduction; exists blk; subst.
+    rewrite H2 in HC.
+    intuition.
+  - congruence.
+  - split; intros.
+      rewrite H2 in H5.
+      reduction; exists cblk; subst.
+      rewrite <- H3 in HC.
+      intuition.
+    rewrite H3 in H5.
+    reduction; exists blk; subst.
+    rewrite <- H2 in HC.
+    intuition.
+Qed.
 
 Corollary Empty_MemoryBlock_AbsR : forall n,
   MemoryBlock_AbsR {| memSize  := n; memData  := Empty |}
@@ -126,6 +162,30 @@ Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
 Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
   Decidable_witness (P:=within b (memCSize e) pos).
 
+Export LogicalRelationNotations.
+
+Open Scope lsignature_scope.
+
+Global Program Instance withinMemBlock_AbsR :
+  withinMemBlock [R eq ===> eq ===> MemoryBlock_AbsR ===> boolR]
+  withinMemBlockC.
+Obligation 1.
+  unfold withinMemBlock, withinMemBlockC; intros ?????????;
+  split; intros; subst; simpl.
+    apply within_reflect in H2.
+    rewrite <- (proj1 H1).
+    assumption.
+  simpl in H2.
+  apply within_reflect.
+  rewrite (proj1 H1).
+  assumption.
+Qed.
+
+Global Program Instance withinMemBlock_AbsR_applied (pos : N) :
+  withinMemBlock pos [R eq ===> MemoryBlock_AbsR ===> boolR]
+  withinMemBlockC pos.
+Obligation 1. apply withinMemBlock_AbsR; reflexivity. Qed.
+
 Notation "f \oo g" := (fun x y => f (g x y)) (at level 90).
 
 Lemma withinMemAbsR : forall base blk cblk pos,
@@ -204,7 +264,7 @@ Ltac AbsR_prep :=
     | [ |- Heap_AbsR _ _ ] => unfold Heap_AbsR; simpl
     | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
     | [ |- _ /\ _ ] => split
-    end; simpl.
+    end; try eapply logical_prf; simpl; eauto.
 
 Corollary eq_impl_eq : forall a b : N, a = b <-> a = b.
 Proof. split; intros; assumption. Qed.
@@ -231,8 +291,6 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Empty_Map_AbsR; trivial.
-    - apply E.for_all_empty; trivial.
   }
 
   refine method allocS.
@@ -254,14 +312,6 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Update_Map_AbsR; auto.
-      apply MemoryBlock_AbsR_impl; auto.
-      apply Empty_Map_AbsR; auto.
-    - apply E.for_all_add; trivial.
-        eapply E.for_all_impl; eauto; intros.
-        destruct d; simpl.
-        apply within_allocated_mem_add; trivial.
-      apply within_allocated_mem_at_end.
   }
 
   refine method freeS.
@@ -275,8 +325,6 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Remove_Map_AbsR; trivial.
-    - apply E.for_all_remove; trivial.
   }
 
   refine method reallocS.
@@ -305,13 +353,21 @@ Proof.
       simplify with monad laws.
       finish honing.
 
-    AbsR_prep; assumption.
-    - intros; subst; clear H.
-      Fail destruct (Peek_in_heap H0 H1) as [? [H3 H4]].
-      Fail rewrite H3; simpl.
-      Fail destruct H4; reduction; subst.
-      Fail rewrite HC; reflexivity.
-      admit.
+    AbsR_prep.
+    intros; subst; clear H.
+    pose proof H1.
+    eapply (find_partitions_a_singleton (proj2_sig r_o)) in H; eauto.
+    replace (fun (a : N) (b : Heap.MemoryBlock Word8) => within a (memSize b) d)
+       with (withinMemBlock d) in H; trivial.
+    destruct (Filter_Map_AbsR MemoryBlock_AbsR eq_impl_eq) as [Hfilter _].
+    destruct withinMemBlock_AbsR as [HmemBlock _].
+    specialize (Hfilter (withinMemBlock d) (withinMemBlockC d)
+                        (HmemBlock d d eq_refl)
+                        (` r_o) (snd r_n) (proj1 H0)); clear HmemBlock.
+    rewrite H in Hfilter; clear H.
+    destruct (Hfilter base) as [H4 _]; clear Hfilter.
+    destruct (H4 blk' (Lookup_Single _ _ _ _))
+      as [cblk [H5 H6]]; clear H4.
   }
 
   refine method pokeS.
@@ -331,18 +387,6 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - eapply Map_Map_AbsR; auto.
-      split; subst; destruct H3.
-        decisions; simpl; auto;
-        rewrite H3; reflexivity.
-      decisions; simpl; auto.
-      + apply Update_Map_AbsR; auto.
-      + rewrite H2 in Heqe; intuition.
-        rewrite Heqe in Heqe0; discriminate.
-      + rewrite H2 in Heqe; intuition.
-        rewrite Heqe in Heqe0; discriminate.
-    - decisions.
-      admit.
   }
 
   refine method memcpyS.

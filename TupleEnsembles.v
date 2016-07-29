@@ -25,6 +25,13 @@ Obligation 1.
   apply H1; assumption.
 Qed.
 
+Global Program Instance Lookup_Proper_flip :
+  Proper (eq ==> eq ==> Same --> Basics.impl) Lookup.
+Obligation 1.
+  intros ??????????; subst.
+  apply H1; assumption.
+Qed.
+
 Definition Member (a : A) (r : Ensemble (A * B)) :=
   exists b, Lookup a b r.
 
