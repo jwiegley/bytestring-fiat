@@ -1,7 +1,8 @@
 Require Import
   Coq.FSets.FMapList
   Coq.FSets.FMapFacts
-  Coq.Structures.OrderedTypeEx.
+  Coq.Structures.OrderedTypeEx
+  Coq.Sorting.Permutation.
 
 Lemma fold_right_filter : forall A B (f : A -> B -> B) z P l,
   fold_right f z (filter P l) =
@@ -216,8 +217,6 @@ Obligation 1.
   reflexivity.
 Qed.
 
-Require Import Coq.Sorting.Permutation.
-
 Theorem add_transitive
         (k : M.key) (e : elt)
         (k0 : M.key) (e0 : elt)
@@ -271,15 +270,6 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma for_all_mapi :
-  forall elt' (m : M.t elt') (k : M.key)
-         (f : M.key -> elt' -> elt),
-    Proper (O.eq ==> eq ==> eq) f
-      -> P.for_all P (M.mapi f m) = true
-      <-> P.for_all (fun k e => P k (f k e)) m = true.
-Proof.
-Abort.
-
 Lemma for_all_impl : forall (P' : M.key -> elt -> bool) m,
   P.for_all P m = true
     -> Proper (O.eq ==> eq ==> eq) P'
@@ -296,19 +286,25 @@ End for_all.
 
 Import ListNotations.
 
-Definition find_if {elt} (f : M.key -> elt -> bool) (m : M.t elt) :
-  option (M.key * elt) :=
-  M.fold (fun (k : M.key) (e : elt) x =>
-            match x with
-            | Some _ => x
-            | None => if f k e then Some (k, e) else None
-            end) m None.
+Definition take_first {elt} (f : M.key -> elt -> bool) (k : M.key) (e : elt)
+           (x0 : option (M.key * elt)) :=
+  match x0 with
+  | Some _ => x0
+  | None => if f k e then Some (k, e) else None
+  end.
+
+Corollary take_first_None
+          {elt} (f : M.key -> elt -> bool) (k : M.key) (e : elt) x :
+  take_first f k e (Some x) = Some x.
+Proof. reflexivity. Qed.
+
+Definition find_if {elt} (f : M.key -> elt -> bool) (m : M.t elt) :=
+  M.fold (take_first f) m None.
 
 Lemma find_if_empty : forall elt (P : M.key -> elt -> bool) m,
   M.Empty m -> find_if P m = None.
 Proof.
-  intros.
-  unfold find_if.
+  unfold find_if; intros.
   apply P.fold_rec; auto; intros.
   apply P.elements_Empty in H.
   apply F.find_mapsto_iff in H0.
@@ -421,52 +417,19 @@ Obligation 1.
   assumption.
 Qed.
 
-Lemma fold_Some_f_Proper {elt} : forall (P : M.key -> elt -> bool),
-  Proper (O.eq ==> eq ==> eq ==> eq)
-         (fun (k : M.key) (e : elt) (x0 : option (M.key * elt)) =>
-            match x0 with
-            | Some _ => x0
-            | None => if P k e then Some (k, e) else None
-            end).
-Proof.
-Admitted.
+Definition take_firstR {elt} (p p' : option (M.key * elt)) :=
+  match p, p' return Prop with
+  | Some (k, e), Some (k', e') => O.eq k k' /\ e = e'
+  | None, None => True
+  | _, _ => False
+  end.
 
-Lemma fold_Some_f_negkey {elt} : forall (P : M.key -> elt -> bool),
-  P.transpose_neqkey
-    eq (fun (k : M.key) (e : elt) (x0 : option (M.key * elt)) =>
-          match x0 with
-          | Some _ => x0
-          | None => if P k e then Some (k, e) else None
-          end).
-Proof.
-Admitted.
-
-Global Program Instance find_if_Proper :
-  forall elt (P : M.key -> elt -> bool),
-    Proper (O.eq ==> eq ==> eq) P ->
-    Proper (M.Equal ==> (fun p p' =>
-                           match p, p' return Prop with
-                           | Some (k, e), Some (k', e') =>
-                             O.eq k k' /\ e = e'
-                           | None, None => True
-                           | _, _ => False
-                           end)) (find_if P).
+Global Program Instance find_if_Proper {elt} :
+  Proper ((O.eq ==> @eq elt ==> eq) ==> M.Equal ==> take_firstR) find_if.
 Obligation 1.
-  unfold find_if; intros ???.
-  pose proof
-    (fold_Proper
-       (fun (k : M.key) (e : elt) (x0 : option (M.key * elt)) =>
-          match x0 with
-          | Some _ => x0
-          | None => if P k e then Some (k, e) else None
-          end)
-       (fold_Some_f_Proper _)
-       (fold_Some_f_negkey _) x y H0).
-  erewrite H1; eauto; clear x H1 H0.
-  apply P.fold_rec; intros; auto.
-  destruct a; auto.
-  destruct (P k e); auto.
-Qed.
+  unfold find_if; intros ??????.
+  unfold take_firstR.
+Admitted.
 
 Definition singleton {elt} (k : M.key) (e : elt) : M.t elt :=
   M.add k e (M.empty _).
@@ -482,7 +445,7 @@ Proof. intros; rewrite M.fold_1; reflexivity. Qed.
 
 Lemma find_if_singleton : forall elt (P : M.key -> elt -> bool) k k' e e',
   find_if P (singleton k e) = Some (k', e')
-  -> k = k' /\ e = e' /\ P k e = true.
+    -> k = k' /\ e = e' /\ P k e = true.
 Proof.
   unfold find_if, singleton; intros.
   rewrite M.fold_1 in H.
@@ -562,46 +525,6 @@ Proof.
   apply IHxs.
 Qed.
 
-Lemma fold_elements : forall elt (m : M.t elt) (P : M.key -> elt -> bool),
-  M.elements (elt:=elt)
-    (M.fold (fun k e m' => if P k e
-                           then M.add k e m'
-                           else m') m (M.empty elt)) =
-  List.fold_right (fun p m' => if P (fst p) (snd p)
-                               then p :: m'
-                               else m') [] (M.elements m).
-Proof.
-  intros.
-  rewrite rev_fold_right.
-  replace (fun p m' => if P (fst p) (snd p) then p :: m' else m')
-     with (P.uncurry (fun k e m' => if P k e then (k, e) :: m' else m')).
-    Focus 2.
-    unfold P.uncurry.
-    Require Import FunctionalExtensionality.
-    extensionality p.
-    extensionality m'.
-    rewrite <- surjective_pairing.
-    reflexivity.
-  rewrite <- P.fold_spec_right.
-  rewrite !M.fold_1.
-  induction (M.elements (elt:=elt) m); trivial; simpl.
-  destruct (P _ _); trivial.
-Abort.
-
-Lemma filter_elements : forall elt (m : M.t elt) P,
-  M.Equal (P.filter P m)
-          (P.of_list (List.filter (fun p => P (fst p) (snd p))
-                                  (M.elements m))).
-Proof.
-  intros.
-  unfold P.of_list, P.uncurry.
-  rewrite fold_right_filter.
-  unfold P.filter.
-  rewrite P.fold_spec_right.
-  unfold P.uncurry.
-  induction m using P.map_induction.
-Abort.
-
 Lemma filter_for_all : forall elt (m : M.t elt) P,
   Proper (O.eq ==> eq ==> eq) P
     -> M.Equal (P.filter P m) m -> P.for_all P m = true.
@@ -644,23 +567,6 @@ Proof.
   apply filter_idempotent; assumption.
 Qed.
 
-Lemma add_singleton :
-  forall k k0 A (e e0 : A) m,
-    M.Equal (M.add k0 e0 m) (singleton k e) ->
-      O.eq k0 k /\ e0 = e /\ M.Empty m.
-Proof.
-  unfold singleton; intros.
-  induction m as [IHm|m' m'' IHm k' e' H1 H2] using P.map_induction;
-  eapply F.Equal_mapsto_iff in H;
-  destruct H as [_ H];
-  specialize (H (MapsTo_singleton k _ e));
-  apply F.find_mapsto_iff in H;
-  simplify_maps.
-  - intuition.
-  - simplify_maps.
-  - intuition.
-Abort.
-
 Lemma eqb_refl : forall k, F.eqb k k = true.
 Proof.
   unfold F.eqb; intros.
@@ -683,81 +589,53 @@ Proof.
     contradiction.
 Qed.
 
-Lemma singleton_of_list : forall elt (m : M.t elt) l,
-  Sorted (M.lt_key (elt:=elt)) l
-    -> M.Equal m (P.of_list l) -> M.elements m = l.
-Proof.
-  intros.
-  induction m using P.map_induction.
-Abort.
-
-Lemma filter_singleton_elements : forall elt k (e : elt) m P,
-  Proper (O.eq ==> eq ==> eq) P
-    -> M.Equal (P.filter P m) (singleton k e)
-    -> M.elements (P.filter P m) = [(k, e)].
-Proof.
-  intros.
-  eapply F.Equal_mapsto_iff in H0.
-  destruct H0.
-  specialize (H1 (MapsTo_singleton k _ e)).
-  apply F.find_mapsto_iff in H1.
-  simplify_maps; trivial.
-  clear H0.
-  revert H2.
-  unfold P.filter.
-  apply P.fold_rec; intros.
-Abort.
-
-Lemma equal_add :
-  forall k0 k elt (e0 e : elt) m,
-    M.Equal (M.add k0 e0 m) (M.add k e (M.empty elt))
-      -> (O.eq k k0 /\ e0 = e) \/ M.Equal m (M.empty elt).
-Proof.
-  intros.
-  destruct (O.eq_dec k k0).
-  - left.
-    specialize (H k0).
-    rewrite !F.add_o in H.
-    destruct (O.eq_dec k0 k0);
-    destruct (O.eq_dec k k0).
-    + inversion H; subst.
-      intuition.
-    + intuition.
-    + contradiction n.
-      reflexivity.
-    + contradiction.
-  - right.
-Abort.
-
-Lemma find_if_filter : forall elt (m : M.t elt) P,
-  Proper (O.eq ==> eq ==> eq) P
-    -> find_if P (P.filter P m) = find_if P m.
-Proof.
-  intros.
-Admitted.
-
 Lemma find_if_filter_is_singleton :
   forall elt k (e : elt) m P,
     Proper (O.eq ==> eq ==> eq) P
       -> M.Equal (P.filter P m) (singleton k e)
       -> find_if P m = Some (k, e).
 Proof.
+  unfold find_if, P.filter; intros.
+Abort.
+
+Lemma build_map_left_add :
+  forall elt (l : list (M.key * elt)) k e
+         (P : M.key -> elt -> bool) m,
+    Proper (O.eq ==> eq ==> eq) P
+      -> (forall k0 e0, O.eq k k0 -> e = e0)
+      -> M.elements (fold_left (build_map_left _ P) l (M.add k e m)) =
+         M.elements ((M.add k e (fold_left (build_map_left _ P) l m))).
+Proof.
   intros.
-  rewrite <- find_if_filter.
-  pose proof (find_if_Proper
-                _ P H (P.filter P m) (singleton k e) H0).
-  simpl in H1.
-  destruct (find_if P (P.filter P m)) eqn:Heqe1.
-    destruct p.
-    destruct (find_if P (M.add k e (M.empty elt))) eqn:Heqe2.
-      destruct p.
-      pose proof (find_if_singleton _ P _ _ _ _ Heqe2).
-      intuition; subst.
-      rewrite <- Heqe1, <- Heqe2.
-      admit.
-  rewrite H0.
-  unfold find_if; intros.
-  
+  generalize dependent m.
+  generalize dependent e.
+  generalize dependent k.
+  induction l; intros.
+    reflexivity.
+  unfold build_map_left in *.
+  destruct a; simpl.
+  destruct (P k0 e0); simpl.
+    simpl in IHl.
+    rewrite <- IHl.
+    f_equal.
+    f_equal.
+    unfold M.add. simpl.
+Admitted.
+
+Corollary fold_right_filter : forall A P (l : list A),
+  List.filter P l =
+  fold_right (fun x rest => if P x then x :: rest else rest) [] l.
+Proof. intros; induction l; simpl; auto. Qed.
+
+Lemma filter_elements : forall elt (P : M.key -> elt -> bool) m,
+  Proper (O.eq ==> eq ==> eq) P
+    -> M.elements (P.filter P m) =
+       List.filter (fun p => P (fst p) (snd p)) (M.elements m).
+Proof.
+  intros.
+  unfold P.filter.
+  rewrite P.fold_spec_right, fold_right_filter.
+  unfold P.uncurry.
 Abort.
 
 End FMapExt.

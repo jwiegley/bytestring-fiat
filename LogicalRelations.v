@@ -3,20 +3,10 @@ Require Export
   Coq.Classes.RelationClasses
   Relation_Definitions.
 
+Generalizable All Variables.
+
 Class LogicalRelation {A B} (R : A -> B -> Prop) (m : A) (m' : B) := {
   logical_prf : R m m'
-}.
-
-Class LogicalImpl {A B} (R : A -> B -> Prop)
-      (eqv : relation B) (m : A) (m' : B) := {
-  impl_logical_rel :> LogicalRelation R m m';
-  forward_impl : forall a b c, R a b -> R a c -> eqv b c
-}.
-
-Class LogicalDep {A B} (R : A -> B -> Prop)
-      (dep : relation A) (m : A) (m' : B) := {
-  dep_logical_rel :> LogicalRelation R m m';
-  reverse_impl : forall a b c, R a c -> R b c -> dep a b
 }.
 
 Definition related_hetero
@@ -27,12 +17,21 @@ Definition related_hetero
   (forall x : A, C x) -> (forall x : B, D x) -> Prop :=
   fun f g => forall x y, R x y -> R' x y (f x) (g y).
 
-Definition related {A B C D} (R : A -> B -> Prop)
-           (R' : C -> D -> Prop) : (A -> C) -> (B -> D) -> Prop :=
-  Eval compute in @related_hetero A B (fun _ => C) (fun _ => D) R (fun _ _ => R').
+Definition related {A B C D} (R : A -> B -> Prop) (R' : C -> D -> Prop)  :
+  (A -> C) -> (B -> D) -> Prop :=
+  Eval compute in @related_hetero A B (fun _ => C) (fun _ => D)
+                                  R (fun _ _ => R').
+
+Class Extranatural {A B C D} (R : A -> B -> Prop) (S : C -> D -> Prop) := {
+  transformX : forall (a : A) (b : B) (c : C) (d : D), R a b -> S c d(* ; *)
+  (* extranaturality : forall (f : A -> C) (g : B -> D), *)
+}.
 
 (** Notations reminiscent of the old syntax for declaring morphisms. *)
 Delimit Scope lsignature_scope with lsignature.
+
+Arguments LogicalRelation {A}%type {B}%type R%lsignature m m'.
+Arguments related {A B C D}%type (R R')%lsignature _ _.
 
 Module LogicalRelationNotations.
 
@@ -50,9 +49,6 @@ Module LogicalRelationNotations.
 
 End LogicalRelationNotations.
 
-Arguments LogicalRelation {A}%type {B}%type R%lsignature m m'.
-Arguments related {A B C D}%type (R R')%lsignature _ _.
-
 Export LogicalRelationNotations.
 
 Local Open Scope lsignature_scope.
@@ -63,3 +59,25 @@ Program Instance Equality_LogicalRelation : forall A (x : A),
   x [R eq] x.
 
 Definition boolR (P : Prop) (b : bool) : Prop := P <-> b = true.
+
+Require Import Coq.Classes.Equivalence.
+
+Open Scope equiv_scope.
+
+Class ForwardTransport `{Equivalence A P} `{Equivalence B Q}
+      (R : A -> B -> Prop) := {
+  forward_transport : forall {a a' : A} {b b' : B},
+    R a b -> R a' b' -> a === a' -> b === b'
+}.
+
+Class BackwardTransport `{Equivalence A P} `{Equivalence B Q}
+      (R : A -> B -> Prop) := {
+  backward_transport : forall {a a' : A} {b b' : B},
+    R a b -> R a' b' -> b === b' -> a === a'
+}.
+
+Class Transportive `{HP : Equivalence A P} `{HQ : Equivalence B Q}
+      `{@ForwardTransport A P HP B Q HQ R}
+      `{@BackwardTransport A P HP B Q HQ R}.
+
+Arguments Transportive {_ _ _} {_ _ _} R {_} _.

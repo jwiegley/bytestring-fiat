@@ -342,13 +342,19 @@ Proof.
   intros.
   pose proof (allocations_no_overlap H _ H0).
   pose proof (allocations_unique H _ _ H0).
-  split; intros; inspect.
+  split; intros; inspect; try solve [ intuition ].
     destruct (N.eq_dec base a); subst.
-      specialize (H3 _ H5); subst.
-      inspect.
+      specialize (H3 _ H5); subst; auto.
     specialize (H2 _ _ H5 n).
+    clear -H1 H2 H4.
+    contradiction H2; clear H2.
     unfold overlaps, within in *; nomega.
-  split; trivial.
+  destruct (N.eq_dec base a); subst.
+    specialize (H3 _ H5); subst; auto.
+  specialize (H2 _ _ H5 n).
+  clear -H1 H2 H4.
+  contradiction H2; clear H2.
+  unfold overlaps, within in *; nomega.
 Qed.
 
 Corollary allocations_disjoint : forall r : Rep HeapSpec, fromADT _ r ->

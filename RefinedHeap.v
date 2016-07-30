@@ -71,6 +71,31 @@ Obligation 1.
     intuition.
 Qed.
 
+(*
+Program Instance MemoryBlock_AbsR_LogicalImpl m m' :
+  MemoryBlock_AbsR m m'
+    -> LogicalImpl MemoryBlock_AbsR MemoryBlockC_Equal m m'.
+Obligation 1.
+  constructor; assumption.
+Defined.
+Obligation 2.
+  destruct H0, H1.
+  split.
+    congruence.
+  apply F.Equal_mapsto_iff; split; intros;
+  apply F.find_mapsto_iff in H4;
+  apply F.find_mapsto_iff.
+    reduction; subst.
+    clear H2.
+    reduction; subst.
+    assumption.
+  reduction; subst.
+  clear H3.
+  reduction; subst.
+  assumption.
+Qed.
+*)
+
 Corollary Empty_MemoryBlock_AbsR : forall n,
   MemoryBlock_AbsR {| memSize  := n; memData  := Empty |}
                    {| memCSize := n; memCData := M.empty Word8 |}.
@@ -342,11 +367,15 @@ Proof.
     remove_dependency.
     simplify with monad laws; simpl.
 
+    (* In a strictly evaluated environment, this is needlessly inefficient. *)
     refine pick val
-      (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
-       Then Ifopt M.find (d - fst p) (memCData (snd p)) as v
-            Then v Else Zero
-       Else Zero).
+      (match M.elements (P.filter (withinMemBlockC d) (snd r_n)) with
+       | [ ]%list => Zero
+       | ((base, cblk) :: _)%list =>
+           Ifopt M.find (d - base) (memCData cblk) as v
+           Then v
+           Else Zero
+       end).
 
     simplify with monad laws; simpl.
     refine pick val r_n.
@@ -359,15 +388,38 @@ Proof.
     eapply (find_partitions_a_singleton (proj2_sig r_o)) in H; eauto.
     replace (fun (a : N) (b : Heap.MemoryBlock Word8) => within a (memSize b) d)
        with (withinMemBlock d) in H; trivial.
+(*
     destruct (Filter_Map_AbsR MemoryBlock_AbsR eq_impl_eq) as [Hfilter _].
     destruct withinMemBlock_AbsR as [HmemBlock _].
     specialize (Hfilter (withinMemBlock d) (withinMemBlockC d)
                         (HmemBlock d d eq_refl)
                         (` r_o) (snd r_n) (proj1 H0)); clear HmemBlock.
     rewrite H in Hfilter; clear H.
+    destruct (Single_Map_AbsR MemoryBlock_AbsR eq_impl_eq) as [Hsingle _].
+    destruct H0; reduction.
+    specialize (Hsingle base base eq_refl blk' cblk HD).
+    pose proof (Map_AbsR_impl).
     destruct (Hfilter base) as [H4 _]; clear Hfilter.
     destruct (H4 blk' (Lookup_Single _ _ _ _))
       as [cblk [H5 H6]]; clear H4.
+    destruct H0; reduction; clear H H0.
+    induction t using P.map_induction.
+      admit.
+    simplify_maps.
+      rewrite H0 in H1, HC.
+      repeat simplify_maps.
+        clear IHt1.
+        admit.
+      destruct (M.elements _).
+      inversion H5.
+    destruct H6.
+    reduction; subst.
+    unfold F.eqb in *.
+    destruct (F.eq_dec base k).
+      inv H5.
+      rewrite HC0; reflexivity.
+*)
+    admit.
   }
 
   refine method pokeS.

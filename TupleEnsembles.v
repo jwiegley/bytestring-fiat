@@ -1,6 +1,11 @@
 Require Export Coq.Sets.Ensembles.
-Require Export Coq.Classes.Morphisms.
-Require Export Coq.Classes.RelationClasses.
+
+Require Import
+  Coq.Classes.Morphisms
+  Coq.Classes.RelationClasses
+  Coq.Setoids.Setoid
+  Coq.Classes.Equivalence
+  Here.Same_set.
 
 Generalizable All Variables.
 
@@ -10,8 +15,7 @@ Variables A B : Type.
 
 Definition Empty : Ensemble (A * B) := Empty_set _.
 
-Definition Single (a : A) (b : B) : Ensemble (A * B) :=
-  Singleton _ (a, b).
+Definition Single (a : A) (b : B) : Ensemble (A * B) := Singleton _ (a, b).
 
 Definition Lookup (a : A) (b : B) (r : Ensemble (A * B)) := In _ r (a, b).
 
@@ -19,21 +23,26 @@ Definition Same (x y : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b x <-> Lookup a b y.
 
 Global Program Instance Lookup_Proper :
-  Proper (eq ==> eq ==> Same ==> Basics.impl) Lookup.
+  Proper (equiv ==> equiv ==> Same ==> Basics.impl) Lookup.
 Obligation 1.
   intros ??????????; subst.
-  apply H1; assumption.
+  apply H1.
+  rewrite <- H, <- H0.
+  assumption.
 Qed.
 
 Global Program Instance Lookup_Proper_flip :
-  Proper (eq ==> eq ==> Same --> Basics.impl) Lookup.
+  Proper (equiv ==> equiv ==> Same --> Basics.impl) Lookup.
 Obligation 1.
   intros ??????????; subst.
-  apply H1; assumption.
+  unfold Lookup.
+  rewrite <- H, <- H0.
+  unfold Basics.flip in H1.
+  apply H1.
+  exact H2.
 Qed.
 
-Definition Member (a : A) (r : Ensemble (A * B)) :=
-  exists b, Lookup a b r.
+Definition Member (a : A) (r : Ensemble (A * B)) := exists b, Lookup a b r.
 
 Definition Insert (a : A) (b : B) (r : Ensemble (A * B))
            (H : forall b' : B, ~ Lookup a b' r) : Ensemble (A * B) :=
@@ -45,8 +54,7 @@ Definition Remove (a : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
 Require Import Coq.Program.Tactics.
 
 Program Definition Update (a : A) (b : B) (r : Ensemble (A * B)) :
-  Ensemble (A * B) :=
-  Insert a b (Remove a r) _.
+  Ensemble (A * B) := Insert a b (Remove a r) _.
 Obligation 1. firstorder. Qed.
 
 Definition Move (a a' : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
@@ -54,26 +62,26 @@ Definition Move (a a' : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
            then Lookup a (snd p) r
            else Lookup (fst p) (snd p) (Remove a r).
 
-Definition Map (f : A -> B -> B) (r : Ensemble (A * B)) :
-  Ensemble (A * B) :=
+Open Scope equiv_scope.
+
+Definition Map (f : A -> B -> B) (r : Ensemble (A * B)) : Ensemble (A * B) :=
   fun p => exists b : B, Lookup (fst p) b r /\ snd p = f (fst p) b.
 
-Lemma Map_identity : forall r,
-  Same r (Map (fun _ x => x) r).
+Lemma Map_identity : forall r, r === Map (fun _ x => x) r.
 Proof.
-  unfold Map; split; intros.
-    exists b.
-    intuition; constructor.
-  destruct H.
-  destruct H.
-  inversion H0; subst.
+  unfold Map; split; intros ??; destruct x.
+    eexists b.
+    intuition.
+  do 2 destruct H.
+  simpl in *.
+  rewrite H0.
   assumption.
 Qed.
 
 Lemma Map_composition : forall f g r,
-  Same (Map (fun k e => f k (g k e)) r) (Map f (Map g r)).
+  Map (fun k e => f k (g k e)) r === Map f (Map g r).
 Proof.
-  unfold Map; split; intros.
+  unfold Map; split; intros ??; destruct x.
     destruct H.
     destruct H; simpl in *.
     subst.
@@ -86,8 +94,10 @@ Proof.
   subst.
   destruct H; simpl in *.
   exists x0; simpl in *.
-  destruct H; subst.
+  destruct H.
   intuition.
+  rewrite <- H0.
+  reflexivity.
 Qed.
 
 Definition Filter (P : A -> B -> Prop) (r : Ensemble (A * B)) :
@@ -123,8 +133,14 @@ Definition Any (P : A -> B -> Prop) (r : Ensemble (A * B)) : Prop :=
 Lemma Lookup_Empty : forall a b, ~ Lookup a b Empty.
 Proof. firstorder. Qed.
 
-Lemma Lookup_Single : forall a b, Lookup a b (Single a b).
-Proof. firstorder. Qed.
+Lemma Lookup_Single : forall a a' b b',
+  a = a' -> b = b' -> Lookup a b (Single a' b').
+Proof.
+  intros.
+  unfold equiv in *.
+  rewrite H, H0.
+  firstorder.
+Qed.
 
 Lemma Lookup_Single_inv : forall a b c d,
   Lookup a b (Single c d) -> a = c /\ b = d.
@@ -135,7 +151,9 @@ Lemma Lookup_Insert : forall a b c d r H,
     -> Lookup a b (Insert c d r H).
 Proof.
   intros.
-  intuition; subst.
+  unfold equiv in *.
+  intuition.
+    rewrite H0, H2.
     right; constructor.
   left.
   exact H2.
@@ -173,7 +191,9 @@ Lemma Lookup_Update : forall a b a' b' r,
     -> Lookup a b (Update a' b' r).
 Proof.
   intros.
-  intuition; subst.
+  intuition.
+    unfold equiv in *.
+    rewrite H, H1.
     right; constructor.
   left; constructor.
     exact H1.
@@ -248,6 +268,7 @@ Proof.
   destruct (P a).
     destruct (H a0), H0.
       exact H1.
+    unfold equiv in *.
     tauto.
   destruct (H a), H0.
     discriminate.
@@ -275,12 +296,13 @@ Proof.
   unfold Member in H0.
   Require Import Classical_Pred_Type.
   apply not_ex_all_not with (n:=b) in H0.
+  equiv_simplify.
   contradiction.
 Qed.
 
 Lemma All_Remove_Lookup_inv : forall a P r,
-  All P (Remove a r) -> forall a' b', a <> a' -> Lookup a' b' r -> P a' b'.
-Proof. firstorder. Qed.
+  All P (Remove a r) -> forall a' b', a' <> a -> Lookup a' b' r -> P a' b'.
+Proof. intros; apply H, Lookup_Remove; trivial. Qed.
 
 End TupleEnsemble.
 
