@@ -1,7 +1,10 @@
-Require Import Coq.Sets.Ensembles.
-Require Import Coq.Classes.Morphisms.
-Require Import Coq.Setoids.Setoid.
-Require Import Coq.Relations.Relation_Definitions.
+Require Import
+  Coq.Sets.Ensembles
+  Coq.Sets.Finite_sets
+  Coq.Sets.Finite_sets_facts
+  Coq.Classes.Morphisms
+  Coq.Setoids.Setoid
+  Coq.Relations.Relation_Definitions.
 
 Program Instance Same_set_Equivalence {A} : Equivalence (@Same_set A).
 Obligation 1.
@@ -277,4 +280,24 @@ Add Parametric Morphism A B (c : option A) : (@If_Opt_Then_Else A (Comp B) c)
 Proof.
   unfold If_Opt_Then_Else; intros.
   destruct c; eauto.
+Qed.
+
+Program Instance Finite_Proper A B :
+  Proper (Same_set (A * B) ==> impl) (Finite (A * B)).
+Obligation 1.
+  intros ????.
+  eapply Finite_downward_closed; eauto with sets.
+  intros ? H1.
+  rewrite <- H in H1.
+  assumption.
+Qed.
+
+Program Instance Finite_Proper_flip A B :
+  Proper (Same_set (A * B) --> flip impl) (Finite (A * B)).
+Obligation 1.
+  intros ????.
+  eapply Finite_downward_closed; eauto with sets.
+  intros ? H1.
+  rewrite H in H1.
+  assumption.
 Qed.

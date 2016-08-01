@@ -22,6 +22,53 @@ Module F := P.F.
 
 Ltac simplify_maps :=
   match goal with
+  | [ H : M.MapsTo (elt:=?T) ?A ?B (M.add ?K ?E ?M) |- _ ] =>
+    apply F.add_mapsto_iff in H;
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let H3 := fresh "H3" in
+    let H4 := fresh "H4" in
+    destruct H as [[H1 H2]|[H3 H4]]; [subst|]
+  | [ H : M.MapsTo (elt:=?T) ?A ?B (M.remove ?KE ?M) |- _ ] =>
+    apply F.remove_mapsto_iff in H;
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    destruct H as [H1 H2]
+  | [ H : M.MapsTo (elt:=?T) ?A ?B (M.map ?F ?M) |- _ ] =>
+    apply F.map_mapsto_iff in H;
+    let H1 := fresh "H1" in
+    let H2 := fresh "H2" in
+    let cblk := fresh "cblk" in
+    destruct H as [cblk [H1 H2]]
+  | [ H : M.MapsTo (elt:=?T) ?A ?B (P.filter ?F ?M) |- _ ] =>
+    apply P.filter_iff in H;
+    [let H1 := fresh "H1" in
+     let H2 := fresh "H2" in
+     destruct H as [H1 H2]|]
+  | [ H : M.MapsTo (elt:=?T) ?A ?B (M.mapi ?F ?M) |- _ ] =>
+    rewrite F.mapi_o, <- F.map_o in H
+  | [ H : M.MapsTo (elt:=?T) ?A ?B (M.empty ?U) |- _ ] =>
+    apply F.empty_mapsto_iff in H; contradiction
+  | [ H1 : M.MapsTo (elt:=?T) ?A ?B ?M,
+      H2 : M.Empty (elt:=?T) ?M |- _ ] =>
+    apply F.find_mapsto_iff in H1;
+    apply P.elements_Empty in H2;
+    rewrite F.elements_o in H1;
+    rewrite H2 in H1;
+    inversion H1
+
+  | [ |- M.MapsTo (elt:=?T) ?A ?B (M.add ?K ?E ?M) ] =>
+    apply F.add_mapsto_iff
+  | [ |- M.MapsTo (elt:=?T) ?A ?B (M.remove ?KE ?M) ] =>
+    apply F.remove_mapsto_iff
+  | [ |- M.MapsTo (elt:=?T) ?A ?B (M.map ?F ?M) ] =>
+    apply F.map_mapsto_iff
+  | [ |- M.MapsTo (elt:=?T) ?A ?B (P.filter ?F ?M) ] =>
+    apply P.filter_iff
+  | [ |- M.MapsTo (elt:=?T) ?A ?B (M.mapi ?F ?M) ] =>
+    rewrite F.mapi_o, <- F.map_o;
+    apply F.map_mapsto_iff
+
   | [ H : M.find (elt:=?T) ?A (M.add ?K ?E ?M) = Some ?B |- _ ] =>
     apply F.find_mapsto_iff, F.add_mapsto_iff in H;
     let H1 := fresh "H1" in
@@ -61,6 +108,30 @@ Ltac simplify_maps :=
     rewrite H2 in H1;
     inversion H1
   end.
+
+Ltac relational' :=
+  repeat match goal with
+  | [ |- Proper _ _ ] => intros ???
+  | [ |- respectful _ _ _ _ ] => intros ???
+  | [ |- iff _ _ ] => split; intro
+  end;
+  try simplify_maps; subst;
+  auto.
+
+Global Program Instance MapsTo_Proper {elt} :
+  Proper (O.eq ==> eq ==> M.Equal ==> iff) (@M.MapsTo elt) :=
+  (@F.MapsTo_m_Proper elt).
+
+Global Program Instance find_iff_Proper {elt} :
+  Proper (O.eq ==> eq ==> M.Equal ==> iff)
+         (fun k e m => @M.find elt k m = Some e).
+Obligation 1.
+  relational'.
+    rewrite <- H, <- H1.
+    assumption.
+  rewrite H, H1.
+  assumption.
+Qed.
 
 Section for_all.
 
@@ -170,7 +241,7 @@ Global Program Instance build_map_left_Proper :
   Proper (M.Equal ==> (fun p p' => O.eq (fst p) (fst p') /\ snd p = snd p')
                   ==> M.Equal) build_map_left.
 Obligation 1.
-  intros ???????.
+  relational'.
   unfold build_map_left.
   destruct x0, y0; simpl in *.
   destruct H0; subst.
@@ -191,7 +262,7 @@ Global Program Instance build_map_right_Proper :
   Proper ((fun p p' => O.eq (fst p) (fst p') /\ snd p = snd p')
             ==> M.Equal ==> M.Equal) build_map_right.
 Obligation 1.
-  intros ???????.
+  relational'.
   unfold build_map_right.
   destruct x, y; simpl in *.
   destruct H; subst.
@@ -206,7 +277,7 @@ Qed.
 Global Program Instance fold_left_Equal_Proper (m : list (M.key * elt)) :
   Proper (M.Equal ==> M.Equal) (fold_left build_map_left m).
 Obligation 1.
-  intros ???; subst.
+  relational'.
   generalize dependent x.
   generalize dependent y.
   induction m; simpl; trivial.
@@ -327,7 +398,7 @@ Global Program Instance fold_Proper {elt A} : forall f,
     -> Proper (M.Equal (elt:=elt) ==> @eq A ==> @eq A)
               (@M.fold elt A f).
 Obligation 1.
-  intros ??????; subst.
+  relational'.
   revert H1.
   revert y.
   apply P.fold_rec; intros.
@@ -344,62 +415,47 @@ Global Program Instance filter_Proper {elt} : forall P,
   Proper (O.eq ==> eq ==> eq) P
     -> Proper (M.Equal (elt:=elt) ==> M.Equal) (@P.filter elt P).
 Obligation 1.
-  intros ???; subst.
+  relational'.
   unfold P.filter at 1.
   generalize dependent y.
   apply P.fold_rec; intros.
     apply F.Equal_mapsto_iff.
     split; intros.
       inversion H2.
-    apply P.filter_iff in H2; auto.
-    destruct H2.
-    rewrite <- H1 in H2.
+    simplify_maps; auto.
+    rewrite <- H1 in H3.
     apply P.elements_Empty in H0.
-    apply F.find_mapsto_iff in H2.
-    rewrite F.elements_o in H2.
-    rewrite H0 in H2.
-    inversion H2.
+    apply F.find_mapsto_iff in H3.
+    rewrite F.elements_o in H3.
+    rewrite H0 in H3.
+    inversion H3.
   specialize (H3 m' (F.Equal_refl _)).
   apply add_equal_iff in H2.
   rewrite <- H2 in H4; clear H2 m'' H0.
   destruct (P k e) eqn:Heqe; rewrite H3; clear H3.
     apply F.Equal_mapsto_iff.
     split; intros.
-      apply P.filter_iff; auto.
-      apply F.find_mapsto_iff in H0.
-      simplify_maps.
-        rewrite <- H4, H2.
-        intuition.
-          apply F.find_mapsto_iff.
-          rewrite F.add_eq_o; auto.
+      simplify_maps; auto.
         rewrite <- H2.
-        assumption.
-      apply F.find_mapsto_iff in H6.
-      apply P.filter_iff in H6; auto.
-      rewrite <- H4.
+        simplify_maps; auto.
+        intuition.
+        rewrite <- H4.
+        simplify_maps; auto.
+      simplify_maps; auto.
+      simplify_maps; auto.
       intuition.
-      apply F.find_mapsto_iff.
-      rewrite F.add_neq_o; auto.
-      apply F.find_mapsto_iff.
-      assumption.
-    apply P.filter_iff in H0; auto.
-    destruct H0.
-    rewrite <- H4 in H0.
-    apply F.find_mapsto_iff in H0.
-    simplify_maps.
-      rewrite H3.
-      apply F.find_mapsto_iff.
-      rewrite F.add_eq_o; auto.
-    apply F.find_mapsto_iff.
-    rewrite F.add_neq_o; auto.
-    apply F.find_mapsto_iff.
-    apply P.filter_iff; auto.
-    apply F.find_mapsto_iff in H7.
+      rewrite <- H4.
+      simplify_maps; auto.
+    simplify_maps; auto.
+    rewrite <- H4 in H2.
+    repeat simplify_maps; auto.
+    right.
     intuition.
+    simplify_maps; auto.
   apply F.Equal_mapsto_iff.
   split; intros;
-  apply P.filter_iff in H0; auto;
-  apply P.filter_iff; auto;
+  simplify_maps; auto;
+  simplify_maps; auto;
   intuition.
     rewrite <- H4; clear H4.
     apply F.add_neq_mapsto_iff; auto.
@@ -409,12 +465,9 @@ Obligation 1.
     apply F.find_mapsto_iff in H2.
     congruence.
   rewrite <- H4 in H2; clear H4.
-  apply F.find_mapsto_iff in H2.
-  simplify_maps.
-    rewrite H0 in Heqe.
-    congruence.
-  apply F.find_mapsto_iff.
-  assumption.
+  simplify_maps; auto.
+  rewrite H0 in Heqe.
+  congruence.
 Qed.
 
 Definition take_firstR {elt} (p p' : option (M.key * elt)) :=
@@ -427,7 +480,7 @@ Definition take_firstR {elt} (p p' : option (M.key * elt)) :=
 Global Program Instance find_if_Proper {elt} :
   Proper ((O.eq ==> @eq elt ==> eq) ==> M.Equal ==> take_firstR) find_if.
 Obligation 1.
-  unfold find_if; intros ??????.
+  relational'.
   unfold take_firstR.
 Admitted.
 

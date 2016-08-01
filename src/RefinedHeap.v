@@ -10,6 +10,7 @@ Require Import
   Here.Tactics
   Here.ADTInduction
   Here.TupleEnsembles
+  Here.TupleEnsemblesFinite
   CoqRel.LogicalRelations.
 
 Require Import Coq.Structures.OrderedTypeEx.
@@ -42,26 +43,129 @@ Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
 Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
   memCSize x = memCSize y /\ M.Equal (memCData x) (memCData y).
 
+Global Program Instance Finite_Proper {A B} :
+  Morphisms.Proper (Same (B:=B) ==> impl) (Finite (A * B)).
+Obligation 1.
+  relational.
+  apply Same_Same_set in H.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Global Program Instance Finite_Proper_flip_1 {A B} :
+  Morphisms.Proper (Same (B:=B) ==> flip impl) (Finite (A * B)).
+Obligation 1.
+  relational.
+  apply Same_Same_set in H.
+  unfold flip.
+  rewrite <- H.
+  reflexivity.
+Qed.
+
+Global Program Instance Finite_Proper_flip_2 {A B} :
+  Morphisms.Proper (Same (B:=B) --> flip impl) (Finite (A * B)).
+Obligation 1.
+  relational.
+  apply Same_Same_set in H.
+  unfold flip.
+  rewrite H.
+  reflexivity.
+Qed.
+
 Global Program Instance MemoryBlock_AbsR_Proper :
   Proper (MemoryBlock_Same ==> MemoryBlockC_Equal ==> iff) MemoryBlock_AbsR.
 Obligation 1.
   relational; destruct H, H0, H1.
-    split; intros.
+  - split; intros.
       congruence.
-    rewrite <- H2.
+    split; intros; subst;
     split; intros.
-      rewrite <- H3.
-      eapply H4 in H7; eauto.
-    rewrite <- H3 in H7.
-    eapply H4 in H7; eauto.
-  rewrite <- H2 in H4.
-  split; intros.
+    + rewrite <- H2 in H6.
+      apply H4 in H6; trivial.
+      setoid_rewrite H3 in H6.
+      trivial.
+    + rewrite <- H2.
+      apply H4; trivial.
+      setoid_rewrite H3.
+      trivial.
+    + rewrite <- H3 in H6.
+      apply H4 in H6; trivial.
+      setoid_rewrite H2 in H6.
+      trivial.
+    + rewrite <- H3.
+      apply H4; trivial.
+      setoid_rewrite <- H2 in H6.
+      trivial.
+  - split; intros.
+      congruence.
+    split; intros; subst;
+    split; intros.
+    + rewrite H2 in H6.
+      apply H4 in H6; trivial.
+      setoid_rewrite <- H3 in H6.
+      trivial.
+    + rewrite H2.
+      apply H4; trivial.
+      setoid_rewrite <- H3.
+      trivial.
+    + rewrite H3 in H6.
+      apply H4 in H6; trivial.
+      setoid_rewrite <- H2 in H6.
+      trivial.
+    + rewrite H3.
+      apply H4; trivial.
+      setoid_rewrite H2 in H6.
+      trivial.
+Qed.
+
+Program Instance DeterminingRelation_eq {A} :
+  DeterminingRelation eq (@eq A) (@eq A).
+
+Program Instance MemoryBlock_AbsR_DeterminingRelation :
+  DeterminingRelation MemoryBlock_AbsR MemoryBlock_Same MemoryBlockC_Equal.
+Obligation 1.
+  unfold MemoryBlock_Same, MemoryBlockC_Equal, MemoryBlock_AbsR in *.
+  destruct H, H0.
+  split.
     congruence.
+  clear H H0.
+  apply F.Equal_mapsto_iff; split; intros.
+    apply H1 in H.
+      reduction.
+      apply H2 in H.
+        do 2 destruct H; subst.
+        assumption.
+      exact DeterminingRelation_eq.
+    exact DeterminingRelation_eq.
+  apply H2 in H.
+    reduction.
+    apply H1 in H.
+      do 2 destruct H; subst.
+      assumption.
+    exact DeterminingRelation_eq.
+  exact DeterminingRelation_eq.
+Qed.
+Obligation 2.
+  unfold MemoryBlock_Same, MemoryBlockC_Equal, MemoryBlock_AbsR in *.
+  destruct H, H0.
+  split.
+    congruence.
+  clear H H0.
   split; intros.
-    rewrite H3.
-    eapply H4 in H7; eauto.
-  rewrite H3 in H7.
-  eapply H4 in H7; eauto.
+    apply H1 in H.
+      reduction.
+      apply H2 in H.
+        do 2 destruct H; subst.
+        assumption.
+      exact DeterminingRelation_eq.
+    exact DeterminingRelation_eq.
+  apply H2 in H.
+    reduction.
+    apply H1 in H.
+      do 2 destruct H; subst.
+      assumption.
+    exact DeterminingRelation_eq.
+  exact DeterminingRelation_eq.
 Qed.
 
 Corollary Empty_MemoryBlock_AbsR : forall n,
@@ -106,8 +210,7 @@ Proof.
 Qed.
 
 Definition Heap_AbsR
-           (or : { r : Rep HeapSpec
-                 | fromADT HeapSpec r})
+           (or : { r : Rep HeapSpec | fromADT HeapSpec r})
            (nr : N * M.t MemoryBlockC) : Prop :=
   Map_AbsR MemoryBlock_AbsR (` or) (snd nr) /\
   P.for_all (within_allocated_mem (fst nr)) (snd nr).
@@ -287,6 +390,7 @@ Proof.
       finish honing.
 
     AbsR_prep.
+    - apply Update_Map_AbsR.
     admit.
     admit.
   }
@@ -302,6 +406,8 @@ Proof.
       finish honing.
 
     AbsR_prep.
+    admit.
+    admit.
   }
 
   refine method reallocS.
@@ -391,6 +497,8 @@ Proof.
       finish honing.
 
     AbsR_prep.
+    admit.
+    admit.
   }
 
   refine method memcpyS.
