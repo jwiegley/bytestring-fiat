@@ -7,3 +7,6 @@
 [submodule "bytestring"]
 	path = bytestring
 	url = https://github.com/haskell/bytestring.git
+[submodule "coqrel"]
+	path = coqrel
+	url = https://github.com/CertiKOS/coqrel.git
