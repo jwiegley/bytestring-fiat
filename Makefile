@@ -1,5 +1,5 @@
 MISSING	 =								\
-	find . \( \( -name coq-haskell -o -name fiat \) -prune \)	\
+	find src \( \( -name coq-haskell -o -name fiat \) -prune \)	\
 	    -o \( -name '*.v'						\
 		! -name fiat						\
 		! -name coq-haskell -print \)			|	\
@@ -18,8 +18,8 @@ Makefile.coq: _CoqProject
 
 clean: _CoqProject Makefile.coq
 	make -f Makefile.coq clean
-	rm -f *.glob *.v.d *.vo *.hi *.o Main result *.hp .*.aux
+	(cd src; rm -f *.glob *.v.d *.vo *.hi *.o Main result *.hp .*.aux)
 	rm -f bstring bstring.hs
 
 fullclean: clean
-	rm -f Makefile
+	rm -f Makefile.coq

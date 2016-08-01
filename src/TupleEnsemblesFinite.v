@@ -19,7 +19,8 @@ Proof. constructor. Qed.
 Lemma Single_Finite : forall a b, Finite _ (@Single A B a b).
 Proof. intros; apply Singleton_is_finite. Qed.
 
-Lemma Insert_Finite : forall a b `(_ : Finite _ r) H, Finite _ (@Insert A B a b r H).
+Lemma Insert_Finite : forall a b `(_ : Finite _ r) H,
+  Finite _ (@Insert A B a b r H).
 Proof. intros; apply Add_preserves_Finite; assumption. Qed.
 
 Definition finite_ind := Generalized_induction_on_finite_sets.
@@ -74,41 +75,13 @@ Lemma Exists_finite_forall {U V} :
 Proof.
   intros.
   inversion H.
-    admit.
+    eapply Finite_downward_closed; eauto with sets.
+    intros ? H3; inversion H3; subst; clear H3.
+    inversion H1.
   eapply Finite_downward_closed; eauto with sets.
-  intros ? H3; inversion H3; intuition; clear H3.
-  rewrite H2 in H4.
-Abort.
-
-Lemma Exists_preserves_finite {U V} :
-  forall (X:Ensemble (U * V)),
-    Finite (U * V) X ->
-    Finite (U * V) (fun x : U * V => exists b : V, In (U * V) X (fst x, b)).
-Proof.
-  intros.
-(*
-  apply ex_Included; intros.
-  pose proof (ex_Included (U * V) V (fun b x => (fst x, b)) X).
-  intros ? H0; inversion H0; intuition; clear H0.
-    inversion H.
-  inversion IHFinite.
-    admit.
-  eapply Finite_downward_closed; eauto with sets.
-  intros ? H4; inversion H4; intuition; clear H4.
-  inversion H5; subst; clear H5.
-    admit.
+  intros ? H3.
+  inversion H3; subst; clear H3.
   inversion H4; subst; clear H4.
-    contradiction.
-  inversion H2; subst; clear H2.
-    admit.
-  inversion H1; subst; clear H1.
-    rewrite (Non_disjoint_union U X x); auto with sets.
-  unfold Ensembles.In.
-  inversion H2; subst; clear H2.
-    exists x1.
-    assumption.
-  assumption.
-*)
 Abort.
 
 Lemma Remove_Finite : forall a `(_ : Finite _ r), Finite _ (@Remove A B a r).
@@ -128,13 +101,6 @@ Proof.
   unfold Ensembles.In in H0.
   destruct H0.
     destruct H; subst.
-    admit.
-  destruct H.
-  teardown.
-  destruct H0.
-  unfold Lookup in H1.
-  rewrite <- surjective_pairing in H1.
-  assumption.
 Admitted.
 
 Lemma Filter_Finite : forall P `(_ : Finite _ r), Finite _ (@Filter A B P r).
@@ -156,7 +122,6 @@ Proof.
   destruct H0.
   destruct x; simpl in *.
   induction Finite0.
-    admit.
 Admitted.
 
 Lemma Modify_Finite : forall a f `(_ : Finite _ r), Finite _ (@Modify A B a f r).
@@ -169,7 +134,6 @@ Proof.
   destruct H0, H; subst.
   inversion H0; subst; clear H0.
   unfold Lookup in H.
-  admit.
 Admitted.
 
 Lemma Define_Finite : forall P b `(_ : Finite _ r), Finite _ (@Define A B P b r).
@@ -178,7 +142,6 @@ Proof.
   eapply Finite_downward_closed; eauto with sets.
   intros ? H0.
   unfold Ensembles.In in H0.
-  admit.
 Admitted.
 
 Lemma Overlay_Finite : forall P `(_ : Finite _ r) `(_ : Finite _ r'),
@@ -193,7 +156,6 @@ Proof.
     unfold Lookup in H0.
     rewrite <- surjective_pairing in H0.
     assumption.
-  admit.
 Admitted.
 
 End TupleEnsembleFinite.

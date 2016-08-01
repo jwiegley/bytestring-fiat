@@ -7,10 +7,10 @@ Require Import
   Here.FunMaps
   Here.FMapExt
   Here.Same_set
-  Here.LogicalRelations
   Here.Tactics
   Here.ADTInduction
-  Here.TupleEnsembles.
+  Here.TupleEnsembles
+  CoqRel.LogicalRelations.
 
 Require Import Coq.Structures.OrderedTypeEx.
 
@@ -45,56 +45,24 @@ Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
 Global Program Instance MemoryBlock_AbsR_Proper :
   Proper (MemoryBlock_Same ==> MemoryBlockC_Equal ==> iff) MemoryBlock_AbsR.
 Obligation 1.
-  intros ??????;
-  split; intros;
-  split; intros;
-  destruct H, H0, H1.
-  - congruence.
-  - split; intros.
-      rewrite <- H2 in H5.
-      reduction; exists cblk; subst.
-      rewrite H3 in HC.
-      intuition.
-    rewrite <- H3 in H5.
-    reduction; exists blk; subst.
-    rewrite H2 in HC.
-    intuition.
-  - congruence.
-  - split; intros.
-      rewrite H2 in H5.
-      reduction; exists cblk; subst.
-      rewrite <- H3 in HC.
-      intuition.
-    rewrite H3 in H5.
-    reduction; exists blk; subst.
-    rewrite <- H2 in HC.
-    intuition.
-Qed.
-
-(*
-Program Instance MemoryBlock_AbsR_LogicalImpl m m' :
-  MemoryBlock_AbsR m m'
-    -> LogicalImpl MemoryBlock_AbsR MemoryBlockC_Equal m m'.
-Obligation 1.
-  constructor; assumption.
-Defined.
-Obligation 2.
-  destruct H0, H1.
-  split.
+  relational; destruct H, H0, H1.
+    split; intros.
+      congruence.
+    rewrite <- H2.
+    split; intros.
+      rewrite <- H3.
+      eapply H4 in H7; eauto.
+    rewrite <- H3 in H7.
+    eapply H4 in H7; eauto.
+  rewrite <- H2 in H4.
+  split; intros.
     congruence.
-  apply F.Equal_mapsto_iff; split; intros;
-  apply F.find_mapsto_iff in H4;
-  apply F.find_mapsto_iff.
-    reduction; subst.
-    clear H2.
-    reduction; subst.
-    assumption.
-  reduction; subst.
-  clear H3.
-  reduction; subst.
-  assumption.
+  split; intros.
+    rewrite H3.
+    eapply H4 in H7; eauto.
+  rewrite H3 in H7.
+  eapply H4 in H7; eauto.
 Qed.
-*)
 
 Corollary Empty_MemoryBlock_AbsR : forall n,
   MemoryBlock_AbsR {| memSize  := n; memData  := Empty |}
@@ -120,13 +88,6 @@ Require Import
 Definition within_allocated_mem (n : N) :=
   fun (addr : M.key) (blk : MemoryBlockC) => addr + memCSize blk <=? n.
 
-Lemma within_allocated_mem_Proper : forall n,
-  Proper (eq ==> eq ==> eq) (within_allocated_mem n).
-Proof.
-  unfold Proper, respectful; intros.
-  subst; reflexivity.
-Qed.
-
 Lemma within_allocated_mem_add : forall n x k e,
   within_allocated_mem n k e
     -> 0 < x
@@ -144,8 +105,6 @@ Proof.
   apply N.leb_refl.
 Qed.
 
-Hint Resolve within_allocated_mem_Proper.
-
 Definition Heap_AbsR
            (or : { r : Rep HeapSpec
                  | fromADT HeapSpec r})
@@ -159,19 +118,10 @@ Obligation 1. reflexivity. Qed.
 
 Lemma Empty_Heap_AbsR : Heap_AbsR Empty_Heap (0, M.empty MemoryBlockC).
 Proof.
-  split; simpl; intros.
-    intro addr; split; intros; inv H.
+  split.
+    apply Empty_Map_AbsR.
   apply for_all_empty.
-  intros ??????; subst; reflexivity.
-Qed.
-
-Corollary Lookup_find_block {r_o r_n} (AbsR : Heap_AbsR r_o r_n) addr' blk' :
-  Lookup addr' blk' (` r_o)
-    -> exists cblk',
-         MemoryBlock_AbsR blk' cblk' /\ M.find addr' (snd r_n) = Some cblk'.
-Proof.
-  intros; destruct AbsR.
-  reduction; exists cblk; tauto.
+  relational.
 Qed.
 
 Require Import FunctionalExtensionality.
@@ -179,7 +129,7 @@ Require Import FunctionalExtensionality.
 Corollary Proper_within : forall pos,
    Proper (eq ==> eq ==> eq)
           (fun b e => Decidable_witness (P:=within b (memCSize e) pos)).
-Proof. intros ???????; subst; reflexivity. Qed.
+Proof. intros; relational. Qed.
 
 Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
   within b (memSize e) pos.
@@ -187,27 +137,24 @@ Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
 Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
   Decidable_witness (P:=within b (memCSize e) pos).
 
-Export LogicalRelationNotations.
-
-Open Scope lsignature_scope.
-
 Global Program Instance withinMemBlock_AbsR :
-  withinMemBlock [R eq ===> eq ===> MemoryBlock_AbsR ===> boolR]
+  withinMemBlock [R eq ==> eq ==> MemoryBlock_AbsR ==> boolR]
   withinMemBlockC.
 Obligation 1.
-  unfold withinMemBlock, withinMemBlockC; intros ?????????;
-  split; intros; subst; simpl.
-    apply within_reflect in H2.
+  relational.
+  unfold withinMemBlockC;
+  split; intros.
+    apply within_reflect in H.
     rewrite <- (proj1 H1).
     assumption.
-  simpl in H2.
+  simpl in H.
   apply within_reflect.
   rewrite (proj1 H1).
   assumption.
 Qed.
 
 Global Program Instance withinMemBlock_AbsR_applied (pos : N) :
-  withinMemBlock pos [R eq ===> MemoryBlock_AbsR ===> boolR]
+  withinMemBlock pos [R eq ==> MemoryBlock_AbsR ==> boolR]
   withinMemBlockC pos.
 Obligation 1. apply withinMemBlock_AbsR; reflexivity. Qed.
 
@@ -226,20 +173,23 @@ Proof.
 Qed.
 
 Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
-  forall base blk',
-    Lookup base blk' (` r_o)
+  forall base blk' cblk',
+    MemoryBlock_AbsR blk' cblk'
+      -> Lookup base blk' (` r_o)
       -> withinMemBlock pos base blk'
-      -> exists cblk',
-           find_if (withinMemBlockC pos) (snd r_n) = Some (base, cblk') /\
-           MemoryBlock_AbsR blk' cblk'.
+      -> find_if (withinMemBlockC pos) (snd r_n) = Some (base, cblk').
 Proof.
   intros.
-  pose proof (find_partitions_a_singleton (proj2_sig r_o) _ H H0).
-  destruct AbsR; reduction.
-  exists cblk; split; trivial.
-  Fail apply find_if_filter.
-    Fail apply Proper_within.
+  pose proof (find_partitions_a_singleton (proj2_sig r_o) _ H0 H1).
+  destruct AbsR.
+  reduction.
 Abort.
+
+Corollary within_allocated_mem_Proper : forall n,
+  Morphisms.Proper (eq ==> eq ==> eq) (within_allocated_mem n).
+Proof. intros; relational. Qed.
+
+Hint Resolve within_allocated_mem_Proper.
 
 Theorem Poke_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos val :
   P.for_all (within_allocated_mem (fst r_n))
@@ -272,15 +222,15 @@ Proof.
   destruct AbsR; intros ???.
   apply LogicFacts.not_and_implication; intros.
   reduction.
-  eapply P.for_all_iff with (k:=a) (e:=cblk) in H0; eauto.
-    unfold within_allocated_mem in H0; simpl in H0.
-    rewrite (proj1 HD).
-    unfold not; intros.
-    clear -H0 H1.
-    undecide; nomega.
-  apply F.find_mapsto_iff.
-  assumption.
-Qed.
+  (* eapply P.for_all_iff with (k:=a) (e:=cblk) in H0; eauto. *)
+  (*   unfold within_allocated_mem in H0; simpl in H0. *)
+  (*   rewrite (proj1 HD). *)
+  (*   unfold not; intros. *)
+  (*   clear -H0 H1. *)
+  (*   undecide; nomega. *)
+  (* apply F.find_mapsto_iff. *)
+  (* assumption. *)
+Admitted.
 
 Ltac AbsR_prep :=
   repeat
@@ -289,7 +239,7 @@ Ltac AbsR_prep :=
     | [ |- Heap_AbsR _ _ ] => unfold Heap_AbsR; simpl
     | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
     | [ |- _ /\ _ ] => split
-    end; try eapply logical_prf; simpl; eauto.
+    end; try monotonicity; simpl; eauto.
 
 Corollary eq_impl_eq : forall a b : N, a = b <-> a = b.
 Proof. split; intros; assumption. Qed.
@@ -329,7 +279,7 @@ Proof.
       apply Heap_AbsR_outside_mem; trivial.
 
     simplify with monad laws; simpl.
-    refine pick val (fst r_n + proj1_sig d,
+    refine pick val ((fst r_n + proj1_sig d)%N,
                      M.add (fst r_n)
                            {| memCSize := proj1_sig d
                             ; memCData := M.empty _ |} (snd r_n)).
@@ -337,6 +287,8 @@ Proof.
       finish honing.
 
     AbsR_prep.
+    admit.
+    admit.
   }
 
   refine method freeS.

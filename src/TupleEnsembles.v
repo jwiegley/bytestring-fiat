@@ -4,7 +4,6 @@ Require Import
   Coq.Classes.Morphisms
   Coq.Classes.RelationClasses
   Coq.Setoids.Setoid
-  Coq.Classes.Equivalence
   Here.Same_set.
 
 Generalizable All Variables.
@@ -23,23 +22,17 @@ Definition Same (x y : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b x <-> Lookup a b y.
 
 Global Program Instance Lookup_Proper :
-  Proper (equiv ==> equiv ==> Same ==> Basics.impl) Lookup.
+  Proper (eq ==> eq ==> Same ==> Basics.impl) Lookup.
 Obligation 1.
   intros ??????????; subst.
-  apply H1.
-  rewrite <- H, <- H0.
-  assumption.
+  apply H1; assumption.
 Qed.
 
 Global Program Instance Lookup_Proper_flip :
-  Proper (equiv ==> equiv ==> Same --> Basics.impl) Lookup.
+  Proper (eq ==> eq ==> Same --> Basics.impl) Lookup.
 Obligation 1.
   intros ??????????; subst.
-  unfold Lookup.
-  rewrite <- H, <- H0.
-  unfold Basics.flip in H1.
-  apply H1.
-  exact H2.
+  apply H1; assumption.
 Qed.
 
 Definition Member (a : A) (r : Ensemble (A * B)) := exists b, Lookup a b r.
@@ -62,14 +55,12 @@ Definition Move (a a' : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
            then Lookup a (snd p) r
            else Lookup (fst p) (snd p) (Remove a r).
 
-Open Scope equiv_scope.
-
 Definition Map (f : A -> B -> B) (r : Ensemble (A * B)) : Ensemble (A * B) :=
   fun p => exists b : B, Lookup (fst p) b r /\ snd p = f (fst p) b.
 
-Lemma Map_identity : forall r, r === Map (fun _ x => x) r.
+Lemma Map_identity : forall r, Same r (Map (fun _ x => x) r).
 Proof.
-  unfold Map; split; intros ??; destruct x.
+  unfold Map; split; intros.
     eexists b.
     intuition.
   do 2 destruct H.
@@ -79,9 +70,9 @@ Proof.
 Qed.
 
 Lemma Map_composition : forall f g r,
-  Map (fun k e => f k (g k e)) r === Map f (Map g r).
+  Same (Map (fun k e => f k (g k e)) r) (Map f (Map g r)).
 Proof.
-  unfold Map; split; intros ??; destruct x.
+  unfold Map; split; intros.
     destruct H.
     destruct H; simpl in *.
     subst.
@@ -137,7 +128,6 @@ Lemma Lookup_Single : forall a a' b b',
   a = a' -> b = b' -> Lookup a b (Single a' b').
 Proof.
   intros.
-  unfold equiv in *.
   rewrite H, H0.
   firstorder.
 Qed.
@@ -151,7 +141,6 @@ Lemma Lookup_Insert : forall a b c d r H,
     -> Lookup a b (Insert c d r H).
 Proof.
   intros.
-  unfold equiv in *.
   intuition.
     rewrite H0, H2.
     right; constructor.
@@ -192,7 +181,6 @@ Lemma Lookup_Update : forall a b a' b' r,
 Proof.
   intros.
   intuition.
-    unfold equiv in *.
     rewrite H, H1.
     right; constructor.
   left; constructor.
@@ -268,7 +256,6 @@ Proof.
   destruct (P a).
     destruct (H a0), H0.
       exact H1.
-    unfold equiv in *.
     tauto.
   destruct (H a), H0.
     discriminate.
@@ -296,7 +283,6 @@ Proof.
   unfold Member in H0.
   Require Import Classical_Pred_Type.
   apply not_ex_all_not with (n:=b) in H0.
-  equiv_simplify.
   contradiction.
 Qed.
 

@@ -1,21 +1,23 @@
--R /Users/johnw/bae/rings/coq-haskell/src Hask
--R /Users/johnw/bae/rings/fiat/src Fiat
--R . Here
-ADTInduction.v
-BindDep.v
-ByteString.v
-ByteStringLib.v
-Decidable.v
-FMapExt.v
-FromADT.v
-FunMaps.v
-Heap.v
-HeapADT.v
-LibExt.v
-LogicalRelations.v
-Nomega.v
-RefinedHeap.v
-Same_set.v
-Tactics.v
-TupleEnsembles.v
-TupleEnsemblesFinite.v
+-R coq-haskell/src Hask
+-R fiat/src Fiat
+-R coqrel CoqRel
+-R src Here
+-I fiat/src/Common/Tactics
+src/ADTInduction.v
+src/BindDep.v
+src/ByteString.v
+src/ByteStringLib.v
+src/Decidable.v
+src/FMapExt.v
+src/FromADT.v
+src/FunMaps.v
+src/Heap.v
+src/HeapADT.v
+src/LibExt.v
+src/LogicalRelations.v
+src/Nomega.v
+src/RefinedHeap.v
+src/Same_set.v
+src/Tactics.v
+src/TupleEnsembles.v
+src/TupleEnsemblesFinite.v
