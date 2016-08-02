@@ -80,92 +80,42 @@ Obligation 1.
       congruence.
     split; intros; subst;
     split; intros.
-    + rewrite <- H2 in H6.
-      apply H4 in H6; trivial.
-      setoid_rewrite H3 in H6.
+    + rewrite <- H2 in H5.
+      apply H4 in H5; trivial.
+      setoid_rewrite H3 in H5.
       trivial.
     + rewrite <- H2.
       apply H4; trivial.
       setoid_rewrite H3.
       trivial.
-    + rewrite <- H3 in H6.
-      apply H4 in H6; trivial.
-      setoid_rewrite H2 in H6.
+    + rewrite <- H3 in H5.
+      apply H4 in H5; trivial.
+      setoid_rewrite H2 in H5.
       trivial.
     + rewrite <- H3.
       apply H4; trivial.
-      setoid_rewrite <- H2 in H6.
+      setoid_rewrite <- H2 in H5.
       trivial.
   - split; intros.
       congruence.
     split; intros; subst;
     split; intros.
-    + rewrite H2 in H6.
-      apply H4 in H6; trivial.
-      setoid_rewrite <- H3 in H6.
+    + rewrite H2 in H5.
+      apply H4 in H5; trivial.
+      setoid_rewrite <- H3 in H5.
       trivial.
     + rewrite H2.
       apply H4; trivial.
       setoid_rewrite <- H3.
       trivial.
-    + rewrite H3 in H6.
-      apply H4 in H6; trivial.
-      setoid_rewrite <- H2 in H6.
+    + rewrite H3 in H5.
+      apply H4 in H5; trivial.
+      setoid_rewrite <- H2 in H5.
       trivial.
     + rewrite H3.
       apply H4; trivial.
-      setoid_rewrite H2 in H6.
+      setoid_rewrite H2 in H5.
       trivial.
-Qed.
-
-Program Instance DeterminingRelation_eq {A} :
-  DeterminingRelation eq (@eq A) (@eq A).
-
-Program Instance MemoryBlock_AbsR_DeterminingRelation :
-  DeterminingRelation MemoryBlock_AbsR MemoryBlock_Same MemoryBlockC_Equal.
-Obligation 1.
-  unfold MemoryBlock_Same, MemoryBlockC_Equal, MemoryBlock_AbsR in *.
-  destruct H, H0.
-  split.
-    congruence.
-  clear H H0.
-  apply F.Equal_mapsto_iff; split; intros.
-    apply H1 in H.
-      reduction.
-      apply H2 in H.
-        do 2 destruct H; subst.
-        assumption.
-      exact DeterminingRelation_eq.
-    exact DeterminingRelation_eq.
-  apply H2 in H.
-    reduction.
-    apply H1 in H.
-      do 2 destruct H; subst.
-      assumption.
-    exact DeterminingRelation_eq.
-  exact DeterminingRelation_eq.
-Qed.
-Obligation 2.
-  unfold MemoryBlock_Same, MemoryBlockC_Equal, MemoryBlock_AbsR in *.
-  destruct H, H0.
-  split.
-    congruence.
-  clear H H0.
-  split; intros.
-    apply H1 in H.
-      reduction.
-      apply H2 in H.
-        do 2 destruct H; subst.
-        assumption.
-      exact DeterminingRelation_eq.
-    exact DeterminingRelation_eq.
-  apply H2 in H.
-    reduction.
-    apply H1 in H.
-      do 2 destruct H; subst.
-      assumption.
-    exact DeterminingRelation_eq.
-  exact DeterminingRelation_eq.
 Qed.
 
 Corollary Empty_MemoryBlock_AbsR : forall n,
@@ -191,6 +141,12 @@ Require Import
 
 Definition within_allocated_mem (n : N) :=
   fun (addr : M.key) (blk : MemoryBlockC) => addr + memCSize blk <=? n.
+
+Program Instance within_allocated_mem_Proper :
+  Proper (eq ==> eq ==> eq ==> eq) within_allocated_mem.
+Obligation 1. relational; subst; reflexivity. Qed.
+
+Hint Resolve within_allocated_mem_Proper.
 
 Lemma within_allocated_mem_add : forall n x k e,
   within_allocated_mem n k e
@@ -223,8 +179,10 @@ Lemma Empty_Heap_AbsR : Heap_AbsR Empty_Heap (0, M.empty MemoryBlockC).
 Proof.
   split.
     apply Empty_Map_AbsR.
+  simpl.
   apply for_all_empty.
-  relational.
+  apply within_allocated_mem_Proper.
+  reflexivity.
 Qed.
 
 Require Import FunctionalExtensionality.
@@ -232,7 +190,7 @@ Require Import FunctionalExtensionality.
 Corollary Proper_within : forall pos,
    Proper (eq ==> eq ==> eq)
           (fun b e => Decidable_witness (P:=within b (memCSize e) pos)).
-Proof. intros; relational. Qed.
+Proof. intros; relational; subst; reflexivity. Qed.
 
 Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
   within b (memSize e) pos.
@@ -244,8 +202,8 @@ Global Program Instance withinMemBlock_AbsR :
   withinMemBlock [R eq ==> eq ==> MemoryBlock_AbsR ==> boolR]
   withinMemBlockC.
 Obligation 1.
-  relational.
-  unfold withinMemBlockC;
+  relational; subst;
+  unfold withinMemBlock, withinMemBlockC;
   split; intros.
     apply within_reflect in H.
     rewrite <- (proj1 H1).
@@ -288,12 +246,6 @@ Proof.
   reduction.
 Abort.
 
-Corollary within_allocated_mem_Proper : forall n,
-  Morphisms.Proper (eq ==> eq ==> eq) (within_allocated_mem n).
-Proof. intros; relational. Qed.
-
-Hint Resolve within_allocated_mem_Proper.
-
 Theorem Poke_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos val :
   P.for_all (within_allocated_mem (fst r_n))
     (M.mapi
@@ -314,6 +266,7 @@ Proof.
   unfold within_allocated_mem in H.
   destruct ((k <=? pos) && (pos <? k + memCSize x))%bool; simpl;
   rewrite H; assumption.
+  apply within_allocated_mem_Proper; reflexivity.
 Qed.
 
 Lemma Heap_AbsR_outside_mem
@@ -390,9 +343,13 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Update_Map_AbsR.
-    admit.
-    admit.
+    - apply Update_Map_AbsR; auto.
+      apply MemoryBlock_AbsR_impl; auto.
+      apply Empty_Map_AbsR.
+    - apply for_all_add; auto.
+      apply within_allocated_mem_Proper; auto.
+      admit.
+      admit.
   }
 
   refine method freeS.
@@ -406,8 +363,9 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    admit.
-    admit.
+    - apply Remove_Map_AbsR; auto.
+    - apply for_all_remove; auto.
+      apply within_allocated_mem_Proper; auto.
   }
 
   refine method reallocS.
@@ -447,7 +405,7 @@ Proof.
     replace (fun (a : N) (b : Heap.MemoryBlock Word8) => within a (memSize b) d)
        with (withinMemBlock d) in H; trivial.
 (*
-    destruct (Filter_Map_AbsR MemoryBlock_AbsR eq_impl_eq) as [Hfilter _].
+    edestruct (Filter_Map_AbsR _ MemoryBlock_AbsR) as [Hfilter _].
     destruct withinMemBlock_AbsR as [HmemBlock _].
     specialize (Hfilter (withinMemBlock d) (withinMemBlockC d)
                         (HmemBlock d d eq_refl)
@@ -497,8 +455,14 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    admit.
-    admit.
+    - apply Map_Map_AbsR; auto.
+      relational; subst.
+      rewrite (proj1 H3).
+      decisions; auto.
+      apply MemoryBlock_AbsR_impl; auto.
+      apply Update_Map_AbsR; auto.
+      exact (proj2 H3).
+    - admit.
   }
 
   refine method memcpyS.

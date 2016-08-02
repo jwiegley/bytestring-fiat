@@ -33,31 +33,6 @@ Hint Resolve Oeq_neq_sym.
 Module E := FMapExt(O).
 Include E.
 
-Lemma MapsTo_fun : forall (elt:Type) m x `{Equivalence elt R} (e e':elt),
-  M.MapsTo x e m -> M.MapsTo x e' m -> R e e'.
-Proof.
-intros.
-generalize (M.find_1 H0) (M.find_1 H1); clear H0 H1.
-intros.
-rewrite H0 in H1; injection H1; intros; subst.
-reflexivity.
-Qed.
-
-Lemma add_mapsto_iff' : forall elt m x y `{Equivalence elt R} e e',
-  Proper (O.eq ==> R ==> M.Equal ==> iff) (@M.MapsTo _) ->
-  M.MapsTo y e' (M.add x e m) <->
-     (O.eq x y /\ R e e') \/
-     (~O.eq x y /\ M.MapsTo y e' m).
-Proof.
-  intros.
-  intuition.
-  - destruct (O.eq_dec x y); [left|right];
-    simplify_maps; intuition.
-  - rewrite <- H3.
-    simplify_maps; intuition.
-  - simplify_maps; intuition.
-Qed.
-
 Lemma Proper_Oeq_negb : forall B f,
   Proper (O.eq ==> eq ==> eq) f ->
   Proper (O.eq ==> eq ==> eq) (fun (k : M.key) (e : B) => negb (f k e)).
@@ -67,24 +42,26 @@ Hint Resolve Proper_Oeq_negb.
 
 Open Scope rel_scope.
 
-Class DeterminingRelation `(P : relation A) `(Q : relation B)
-      (R : A -> B -> Prop) := {
-  P_Equivalence :> Equivalence P;
-  Q_Equivalence :> Equivalence Q;
-  P_Lookup_Proper
-    :> Proper (O.eq ==> P ==> @Same _ _ ==> iff) (@Lookup M.key A);
-  Q_MapsTo_Proper :> Proper (O.eq ==> Q ==> M.Equal ==> iff) (@M.MapsTo B);
-  A_determines_B : forall a b b', R a b -> R a b' -> Q b b';
-  B_determines_A : forall a a' b, R a b -> R a' b -> P a a'
+(*
+Class DeterminingRelation (* `(P : relation A) `(Q : relation B) *)
+      `(R : A -> B -> Prop) := {
+  (* P_Equivalence :> Equivalence P; *)
+  (* Q_Equivalence :> Equivalence Q; *)
+  (* P_Lookup_Proper *)
+  (*   :> Proper (O.eq ==> P ==> @Same _ _ ==> iff) (@Lookup M.key A); *)
+  (* Q_MapsTo_Proper :> Proper (O.eq ==> Q ==> M.Equal ==> iff) (@M.MapsTo B); *)
+  A_determines_B : forall a b b', R a b -> R a b' -> b = b';
+  B_determines_A : forall a a' b, R a b -> R a' b -> a = a'
 }.
+*)
 
-Arguments DeterminingRelation {A} P {B} Q R.
-Arguments A_determines_B {A} P {B} Q R {_ a b b'} _ _.
-Arguments B_determines_A {A} P {B} Q R {_ a a' b} _ _.
+(* Arguments DeterminingRelation {A} P {B} Q R. *)
+(* Arguments A_determines_B {A} P {B} Q R {_ a b b'} _ _. *)
+(* Arguments B_determines_A {A} P {B} Q R {_ a a' b} _ _. *)
 
-Definition Map_AbsR `(P : relation A) `(Q : relation B) (R : A -> B -> Prop)
+Definition Map_AbsR (* `(P : relation A) `(Q : relation B) *) `(R : A -> B -> Prop)
            (or : Ensemble (M.key * A)) (nr : M.t B) : Prop :=
-  forall addr `{DeterminingRelation _ P _ Q R},
+  forall addr (* `{DeterminingRelation _ _ R} *),
     (forall blk, Lookup addr blk or
        <-> exists cblk, M.MapsTo addr cblk nr /\ R blk cblk) /\
     (forall cblk, M.MapsTo addr cblk nr
@@ -100,34 +77,34 @@ Ltac reduction :=
   try repeat teardown; subst; normalize;
   repeat match goal with
   | [ R : ?A -> ?B -> Prop,
-      H : DeterminingRelation ?R _ _,
+      (* H : DeterminingRelation ?R, *)
       H1 : Map_AbsR ?R ?X ?Y,
       H2 : Lookup ?ADDR ?BLK ?X |- _ ] =>
     let HA := fresh "HA" in
     let HB := fresh "HB" in
     let cblk := fresh "cblk" in
-    destruct (proj1 (proj1 (H1 ADDR H) BLK) H2) as [cblk [HA HB]];
+    destruct (proj1 (proj1 (H1 ADDR (* H *)) BLK) H2) as [cblk [HA HB]];
     clear H1 H2
   | [ R : ?A -> ?B -> Prop,
-      H : DeterminingRelation ?R _ _,
+      (* H : DeterminingRelation ?R, *)
       H1 : Map_AbsR ?R ?X ?Y,
       H2 : M.MapsTo ?ADDR ?CBLK ?Y |- _ ] =>
     let HC := fresh "HC" in
     let HD := fresh "HD" in
     let blk := fresh "blk" in
-    destruct (proj1 (proj2 (H1 ADDR H) CBLK) H2) as [blk [HC HD]];
+    destruct (proj1 (proj2 (H1 ADDR (* H *)) CBLK) H2) as [blk [HC HD]];
     clear H1 H2
   end; auto.
 
 Ltac related :=
   match goal with
   | [ R : ?A -> ?B -> Prop,
-      H : DeterminingRelation ?R _ _,
+      (* H : DeterminingRelation ?R, *)
       cblk : ?B,
       H1 : ?R ?BLK ?CBLK |- exists b : ?B, _ /\ ?R ?BLK b ] =>
     exists CBLK; split; [| exact H1]
   | [ R : ?A -> ?B -> Prop,
-      H : DeterminingRelation ?R _ _,
+      (* H : DeterminingRelation ?R, *)
       blk : ?A,
       H1 : ?R ?BLK ?CBLK |- exists a : ?A, _ /\ ?R a ?CBLK ] =>
     exists BLK; split; [| exact H1]
@@ -172,6 +149,7 @@ Ltac equalities :=
       H1 : O.eq ?X ?Y |- _ ] => apply Oeq_eq in H1; subst
   end.
 
+(*
 Ltac determined R :=
   match goal with
   | [ H1 : R ?X ?Y, H2 : R ?X ?Z |- _ ] =>
@@ -179,6 +157,7 @@ Ltac determined R :=
   | [ H1 : R ?X ?Z, H2 : R ?Y ?Z |- _ ] =>
     pose proof (B_determines_A R _ _ H1 H2); subst
   end.
+*)
 
 Ltac relational :=
   repeat match goal with
@@ -188,31 +167,12 @@ Ltac relational :=
   | [ |- arrow_rel _ _ _ _ ] => intros ???
   | [ |- respectful _ _ _ _ ] => intros ???
   | [ |- iff _ _ ] => split; intro
-  end;
-  try equalities;
-  repeat teardown; subst;
-  try equalities;
-  try simplify_maps; subst;
-  try equalities; subst;
-  try simplify_maps; subst;
-  auto.
+  end.
 
-Instance Map_AbsR_DeterminingRelation
-        `(P : relation A) `(Q : relation B) (R : A -> B -> Prop) :
-  DeterminingRelation (@Same M.key A) M.Equal (@Map_AbsR A P B Q R).
-Proof.
-  intros.
-  constructor.
-  - apply Same_Equivalence.
-  - apply F.EqualSetoid.
-  - relational'.
-    apply H2.
-    rewrite <- H0.
-Obligation 1.
-  relational.
-  destruct H1.
-  rewrite H2 in H5.
-  apply H3 in H4.
+(*
+Program Instance Map_AbsR_DeterminingRelation
+         (* `(P : relation A) `(Q : relation B) *) `(R : A -> B -> Prop) :
+  DeterminingRelation (* (@Same M.key A) M.Equal *) (@Map_AbsR A B R).
 Obligation 1.
   apply F.Equal_mapsto_iff;
   split; intros; reduction.
@@ -227,74 +187,86 @@ Obligation 2.
   split; intros; reduction;
   determined R; assumption.
 Qed.
+*)
+
+Corollary Map_AbsR_Lookup_R `(R : A -> B -> Prop)
+          (or : Ensemble (M.key * A)) (nr : M.t B) :
+  Map_AbsR R or nr ->
+  forall addr blk cblk,
+    Lookup addr blk or -> R blk cblk -> M.MapsTo addr cblk nr.
+Proof. intros; eapply H; eauto. Qed.
+
+Hint Resolve Map_AbsR_Lookup_R.
+
+Corollary Map_AbsR_find_R `(R : A -> B -> Prop)
+          (or : Ensemble (M.key * A)) (nr : M.t B) :
+  Map_AbsR R or nr ->
+  forall addr blk cblk,
+    M.MapsTo addr cblk nr -> R blk cblk -> Lookup addr blk or.
+Proof. intros; eapply H; eauto. Qed.
+
+Hint Resolve Map_AbsR_find_R.
 
 Global Program Instance Map_AbsR_Proper :
   Proper (@Same _ _ ==> @M.Equal _ ==> iff) (@Map_AbsR A B R).
 Obligation 1.
-  relational; equalities; reduction;
-  first [ rewrite <- H0 in * | rewrite H0 in * ];
-  try related; reduction;
-  try determined R; auto;
-  related; apply H; auto.
+  relational; equalities.
+  - reduction; related.
+    rewrite <- H0; trivial.
+  - reduction.
+    rewrite <- H0 in H2; eauto.
+  - rewrite <- H0 in H2.
+    reduction; related.
+    rewrite <- H; trivial.
+  - reduction; equalities.
+    rewrite <- H0; eauto.
+  - reduction; related.
+    rewrite H0; trivial.
+  - reduction.
+    rewrite H0 in H2; eauto.
+  - rewrite H0 in H2.
+    reduction; related.
+    rewrite H; trivial.
+  - reduction; equalities.
+    rewrite H0; eauto.
 Qed.
 
 Section FunMaps_AbsR.
 
 Variables A B : Type.
 Variable R : (A -> B -> Prop).
-Context `{DeterminingRelation A B R eq eq}.
+(* Context `{DeterminingRelation A B R eq eq}. *)
 
 Hypothesis Oeq_eq : forall x y, O.eq x y -> x = y.
 
 Global Program Instance Empty_Map_AbsR : Empty [R Map_AbsR R] (M.empty _).
-Obligation 1. relational; inversion H1. Qed.
-
-Global Program Instance Single_Map_AbsR :
-  (@Single _ _) [R O.eq ==> R ==> Map_AbsR R] singleton.
 Obligation 1.
-  unfold singleton.
-  relational.
-  - related; simplify_maps; intuition.
-  - determined R; reflexivity.
-  - related; teardown.
-  - determined R; intuition.
+  relational; repeat teardown.
+    inversion H.
+  simplify_maps.
 Qed.
-
-Corollary Map_AbsR_Lookup_R (or : Ensemble (M.key * A)) (nr : M.t B) :
-  Map_AbsR R or nr ->
-  forall addr blk cblk,
-    Lookup addr blk or -> R blk cblk -> M.MapsTo addr cblk nr.
-Proof. intros; eapply H0; eauto. Qed.
-
-Corollary Map_AbsR_find_R (or : Ensemble (M.key * A)) (nr : M.t B) :
-  Map_AbsR R or nr ->
-  forall addr blk cblk,
-    M.MapsTo addr cblk nr -> R blk cblk -> Lookup addr blk or.
-Proof. intros; eapply H0; eauto. Qed.
 
 Global Program Instance MapsTo_Map_AbsR :
   (@Lookup _ _) [R O.eq ==> R ==> Map_AbsR R ==> iff] (@M.MapsTo _).
-Obligation 1. relational; reduction; determined R; assumption. Qed.
+Obligation 1. relational; equalities; eauto. Qed.
 
 Global Program Instance Lookup_Map_AbsR :
   (@Lookup _ _) [R O.eq ==> R ==> Map_AbsR R ==> iff]
   (fun k e m => M.find k m = Some e).
-Obligation 1. relational; reduction; determined R; assumption. Qed.
+Obligation 1. relational; equalities; eauto. Qed.
 
 Global Program Instance Same_Map_AbsR :
   (@Same _ _) [R Map_AbsR R ==> Map_AbsR R ==> iff] M.Equal.
 Obligation 1.
   relational.
-    rewrite H2 in H0; clear H2;
-    apply F.Equal_mapsto_iff; split; intros;
-    reduction;
-    determined R;
-    reduction.
-  split; intros; reduction;
-  [ rewrite H2 in HA | rewrite <- H2 in HA ];
-  reduction;
-  determined R;
-  assumption.
+    rewrite <- H1 in H0; clear H1.
+    apply F.Equal_mapsto_iff; split; intros.
+      apply H in H1; eapply H0; exact H1.
+    apply H0 in H1; eapply H; exact H1.
+  rewrite <- H1 in H0.
+  split; intros.
+    apply H in H2; eapply H0; exact H2.
+  apply H0 in H2; eapply H; exact H2.
 Qed.
 
 Definition boolR (P : Prop) (b : bool) : Prop := P <-> b = true.
@@ -303,8 +275,9 @@ Global Program Instance Member_Map_AbsR :
   (@Member _ _) [R O.eq ==> Map_AbsR R ==> boolR] (@M.mem _).
 Obligation 1.
   relational.
+  equalities.
   split; intros.
-    destruct H0.
+    destruct H.
     reduction.
     rewrite F.mem_find_b.
     apply F.find_mapsto_iff in HA.
@@ -314,8 +287,7 @@ Obligation 1.
     reduction.
     exists blk.
     assumption.
-  rewrite F.mem_find_b in H0.
-  rewrite Heqe in H0.
+  rewrite F.mem_find_b, Heqe in H.
   discriminate.
 Qed.
 
@@ -332,8 +304,8 @@ Lemma in_mapsto_iff : forall elt k m,
   M.In (elt:=elt) k m <-> exists e, M.MapsTo (elt:=elt) k e m.
 Proof.
   split; intros.
-    apply F.mem_in_iff in H0.
-    rewrite F.mem_find_b in H0.
+    apply F.mem_in_iff in H.
+    rewrite F.mem_find_b in H.
     destruct (M.find (elt:=elt) k m) eqn:Heqe.
       exists e.
       apply F.find_mapsto_iff.
@@ -341,21 +313,21 @@ Proof.
     discriminate.
   apply F.mem_in_iff.
   rewrite F.mem_find_b.
-  destruct H0.
-  apply F.find_mapsto_iff in H0.
-  rewrite H0.
+  destruct H.
+  apply F.find_mapsto_iff in H.
+  rewrite H.
   reflexivity.
 Qed.
 
 Global Program Instance Member_In_Map_AbsR :
   (@Member _ _) [R O.eq ==> Map_AbsR R ==> iff] (@M.In _).
 Obligation 1.
-  relational.
-    destruct H2.
+  relational; equalities.
+    destruct H1.
     reduction.
     apply in_mapsto_iff; eauto.
-  apply (proj1 (in_mapsto_iff _ _)) in H2.
-  destruct H2.
+  apply (proj1 (in_mapsto_iff _ _)) in H1.
+  destruct H1.
   reduction.
   exists blk.
   assumption.
@@ -366,39 +338,81 @@ Qed.
 Global Program Instance Remove_Map_AbsR :
   (@Remove _ _) [R O.eq ==> Map_AbsR R ==> Map_AbsR R] (@M.remove _).
 Obligation 1.
-  relational; reduction.
-  - related.
+  relational; equalities.
+  - repeat teardown.
+    reduction.
+    related.
     simplify_maps.
     firstorder.
-  - determined R.
-    assumption.
-  - related.
+  - teardown.
+      reduction.
+      simplify_maps.
+      eauto.
+    reduction.
+    simplify_maps.
+    equalities.
+  - simplify_maps.
+    reduction.
+    related.
     teardown.
     equalities.
-  - determined R.
+  - simplify_maps.
     firstorder.
 Qed.
 
 Global Program Instance Update_Map_AbsR :
   (@Update _ _) [R O.eq ==> R ==> Map_AbsR R ==> Map_AbsR R] (@M.add _).
 Obligation 1.
-  intros ?????????.
-(*
-  split; intros; repeat teardown; subst.
-  - exists y0; intuition.
-    apply F.add_eq_o; symmetry; assumption.
-  - reduction; equalities.
-    apply Oeq_neq_sym in H2.
-    rewrite F.add_neq_o; trivial.
+  relational; equalities.
+  - repeat teardown; subst.
+      related.
+      simplify_maps.
+      firstorder.
+    reduction.
+    related.
+    simplify_maps.
+    firstorder.
+  - reduction.
+    simplify_maps.
+      equalities.
+      left; intuition.
+      admit.
+    right.
+    split; eauto.
+    equalities.
   - simplify_maps.
-      exists x0.
-      intuition; equalities.
-      right; constructor.
-    reduction; teardown.
-    right; constructor;
-    equalities; assumption.
-*)
+      related.
+      teardown.
+      equalities.
+      intuition.
+    reduction.
+    related.
+    teardown.
+    right.
+    split; trivial.
+    equalities.
+  - repeat teardown; subst.
+    simplify_maps.
+      left; intuition.
+      admit.
+    simplify_maps.
+    right.
+    split; eauto.
 Admitted.
+
+Corollary Single_is_Update : forall (x : M.key) (y : A),
+  Same (Single x y) (Update x y Empty).
+Proof. split; intros; repeat teardown. Qed.
+
+Global Program Instance Single_Map_AbsR :
+  (@Single _ _) [R O.eq ==> R ==> Map_AbsR R] singleton.
+Obligation 1.
+  intros ??????.
+  rewrite Single_is_Update.
+  unfold singleton.
+  apply Update_Map_AbsR; auto.
+  apply Empty_Map_AbsR; auto.
+Qed.
 
 (* Move *)
 
