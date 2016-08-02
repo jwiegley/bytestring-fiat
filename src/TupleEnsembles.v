@@ -21,6 +21,19 @@ Definition Lookup (a : A) (b : B) (r : Ensemble (A * B)) := In _ r (a, b).
 Definition Same (x y : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b x <-> Lookup a b y.
 
+Global Program Instance Same_Equivalence : Equivalence Same.
+Obligation 1.
+  constructor; auto.
+Qed.
+Obligation 2.
+  constructor; apply H; auto.
+Qed.
+Obligation 3.
+  constructor; intros.
+    apply H0, H; auto.
+  apply H, H0; auto.
+Qed.
+
 Lemma Same_Same_set : forall x y, Same x y <-> Same_set _ x y.
 Proof.
   unfold Same, Lookup.

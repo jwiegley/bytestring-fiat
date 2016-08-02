@@ -33,6 +33,31 @@ Hint Resolve Oeq_neq_sym.
 Module E := FMapExt(O).
 Include E.
 
+Lemma MapsTo_fun : forall (elt:Type) m x `{Equivalence elt R} (e e':elt),
+  M.MapsTo x e m -> M.MapsTo x e' m -> R e e'.
+Proof.
+intros.
+generalize (M.find_1 H0) (M.find_1 H1); clear H0 H1.
+intros.
+rewrite H0 in H1; injection H1; intros; subst.
+reflexivity.
+Qed.
+
+Lemma add_mapsto_iff' : forall elt m x y `{Equivalence elt R} e e',
+  Proper (O.eq ==> R ==> M.Equal ==> iff) (@M.MapsTo _) ->
+  M.MapsTo y e' (M.add x e m) <->
+     (O.eq x y /\ R e e') \/
+     (~O.eq x y /\ M.MapsTo y e' m).
+Proof.
+  intros.
+  intuition.
+  - destruct (O.eq_dec x y); [left|right];
+    simplify_maps; intuition.
+  - rewrite <- H3.
+    simplify_maps; intuition.
+  - simplify_maps; intuition.
+Qed.
+
 Lemma Proper_Oeq_negb : forall B f,
   Proper (O.eq ==> eq ==> eq) f ->
   Proper (O.eq ==> eq ==> eq) (fun (k : M.key) (e : B) => negb (f k e)).
@@ -42,68 +67,33 @@ Hint Resolve Proper_Oeq_negb.
 
 Open Scope rel_scope.
 
-Class DeterminingRelation {A B : Type} (R : A -> B -> Prop)
-      (A_rel : relation A) (B_rel : relation B) := {
-  A_determines_B : forall a b b', R a b -> R a b' -> B_rel b b';
-  B_determines_A : forall a a' b, R a b -> R a' b -> A_rel a a'
+Class DeterminingRelation `(P : relation A) `(Q : relation B)
+      (R : A -> B -> Prop) := {
+  P_Equivalence :> Equivalence P;
+  Q_Equivalence :> Equivalence Q;
+  P_Lookup_Proper
+    :> Proper (O.eq ==> P ==> @Same _ _ ==> iff) (@Lookup M.key A);
+  Q_MapsTo_Proper :> Proper (O.eq ==> Q ==> M.Equal ==> iff) (@M.MapsTo B);
+  A_determines_B : forall a b b', R a b -> R a b' -> Q b b';
+  B_determines_A : forall a a' b, R a b -> R a' b -> P a a'
 }.
 
-Arguments A_determines_B {A B} R _ _ {_ a b b'} _ _.
-Arguments B_determines_A {A B} R _ _ {_ a a' b} _ _.
+Arguments DeterminingRelation {A} P {B} Q R.
+Arguments A_determines_B {A} P {B} Q R {_ a b b'} _ _.
+Arguments B_determines_A {A} P {B} Q R {_ a a' b} _ _.
 
-Definition Map_AbsR {A B : Type} (R : A -> B -> Prop)
+Definition Map_AbsR `(P : relation A) `(Q : relation B) (R : A -> B -> Prop)
            (or : Ensemble (M.key * A)) (nr : M.t B) : Prop :=
-  forall addr `{DeterminingRelation A B R eq eq},
+  forall addr `{DeterminingRelation _ P _ Q R},
     (forall blk, Lookup addr blk or
        <-> exists cblk, M.MapsTo addr cblk nr /\ R blk cblk) /\
     (forall cblk, M.MapsTo addr cblk nr
        <-> exists blk, Lookup addr blk or /\ R blk cblk).
 
-Program Instance Map_AbsR_DeterminingRelation
-        {A B : Type} (R : A -> B -> Prop) :
-  DeterminingRelation R eq eq ->
-  DeterminingRelation (@Map_AbsR A B R) (@Same M.key A) M.Equal.
-Obligation 1.
-  apply F.Equal_mapsto_iff; split; intros.
-    eapply H0 in H2; eauto.
-    do 2 destruct H2.
-    eapply H1 in H2; eauto.
-    do 2 destruct H2.
-    destruct H.
-    specialize (A_determines_B0 _ _ _ H3 H4); subst.
-    assumption.
-  eapply H1 in H2; eauto.
-  do 2 destruct H2.
-  eapply H0 in H2; eauto.
-  do 2 destruct H2.
-  destruct H.
-  specialize (A_determines_B0 _ _ _ H3 H4); subst.
-  assumption.
-Qed.
-Obligation 2.
-  split; intros.
-    eapply H0 in H2; eauto.
-    do 2 destruct H2.
-    eapply H1 in H2; eauto.
-    do 2 destruct H2.
-    destruct H.
-    specialize (B_determines_A0 _ _ _ H3 H4); subst.
-    assumption.
-  eapply H1 in H2; eauto.
-  do 2 destruct H2.
-  eapply H0 in H2; eauto.
-  do 2 destruct H2.
-  destruct H.
-  specialize (B_determines_A0 _ _ _ H3 H4); subst.
-  assumption.
-Qed.
-
 Ltac normalize :=
   repeat match goal with
-  | [ H : M.find ?ADDR ?Z = Some ?CBLK |- _ ] =>
-    apply F.find_mapsto_iff in H
-  | [ |- M.find ?ADDR ?Z = Some ?CBLK ] =>
-    apply F.find_mapsto_iff
+  | [ H : M.find ?ADDR ?Z = Some ?CBLK |- _ ] => apply F.find_mapsto_iff in H
+  | [ |-  M.find ?ADDR ?Z = Some ?CBLK ]      => apply F.find_mapsto_iff
   end.
 
 Ltac reduction :=
@@ -206,6 +196,37 @@ Ltac relational :=
   try equalities; subst;
   try simplify_maps; subst;
   auto.
+
+Instance Map_AbsR_DeterminingRelation
+        `(P : relation A) `(Q : relation B) (R : A -> B -> Prop) :
+  DeterminingRelation (@Same M.key A) M.Equal (@Map_AbsR A P B Q R).
+Proof.
+  intros.
+  constructor.
+  - apply Same_Equivalence.
+  - apply F.EqualSetoid.
+  - relational'.
+    apply H2.
+    rewrite <- H0.
+Obligation 1.
+  relational.
+  destruct H1.
+  rewrite H2 in H5.
+  apply H3 in H4.
+Obligation 1.
+  apply F.Equal_mapsto_iff;
+  split; intros; reduction.
+  eapply H2 in H4; trivial.
+  do 2 destruct H4.
+  eapply H3 in H4; trivial.
+  do 2 destruct H4.
+  rewrite <- H5.
+  determined R.
+Qed.
+Obligation 2.
+  split; intros; reduction;
+  determined R; assumption.
+Qed.
 
 Global Program Instance Map_AbsR_Proper :
   Proper (@Same _ _ ==> @M.Equal _ ==> iff) (@Map_AbsR A B R).
