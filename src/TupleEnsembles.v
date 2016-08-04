@@ -75,15 +75,15 @@ Program Definition Update (a : A) (b : B) (r : Ensemble (A * B)) :
   Ensemble (A * B) := Insert a b (Remove a r) _.
 Obligation 1. firstorder. Qed.
 
-Definition Move (a a' : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
-  fun p => IF fst p = a'
-           then Lookup a (snd p) r
-           else Lookup (fst p) (snd p) (Remove a r).
-
-Definition Map (f : A -> B -> B) (r : Ensemble (A * B)) : Ensemble (A * B) :=
+Definition Map {C} (f : A -> B -> C) (r : Ensemble (A * B)) :
+  Ensemble (A * C) :=
   fun p => exists b : B, Lookup (fst p) b r /\ snd p = f (fst p) b.
 
-Lemma Map_identity : forall r, Same r (Map (fun _ x => x) r).
+Definition Relate {C D} (f : A -> B -> C -> D -> Prop) (r : Ensemble (A * B)) :
+  Ensemble (C * D) :=
+  fun p => exists k' e', Lookup k' e' r /\ f k' e' (fst p) (snd p).
+
+Lemma Map_left_identity : forall r, Same r (Map (fun _ x => x) r).
 Proof.
   unfold Map; split; intros.
     eexists b.
@@ -92,6 +92,17 @@ Proof.
   simpl in *.
   rewrite H0.
   assumption.
+Qed.
+
+Lemma Map_right_identity : forall r, Same (Map (fun _ x => x) r) r.
+Proof.
+  unfold Map; split; intros.
+    do 2 destruct H.
+    simpl in *.
+    rewrite H0.
+    assumption.
+  eexists b.
+  intuition.
 Qed.
 
 Lemma Map_composition : forall f g r,
@@ -116,29 +127,34 @@ Proof.
   reflexivity.
 Qed.
 
+Definition Move (a a' : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
+  Relate (fun k e k' e' =>
+            e = e' /\ IF k = a
+                      then k' = a'
+                      else k <> a' /\ k = k') r.
+
 Definition Filter (P : A -> B -> Prop) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
   fun p => Lookup (fst p) (snd p) r /\ P (fst p) (snd p).
 
 Definition Define (P : A -> Prop) (b : B) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
-  fun p => IF P (fst p) then snd p = b else Lookup (fst p) (snd p) r.
+  fun p =>
+    IF P (fst p)
+    then snd p = b
+    else Lookup (fst p) (snd p) r.
 
 Definition Modify (a : A) (f : B -> B) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
-  fun p => IF fst p = a
-           then exists b : B,
-                  Lookup (fst p) b r /\
-                  Lookup (fst p) (snd p) (Singleton _ (fst p, f b))
-           else Lookup (fst p) (snd p) r.
+  Relate (fun k e k' e' => k = k' /\ IF k' = a then e' = f e else e' = e) r.
 
 Definition Overlay (P : A -> option A) (r' r : Ensemble (A * B)) :
   Ensemble (A * B) :=
-  fun p =>
-    forall a,
-      IF P (fst p) = Some a
-      then Lookup a (snd p) r
-      else Lookup (fst p) (snd p) r'.
+  Relate (fun k e k' e' =>
+            match P k' with
+            | Some a => Lookup a e' r
+            | None   => k = k' /\ e = e'
+            end) r'.
 
 Definition All (P : A -> B -> Prop) (r : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b r -> P a b.
@@ -151,11 +167,7 @@ Proof. firstorder. Qed.
 
 Lemma Lookup_Single : forall a a' b b',
   a = a' -> b = b' -> Lookup a b (Single a' b').
-Proof.
-  intros.
-  rewrite H, H0.
-  firstorder.
-Qed.
+Proof. intros; rewrite H, H0; firstorder. Qed.
 
 Lemma Lookup_Single_inv : forall a b c d,
   Lookup a b (Single c d) -> a = c /\ b = d.
@@ -224,10 +236,23 @@ Proof.
   firstorder.
 Qed.
 
+Lemma Lookup_Move : forall a b a' a'' r,
+  (IF a = a''
+   then Lookup a' b r
+   else a <> a' /\ Lookup a b r)
+    -> Lookup a b (Move a' a'' r).
+Proof. firstorder. Qed.
+
 Lemma Lookup_Move_inv : forall a b a' a'' r,
   Lookup a b (Move a' a'' r)
-    -> (a = a'' /\ Lookup a' b r) \/ (a <> a' /\ Lookup a b r).
-Proof. firstorder. Qed.
+    -> IF a = a''
+       then Lookup a' b r
+       else a <> a' /\ Lookup a b r.
+Proof.
+  firstorder;
+  simpl in *; subst;
+  firstorder.
+Qed.
 
 Lemma Lookup_Map : forall a b f r,
   Lookup a b r -> Lookup a (f a b) (Map f r).
@@ -235,6 +260,18 @@ Proof. firstorder. Qed.
 
 Lemma Lookup_Map_inv : forall a b f r,
   Lookup a b (Map f r) -> exists b', f a b' = b /\ Lookup a b' r.
+Proof.
+  intros.
+  inversion H; clear H.
+  firstorder.
+Qed.
+
+Lemma Lookup_Relate : forall a b c d (f : A -> B -> A -> B -> Prop) r,
+  Lookup a b r -> f a b c d -> Lookup c d (Relate f r).
+Proof. firstorder. Qed.
+
+Lemma Lookup_Relate_inv : forall a b (f : A -> B -> A -> B -> Prop) r,
+  Lookup a b (Relate f r) -> exists a' b', f a' b' a b /\ Lookup a' b' r.
 Proof.
   intros.
   inversion H; clear H.
@@ -249,8 +286,13 @@ Lemma Lookup_Filter_inv : forall a b P r,
   Lookup a b (Filter P r) -> P a b /\ Lookup a b r.
 Proof. firstorder. Qed.
 
+Lemma Lookup_Define : forall a b c P r,
+  (IF P a then b = c else Lookup a b r)
+    -> Lookup a b (Define P c r).
+Proof. firstorder. Qed.
+
 Lemma Lookup_Define_inv : forall a b c P r,
-  Lookup a b (Define P c r) -> (P a /\ b = c) \/ Lookup a b r.
+  Lookup a b (Define P c r) -> (P a /\ b = c) \/ (~ P a /\ Lookup a b r).
 Proof. firstorder. Qed.
 
 Lemma Lookup_Modify_inv : forall a b a' f r,
@@ -258,16 +300,9 @@ Lemma Lookup_Modify_inv : forall a b a' f r,
     -> (a = a' /\ exists b', f b' = b /\ Lookup a b' r)
          \/ (a <> a' /\ Lookup a b r).
 Proof.
-  intros.
-  inversion H; clear H;
-  destruct H0.
-    destruct H0.
-    destruct H0.
-    inversion H1; simpl in *; subst.
-    left; split; trivial.
-    exists x.
-    split; trivial.
-  right; split; trivial.
+  firstorder;
+  simpl in *; subst;
+  firstorder.
 Qed.
 
 Lemma Lookup_Overlay_inv : forall a b P r' r,
@@ -277,14 +312,10 @@ Lemma Lookup_Overlay_inv : forall a b P r' r,
        | None    => Lookup a b r'
        end.
 Proof.
-  unfold Lookup, Overlay, Ensembles.In; simpl; intros.
-  destruct (P a).
-    destruct (H a0), H0.
-      exact H1.
-    tauto.
-  destruct (H a), H0.
-    discriminate.
-  exact H1.
+  firstorder.
+  simpl in *; subst.
+  destruct (P a); firstorder.
+  subst; assumption.
 Qed.
 
 Lemma Lookup_Member : forall a b r,
@@ -326,6 +357,7 @@ Arguments Modify : default implicits.
 Arguments Move : default implicits.
 Arguments Filter : default implicits.
 Arguments Map : default implicits.
+Arguments Relate : default implicits.
 Arguments All : default implicits.
 Arguments Any : default implicits.
 Arguments Define : default implicits.
@@ -336,6 +368,39 @@ Arguments Member : default implicits.
 
 Arguments Lookup_Empty : default implicits.
 
+Ltac t H :=
+  unfold Relate;
+  split; intros;
+  repeat destruct H;
+  simpl in *; subst;
+  firstorder;
+  simpl in *; subst;
+  firstorder.
+
+Lemma Relate_left_identity : forall A B (r : Ensemble (A * B)),
+  Same r (Relate (fun k x k' x' => k = k' /\ x = x') r).
+Proof. t H. Qed.
+
+Lemma Relate_right_identity : forall A B (r : Ensemble (A * B)),
+  Same (Relate (fun k x k' x' => k = k' /\ x = x') r) r.
+Proof. t H. Qed.
+
+Lemma Relate_composition :
+  forall A B C D E F
+         (f : C -> D -> E -> F -> Prop) (g : A -> B -> C -> D -> Prop) r,
+    Same (Relate (fun k e k' e' =>
+                  exists k'' e'', g k e k'' e'' /\ f k'' e'' k' e') r)
+         (Relate f (Relate g r)).
+Proof.
+  t H.
+    exists x1.
+    exists x2.
+    t H.
+  exists x1.
+  exists x2.
+  t H.
+Qed.
+
 Ltac teardown :=
   match goal with
   | [ H : Lookup _ _ Empty           |- _ ] => contradiction (Lookup_Empty H)
@@ -345,6 +410,7 @@ Ltac teardown :=
   | [ H : Lookup _ _ (Update _ _ _)  |- _ ] => apply Lookup_Update_inv in H
   | [ H : Lookup _ _ (Move _ _ _)    |- _ ] => apply Lookup_Move_inv in H
   | [ H : Lookup _ _ (Map _ _)       |- _ ] => apply Lookup_Map_inv in H
+  | [ H : Lookup _ _ (Relate _ _)    |- _ ] => apply Lookup_Relate_inv in H
   | [ H : Lookup _ _ (Filter _ _)    |- _ ] => apply Lookup_Filter_inv in H
   | [ H : Lookup _ _ (Define _ _ _)  |- _ ] => apply Lookup_Define_inv in H
   | [ H : Lookup _ _ (Modify _ _ _)  |- _ ] => apply Lookup_Modify_inv in H
@@ -357,6 +423,7 @@ Ltac teardown :=
   | [ H : Member _ (Update _ _ _)  |- _ ] => unfold Member in H
   | [ H : Member _ (Move _ _ _)    |- _ ] => unfold Member in H
   | [ H : Member _ (Map _ _)       |- _ ] => unfold Member in H
+  | [ H : Member _ (Relate _ _)    |- _ ] => unfold Member in H
   | [ H : Member _ (Filter _ _)    |- _ ] => unfold Member in H
   | [ H : Member _ (Define _ _ _)  |- _ ] => unfold Member in H
   | [ H : Member _ (Modify _ _ _)  |- _ ] => unfold Member in H
@@ -367,8 +434,9 @@ Ltac teardown :=
   | [ |- Lookup _ _ (Insert _ _ _)  ] => apply Lookup_Insert
   | [ |- Lookup _ _ (Remove _ _)    ] => apply Lookup_Remove
   | [ |- Lookup _ _ (Update _ _ _)  ] => apply Lookup_Update
-  (* | [ |- Lookup _ _ (Move _ _ _)    ] => apply Lookup_Move *)
+  | [ |- Lookup _ _ (Move _ _ _)    ] => apply Lookup_Move
   | [ |- Lookup _ _ (Map _ _)       ] => apply Lookup_Map
+  | [ |- Lookup _ _ (Relate _ _)    ] => apply Lookup_Relate
   | [ |- Lookup _ _ (Filter _ _)    ] => apply Lookup_Filter
   (* | [ |- Lookup _ _ (Define _ _ _)  ] => apply Lookup_Define *)
   (* | [ |- Lookup _ _ (Modify _ _ _)  ] => apply Lookup_Modify *)

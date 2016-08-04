@@ -23,8 +23,6 @@ Lemma Insert_Finite : forall a b `(_ : Finite _ r) H,
   Finite _ (@Insert A B a b r H).
 Proof. intros; apply Add_preserves_Finite; assumption. Qed.
 
-Definition finite_ind := Generalized_induction_on_finite_sets.
-
 Lemma Setminus_preserves_finite {U} :
   forall A:Ensemble U,
     Finite U A -> forall X:Ensemble U, Finite U (Setminus U A X).
@@ -32,57 +30,6 @@ Proof.
   intros A' ? ?; apply Finite_downward_closed with A'; auto with sets.
   intros ? H0; inversion H0; assumption.
 Qed.
-
-Lemma Conjunction_preserves_finite {U} :
-  forall A:Ensemble U,
-    Finite U A -> forall X:Ensemble U,
-      Finite U (fun x : U => In U X x /\ In U A x) <-> Finite U (In U A).
-Proof.
-  intros A' H' X.
-  split; intros.
-    apply Finite_downward_closed with A'; auto with sets.
-  apply Finite_downward_closed with A'; auto with sets.
-  intros ? H0; inversion H0; assumption.
-Qed.
-
-Lemma Conjunction_preserves_finite_2 {U} :
-  forall A:Ensemble U,
-    Finite U A -> forall X:Ensemble U,
-      Finite U (fun x : U => In U A x /\ In U X x) -> Finite U (In U A).
-Proof.
-  intros A' H' X H.
-  apply Finite_downward_closed with A'; auto with sets.
-Qed.
-
-Lemma Exists_preserves_finite_conj {U V} :
-  forall (f : U * V -> V -> U * V) (X : Ensemble (U * V)) z,
-    Finite (U * V) (fun x : U * V =>
-                      exists b : V, In (U * V) X (f x b)) ->
-    Finite (U * V) (fun x : U * V =>
-                      exists b : V, In (U * V) X (f x b) /\ z x b).
-Proof.
-  intros.
-  eapply Finite_downward_closed; eauto with sets.
-  intros ? H0; inversion H0; intuition; clear H0.
-  exists x0.
-  assumption.
-Qed.
-
-Lemma Exists_finite_forall {U V} :
-  forall (X:Ensemble (U * V)),
-    Finite (U * V) X ->
-    Finite (U * V) (fun x : U * V => exists b : V, In (U * V) X (fst x, b)).
-Proof.
-  intros.
-  inversion H.
-    eapply Finite_downward_closed; eauto with sets.
-    intros ? H3; inversion H3; subst; clear H3.
-    inversion H1.
-  eapply Finite_downward_closed; eauto with sets.
-  intros ? H3.
-  inversion H3; subst; clear H3.
-  inversion H4; subst; clear H4.
-Abort.
 
 Lemma Remove_Finite : forall a `(_ : Finite _ r), Finite _ (@Remove A B a r).
 Proof. intros; apply Setminus_preserves_finite; assumption. Qed.
@@ -92,16 +39,6 @@ Lemma Update_Finite : forall a b `(_ : Finite _ r),
 Proof.
   intros; apply Add_preserves_Finite, Setminus_preserves_finite; assumption.
 Qed.
-
-Lemma Move_Finite : forall a a' `(_ : Finite _ r), Finite _ (@Move A B a a' r).
-Proof.
-  unfold Move; intros.
-  eapply Finite_downward_closed; eauto with sets.
-  intros ? H0.
-  unfold Ensembles.In in H0.
-  destruct H0.
-    destruct H; subst.
-Admitted.
 
 Lemma Filter_Finite : forall P `(_ : Finite _ r), Finite _ (@Filter A B P r).
 Proof.
@@ -113,49 +50,156 @@ Proof.
   assumption.
 Qed.
 
-Lemma Map_Finite : forall f `(_ : Finite _ r), Finite _ (@Map A B f r).
+Lemma Finite_Add_Subtract : forall T (Y : Ensemble T) x,
+  Finite _ (Add T (Subtract T Y x) x) -> Finite _ Y.
 Proof.
-  unfold Map, Lookup; intros.
-  apply Exists_preserves_finite_conj.
-  eapply Finite_downward_closed; eauto with sets.
-  intros ? H0.
-  destruct H0.
-  destruct x; simpl in *.
-  induction Finite0.
-Admitted.
+  intros.
+  eapply Finite_downward_closed; eauto with sets; intros ??.
+  (* Jason Gross: To avoid the axiom of choice, you'd need a stronger version
+     of [Finite], something like having a list of elements together with a
+     mapping of elements of the type to indices of the list such that if an
+     element of the type is in the subset, then it is equal to the element of
+     the list at the corresponding index. In this case, everything is
+     constructive, and you shouldn't need either ensemble-extensionality nor
+     decidable equality. *)
+  elim (classic (x = x0)); intros.
+    subst; right; constructor.
+  left; constructor; auto.
+  unfold not; intros.
+  contradiction H1.
+  inversion H2.
+  reflexivity.
+Qed.
 
-Lemma Modify_Finite : forall a f `(_ : Finite _ r), Finite _ (@Modify A B a f r).
+Definition Surjective {A B} (X : Ensemble A) (Y : Ensemble B) f :=
+  forall y : B, In _ Y y -> exists x : A, In _ X x /\ y = f x.
+
+Lemma Surjective_Add_Subtract : forall T T' X Y f x,
+  Surjective (Add T X x) Y f -> Surjective X (Subtract T' Y (f x)) f.
+Proof.
+  unfold Surjective; intros.
+  inversion H0; clear H0.
+  destruct (H _ H1) as [? [? ?]]; subst; clear H H1.
+  inversion H0; subst; clear H0.
+    exists x0; intuition.
+  inversion H; subst; clear H.
+  contradiction H2.
+  constructor.
+Qed.
+
+Lemma Surjection_preserves_Finite : forall T T' X Y f,
+  Surjective X Y f -> Finite T X -> Finite T' Y.
+Proof.
+  intros.
+  generalize dependent Y.
+  induction H0; intros.
+    eapply Finite_downward_closed; eauto with sets; intros ??.
+    firstorder.
+  apply Surjective_Add_Subtract in H1; auto.
+  specialize (IHFinite _ H1).
+  eapply Finite_Add_Subtract.
+  constructor.
+  exact IHFinite.
+  unfold not; intros.
+  inversion H2.
+  contradiction H4.
+  constructor.
+Qed.
+
+Theorem Map_Finite {C} : forall f `(_ : Finite _ r), Finite _ (@Map A B C f r).
+Proof.
+  unfold Map; intros.
+  apply Surjection_preserves_Finite
+   with (X:=r) (f:=fun p => (fst p, f (fst p) (snd p))); trivial.
+  intros ??.
+  unfold Ensembles.In in H.
+  do 2 destruct H.
+  destruct y; simpl in *; subst.
+  exists (a, x); simpl.
+  intuition.
+Qed.
+
+Theorem Relate_Finite :
+  forall A B C D (f : A -> B -> C -> D -> Prop) `(_ : Finite _ r)
+         (is_total : forall (k : A) (e : B),
+            { p : C * D | Lookup k e r /\ f k e (fst p) (snd p) })
+         (is_functional : forall k e k' e' k'' e'',
+            f k e k' e' -> f k e k'' e'' -> k' = k'' /\ e' = e''),
+    Finite _ (Relate f r).
+Proof.
+  unfold Relate; intros ????? r ? k g.
+  eapply Surjection_preserves_Finite
+   with (X:=r) (f:=fun p => proj1_sig (k (fst p) (snd p))); trivial.
+  intros ??.
+  unfold Ensembles.In in H.
+  do 2 destruct H.
+  destruct y; simpl in *; subst.
+  exists (x, x0); simpl.
+  destruct (k x x0), x1.
+  simpl in *; intuition.
+  destruct (g _ _ _ _ _ _ H1 H2); subst.
+  reflexivity.
+Qed.
+
+Lemma Move_Finite : forall a a' `(_ : Finite _ r),
+  (forall x y : A, {x = y} + {x <> y})
+    -> Finite _ (@Move A B a a' r).
+Proof.
+  unfold Move; intros.
+  apply Relate_Finite; trivial; intros.
+    destruct (X k a); subst.
+      exists (a', e); simpl; intuition.
+      left; intuition.
+    destruct (X k a'); subst.
+      exists (a', e); simpl; intuition.
+      right; intuition.
+      destruct H1; intuition.
+    exists (k, e); simpl; intuition.
+    left; intuition.
+    right; intuition.
+  intuition.
+    destruct H2, H3; intuition; subst; auto.
+  congruence.
+Qed.
+
+Lemma Modify_Finite : forall a f `(_ : Finite _ r),
+  (forall x y : A, {x = y} + {x <> y})
+    -> Finite _ (@Modify A B a f r).
 Proof.
   unfold Modify; intros.
-  eapply Finite_downward_closed; eauto with sets.
-  intros ? H0.
-  unfold Ensembles.In in H0.
-  destruct H0, H; subst.
-  destruct H0, H; subst.
-  inversion H0; subst; clear H0.
-  unfold Lookup in H.
+  apply Relate_Finite; trivial; intros.
+    destruct (X k a).
+  (*     exists (f x); firstorder. *)
+  (*   exists x; firstorder. *)
+  (* firstorder; subst; trivial. *)
 Admitted.
 
-Lemma Define_Finite : forall P b `(_ : Finite _ r), Finite _ (@Define A B P b r).
+Lemma Define_Finite : forall P b `(_ : Finite _ r),
+  (forall x : A, {P x} + {~ P x})
+    -> Finite _ (@Define A B P b r).
 Proof.
   unfold Define; intros.
-  eapply Finite_downward_closed; eauto with sets.
-  intros ? H0.
-  unfold Ensembles.In in H0.
+(*
+  apply Relate_Finite; trivial; intros.
+    destruct (X k).
+      exists b; firstorder.
+    exists x; firstorder.
+  firstorder; subst; trivial.
+*)
 Admitted.
 
 Lemma Overlay_Finite : forall P `(_ : Finite _ r) `(_ : Finite _ r'),
-  Finite _ (@Overlay A B P r r').
+    Finite _ (@Overlay A B P r r').
 Proof.
   unfold Overlay; intros.
-  eapply Finite_downward_closed; eauto with sets.
-  intros ? H0.
-  unfold Ensembles.In in H0.
-  specialize (H0 (fst x)).
-  destruct H0, H; subst.
-    unfold Lookup in H0.
-    rewrite <- surjective_pairing in H0.
-    assumption.
+  apply Relate_Finite; trivial; intros.
+    destruct (P k).
+(*
+      exists x; split; trivial.
+      admit.
+    exists x; firstorder.
+  firstorder; subst; trivial.
+*)
 Admitted.
 
 End TupleEnsembleFinite.
