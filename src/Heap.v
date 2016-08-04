@@ -6,7 +6,8 @@ Require Import
   Here.Decidable
   Here.BindDep
   Here.Tactics
-  Here.ADTInduction.
+  Here.ADTInduction
+  Here.TupleEnsemblesFinite.
 
 Generalizable All Variables.
 
@@ -368,8 +369,6 @@ Proof.
   pose proof (allocations_no_overlap H _ H0 _ H2 H3).
   unfold within, overlaps in *; nomega.
 Qed.
-
-Require Import Here.TupleEnsemblesFinite.
 
 Theorem finite_heap : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
 Proof. intros; ADT induction r; inspect; finitary. Admitted.

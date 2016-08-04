@@ -364,6 +364,37 @@ Definition take_first {elt} (f : M.key -> elt -> bool) (k : M.key) (e : elt)
   | None => if f k e then Some (k, e) else None
   end.
 
+Definition optionP {A} (P : relation A) : relation (option A) :=
+  fun x y => match x, y with
+             | Some x', Some y' => P x' y'
+             | None, None => True
+             | _, _ => False
+             end.
+
+Definition pairP {A B} (P : relation A) (Q : relation B) : relation (A * B) :=
+  fun p p' => match p, p' with
+              | (x, y), (x', y') => P x x' /\ Q y y'
+              end.
+
+Program Instance take_first_Proper {elt} :
+  Proper ((O.eq ==> eq ==> eq)
+            ==> O.eq
+            ==> eq
+            ==> optionP (pairP O.eq eq)
+            ==> optionP (pairP O.eq eq)) (take_first (elt:=elt)).
+Obligation 1.
+  relational'.
+  destruct x2, y2.
+  - destruct p, p0; simpl in *.
+    assumption.
+  - contradiction.
+  - contradiction.
+  - unfold take_first.
+    rewrite (H _ _ H0 y1 y1 eq_refl).
+    destruct (y y0 y1); auto.
+    unfold optionP, pairP; auto.
+Qed.
+
 Corollary take_first_None
           {elt} (f : M.key -> elt -> bool) (k : M.key) (e : elt) x :
   take_first f k e (Some x) = Some x.
@@ -392,23 +423,24 @@ Proof.
   congruence.
 Qed.
 
-Global Program Instance fold_Proper {elt A} : forall f,
-  Proper (O.eq ==> @eq elt ==> @eq A ==> @eq A) f
-    -> P.transpose_neqkey eq f
-    -> Proper (M.Equal (elt:=elt) ==> @eq A ==> @eq A)
-              (@M.fold elt A f).
+Global Program Instance fold_Proper {elt A} : forall f (eqA : relation A),
+  Equivalence eqA
+    -> Proper (O.eq ==> eq ==> eqA ==> eqA) f
+    -> P.transpose_neqkey eqA f
+    -> Proper (M.Equal (elt:=elt) ==> eqA ==> eqA) (@M.fold elt A f).
 Obligation 1.
   relational'.
-  revert H1.
+  revert H2.
   revert y.
   apply P.fold_rec; intros.
     rewrite P.fold_Empty; auto.
-    rewrite <- H2.
+    rewrite <- H4.
     assumption.
-  rewrite P.fold_Add; eauto.
-    apply H; auto.
-    apply H4; reflexivity.
-  congruence.
+  rewrite (P.fold_Add (eqA:=eqA)); eauto.
+  - f_equiv.
+    apply H6.
+    congruence.
+  - congruence.
 Qed.
 
 Global Program Instance filter_Proper {elt} : forall P,
@@ -470,18 +502,15 @@ Obligation 1.
   congruence.
 Qed.
 
-Definition take_firstR {elt} (p p' : option (M.key * elt)) :=
-  match p, p' return Prop with
-  | Some (k, e), Some (k', e') => O.eq k k' /\ e = e'
-  | None, None => True
-  | _, _ => False
-  end.
-
 Global Program Instance find_if_Proper {elt} :
-  Proper ((O.eq ==> @eq elt ==> eq) ==> M.Equal ==> take_firstR) find_if.
+  Proper ((O.eq ==> @eq elt ==> eq)
+            ==> M.Equal
+            ==> optionP (pairP O.eq eq)) find_if.
 Obligation 1.
   relational'.
-  unfold take_firstR.
+  unfold find_if.
+  revert H0.
+  apply P.fold_rec; intros.
 Admitted.
 
 Definition singleton {elt} (k : M.key) (e : elt) : M.t elt :=
