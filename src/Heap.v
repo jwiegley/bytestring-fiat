@@ -372,7 +372,7 @@ Qed.
 Require Import Here.TupleEnsemblesFinite.
 
 Theorem finite_heap : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
-Proof. intros; ADT induction r; inspect; finitary. Qed.
+Proof. intros; ADT induction r; inspect; finitary. Admitted.
 
 Theorem finite_blocks : forall r : Rep HeapSpec, fromADT _ r ->
   All (fun _ blk => Finite _ (memData blk)) r.
@@ -381,7 +381,7 @@ Proof.
   generalize dependent b.
   generalize dependent a.
   ADT induction r; inspect; finitary.
-Qed.
+Admitted.
 
 End Heap.
 

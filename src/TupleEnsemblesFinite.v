@@ -121,15 +121,15 @@ Qed.
 
 Theorem Relate_Finite :
   forall A B C D (f : A -> B -> C -> D -> Prop) `(_ : Finite _ r)
-         (is_total : forall (k : A) (e : B),
-            { p : C * D | Lookup k e r /\ f k e (fst p) (snd p) })
          (is_functional : forall k e k' e' k'' e'',
-            f k e k' e' -> f k e k'' e'' -> k' = k'' /\ e' = e''),
+            f k e k' e' -> f k e k'' e'' -> k' = k'' /\ e' = e'')
+         (is_total : forall (k : A) (e : B),
+            { p : C * D | Lookup k e r -> f k e (fst p) (snd p) }),
     Finite _ (Relate f r).
 Proof.
-  unfold Relate; intros ????? r ? k g.
+  unfold Relate; intros ????? r ? g k.
   eapply Surjection_preserves_Finite
-   with (X:=r) (f:=fun p => proj1_sig (k (fst p) (snd p))); trivial.
+    with (X:=r) (f:=fun p => proj1_sig (k (fst p) (snd p))); trivial.
   intros ??.
   unfold Ensembles.In in H.
   do 2 destruct H.
@@ -137,7 +137,7 @@ Proof.
   exists (x, x0); simpl.
   destruct (k x x0), x1.
   simpl in *; intuition.
-  destruct (g _ _ _ _ _ _ H1 H2); subst.
+  destruct (g _ _ _ _ _ _ H H1); subst.
   reflexivity.
 Qed.
 
@@ -145,33 +145,29 @@ Lemma Move_Finite : forall a a' `(_ : Finite _ r),
   (forall x y : A, {x = y} + {x <> y})
     -> Finite _ (@Move A B a a' r).
 Proof.
-  unfold Move; intros.
+  intros.
   apply Relate_Finite; trivial; intros.
-    destruct (X k a); subst.
-      exists (a', e); simpl; intuition.
-      left; intuition.
-    destruct (X k a'); subst.
-      exists (a', e); simpl; intuition.
-      right; intuition.
-      destruct H1; intuition.
-    exists (k, e); simpl; intuition.
+    intuition.
+      destruct H2, H3; intuition; subst; auto.
+    congruence.
+  destruct (X k a); subst.
+    exists (a', e); simpl; intuition.
     left; intuition.
-    right; intuition.
-  intuition.
-    destruct H2, H3; intuition; subst; auto.
-  congruence.
-Qed.
+  destruct (X k a'); subst.
+    admit.
+  exists (k, e); simpl; intuition.
+  right; intuition.
+Admitted.
 
 Lemma Modify_Finite : forall a f `(_ : Finite _ r),
   (forall x y : A, {x = y} + {x <> y})
     -> Finite _ (@Modify A B a f r).
 Proof.
-  unfold Modify; intros.
+  intros.
   apply Relate_Finite; trivial; intros.
-    destruct (X k a).
-  (*     exists (f x); firstorder. *)
-  (*   exists x; firstorder. *)
-  (* firstorder; subst; trivial. *)
+    intuition.
+      destruct H2, H3; intuition; subst; auto.
+    destruct H2, H3; intuition; subst; tauto.
 Admitted.
 
 Lemma Define_Finite : forall P b `(_ : Finite _ r),
@@ -180,26 +176,30 @@ Lemma Define_Finite : forall P b `(_ : Finite _ r),
 Proof.
   unfold Define; intros.
 (*
-  apply Relate_Finite; trivial; intros.
-    destruct (X k).
-      exists b; firstorder.
-    exists x; firstorder.
-  firstorder; subst; trivial.
+  eapply Surjection_preserves_Finite
+   with (X:=r) (f:=fun p => match X (fst p) with
+                            | left _ => (fst p, b)
+                            | right _ => p
+                            end); trivial.
+  intros ??.
+  unfold Ensembles.In in H.
+  do 2 destruct H;
+  destruct y; simpl in *; subst.
+    exists (a, b); simpl.
+    destruct (X a); simpl in *; intuition.
+
+  exists (a, b0); simpl.
+  destruct (X a); simpl in *; intuition.
 *)
 Admitted.
 
 Lemma Overlay_Finite : forall P `(_ : Finite _ r) `(_ : Finite _ r'),
-    Finite _ (@Overlay A B P r r').
+  Finite _ (@Overlay A B P r r').
 Proof.
-  unfold Overlay; intros.
+  intros.
   apply Relate_Finite; trivial; intros.
-    destruct (P k).
-(*
-      exists x; split; trivial.
-      admit.
-    exists x; firstorder.
-  firstorder; subst; trivial.
-*)
+    intuition.
+      destruct (P k'), (P k''); intuition; subst; auto.
 Admitted.
 
 End TupleEnsembleFinite.

@@ -42,26 +42,9 @@ Hint Resolve Proper_Oeq_negb.
 
 Open Scope rel_scope.
 
-(*
-Class DeterminingRelation (* `(P : relation A) `(Q : relation B) *)
-      `(R : A -> B -> Prop) := {
-  (* P_Equivalence :> Equivalence P; *)
-  (* Q_Equivalence :> Equivalence Q; *)
-  (* P_Lookup_Proper *)
-  (*   :> Proper (O.eq ==> P ==> @Same _ _ ==> iff) (@Lookup M.key A); *)
-  (* Q_MapsTo_Proper :> Proper (O.eq ==> Q ==> M.Equal ==> iff) (@M.MapsTo B); *)
-  A_determines_B : forall a b b', R a b -> R a b' -> b = b';
-  B_determines_A : forall a a' b, R a b -> R a' b -> a = a'
-}.
-*)
-
-(* Arguments DeterminingRelation {A} P {B} Q R. *)
-(* Arguments A_determines_B {A} P {B} Q R {_ a b b'} _ _. *)
-(* Arguments B_determines_A {A} P {B} Q R {_ a a' b} _ _. *)
-
-Definition Map_AbsR (* `(P : relation A) `(Q : relation B) *) `(R : A -> B -> Prop)
+Definition Map_AbsR `(R : A -> B -> Prop)
            (or : Ensemble (M.key * A)) (nr : M.t B) : Prop :=
-  forall addr (* `{DeterminingRelation _ _ R} *),
+  forall addr,
     (forall blk, Lookup addr blk or
        <-> exists cblk, M.MapsTo addr cblk nr /\ R blk cblk) /\
     (forall cblk, M.MapsTo addr cblk nr
@@ -77,7 +60,6 @@ Ltac reduction :=
   try repeat teardown; subst; normalize;
   repeat match goal with
   | [ R : ?A -> ?B -> Prop,
-      (* H : DeterminingRelation ?R, *)
       H1 : Map_AbsR ?R ?X ?Y,
       H2 : Lookup ?ADDR ?BLK ?X |- _ ] =>
     let HA := fresh "HA" in
@@ -86,7 +68,6 @@ Ltac reduction :=
     destruct (proj1 (proj1 (H1 ADDR (* H *)) BLK) H2) as [cblk [HA HB]];
     clear H1 H2
   | [ R : ?A -> ?B -> Prop,
-      (* H : DeterminingRelation ?R, *)
       H1 : Map_AbsR ?R ?X ?Y,
       H2 : M.MapsTo ?ADDR ?CBLK ?Y |- _ ] =>
     let HC := fresh "HC" in
@@ -99,12 +80,10 @@ Ltac reduction :=
 Ltac related :=
   match goal with
   | [ R : ?A -> ?B -> Prop,
-      (* H : DeterminingRelation ?R, *)
       cblk : ?B,
       H1 : ?R ?BLK ?CBLK |- exists b : ?B, _ /\ ?R ?BLK b ] =>
     exists CBLK; split; [| exact H1]
   | [ R : ?A -> ?B -> Prop,
-      (* H : DeterminingRelation ?R, *)
       blk : ?A,
       H1 : ?R ?BLK ?CBLK |- exists a : ?A, _ /\ ?R a ?CBLK ] =>
     exists BLK; split; [| exact H1]
@@ -149,16 +128,6 @@ Ltac equalities :=
       H1 : O.eq ?X ?Y |- _ ] => apply Oeq_eq in H1; subst
   end.
 
-(*
-Ltac determined R :=
-  match goal with
-  | [ H1 : R ?X ?Y, H2 : R ?X ?Z |- _ ] =>
-    pose proof (A_determines_B R _ _ H1 H2); subst
-  | [ H1 : R ?X ?Z, H2 : R ?Y ?Z |- _ ] =>
-    pose proof (B_determines_A R _ _ H1 H2); subst
-  end.
-*)
-
 Ltac relational :=
   repeat match goal with
   | [ |- Map_AbsR _ _ _ ]  => split; intros; intuition
@@ -168,26 +137,6 @@ Ltac relational :=
   | [ |- respectful _ _ _ _ ] => intros ???
   | [ |- iff _ _ ] => split; intro
   end.
-
-(*
-Program Instance Map_AbsR_DeterminingRelation
-         (* `(P : relation A) `(Q : relation B) *) `(R : A -> B -> Prop) :
-  DeterminingRelation (* (@Same M.key A) M.Equal *) (@Map_AbsR A B R).
-Obligation 1.
-  apply F.Equal_mapsto_iff;
-  split; intros; reduction.
-  eapply H2 in H4; trivial.
-  do 2 destruct H4.
-  eapply H3 in H4; trivial.
-  do 2 destruct H4.
-  rewrite <- H5.
-  determined R.
-Qed.
-Obligation 2.
-  split; intros; reduction;
-  determined R; assumption.
-Qed.
-*)
 
 Corollary Map_AbsR_Lookup_R `(R : A -> B -> Prop)
           (or : Ensemble (M.key * A)) (nr : M.t B) :
@@ -235,7 +184,6 @@ Section FunMaps_AbsR.
 
 Variables A B : Type.
 Variable R : (A -> B -> Prop).
-(* Context `{DeterminingRelation A B R eq eq}. *)
 
 Hypothesis Oeq_eq : forall x y, O.eq x y -> x = y.
 
@@ -417,10 +365,9 @@ Qed.
 (* Move *)
 
 Global Program Instance Map_Map_AbsR :
-  (@Map _ _) [R (O.eq ==> R ==> R) ==> Map_AbsR R ==> Map_AbsR R]
+  (@Map _ _ _) [R (O.eq ==> R ==> R) ==> Map_AbsR R ==> Map_AbsR R]
   (@M.mapi _ _).
 Obligation 1.
-  intros ??????.
 (*
   split; intros.
   - teardown.
@@ -449,7 +396,6 @@ Global Program Instance Filter_Map_AbsR :
   (@Filter _ _) [R (O.eq ==> R ==> boolR) ==> Map_AbsR R ==> Map_AbsR R]
   (@P.filter _).
 Obligation 1.
-  intros ??????.
 (*
   split; intros.
     reduction.
@@ -486,7 +432,6 @@ Global Program Instance All_Map_AbsR
   f [R O.eq ==> R ==> boolR] f' ->
   All f [R Map_AbsR R ==> boolR] P.for_all f'.
 Obligation 1.
-  intros ???; split; intros.
 (*
   unfold All, P.for_all in *.
     apply P.fold_rec_bis; intros; trivial; subst.
@@ -515,7 +460,6 @@ Global Program Instance Any_Map_AbsR :
   (@Any _ _) [R (O.eq ==> R ==> boolR) ==> Map_AbsR R ==> boolR]
   (@P.exists_ _).
 Obligation 1.
-  intros ??????.
 (*
   split; intros;
   unfold Any in *.
@@ -549,7 +493,6 @@ Lemma Map_AbsR_impl :
     (forall a b c, R a b -> R a c -> Q b c)
       -> Map_AbsR R a b -> Map_AbsR R a c -> M.Equal b c.
 Proof.
-  intros.
 (*
   apply F.Equal_mapsto_iff; split; intros;
   apply F.find_mapsto_iff in H2;
