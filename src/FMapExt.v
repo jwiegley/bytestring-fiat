@@ -371,10 +371,46 @@ Definition optionP {A} (P : relation A) : relation (option A) :=
              | _, _ => False
              end.
 
+Program Instance optionP_Equivalence {A} (P : relation A) :
+  Equivalence P -> Equivalence (optionP P).
+Obligation 1.
+  intro x.
+  destruct x; simpl; trivial.
+  reflexivity.
+Qed.
+Obligation 2.
+  intros x y Heq.
+  destruct x, y; simpl in *; trivial.
+  intuition.
+Qed.
+Obligation 3.
+  intros x y z Heq1 Heq2.
+  destruct x, y, z; simpl in *; auto;
+  firstorder.
+Qed.
+
 Definition pairP {A B} (P : relation A) (Q : relation B) : relation (A * B) :=
   fun p p' => match p, p' with
               | (x, y), (x', y') => P x x' /\ Q y y'
               end.
+
+Program Instance pairP_Equivalence {A B} (P : relation A) (Q : relation B) :
+  Equivalence P -> Equivalence Q -> Equivalence (pairP P Q).
+Obligation 1.
+  intro x.
+  destruct x; simpl.
+  intuition.
+Qed.
+Obligation 2.
+  intros x y Heq.
+  destruct x, y; simpl in *.
+  intuition.
+Qed.
+Obligation 3.
+  intros x y z Heq1 Heq2.
+  destruct x, y, z; simpl in *.
+  firstorder.
+Qed.
 
 Program Instance take_first_Proper {elt} :
   Proper ((O.eq ==> eq ==> eq)
@@ -502,6 +538,22 @@ Obligation 1.
   congruence.
 Qed.
 
+Lemma Equal_add_remove : forall elt k (e : elt) m' m'',
+  ~ M.In k m' -> M.Equal (M.add k e m') m'' -> M.Equal m' (M.remove k m'').
+Proof.
+  intros.
+  intro addr.
+  specialize (H0 addr).
+  destruct (O.eq_dec k addr).
+    rewrite F.remove_eq_o; auto.
+    rewrite F.add_eq_o in H0; auto.
+    apply F.not_find_in_iff.
+    rewrite <- e0.
+    assumption.
+  rewrite F.add_neq_o in H0; auto.
+  rewrite F.remove_neq_o; auto.
+Qed.
+
 Global Program Instance find_if_Proper {elt} :
   Proper ((O.eq ==> @eq elt ==> eq)
             ==> M.Equal
@@ -510,7 +562,31 @@ Obligation 1.
   relational'.
   unfold find_if.
   revert H0.
-  apply P.fold_rec; intros.
+  revert x0.
+  apply P.fold_rec; simpl; intros.
+    rewrite <- H1 in H0.
+    exact (P.fold_Empty _ (take_first x) None H0).
+  apply add_equal_iff in H2.
+  rewrite <- H4 in H2; clear H4 m''.
+  apply Equal_add_remove in H2; auto.
+  symmetry in H2.
+  specialize (H3 _ H2); clear H2 H1 H0 y0.
+  unfold optionP, pairP in *.
+  destruct a; simpl in *.
+    destruct p; simpl in *.
+    admit.
+  admit.
+(*
+  unfold P.Add in H2.
+  rewrite P.fold_Add; eauto.
+  -
+  - apply optionP_Equivalence.
+    apply pairP_Equivalence.
+    apply F.KeySetoid.
+    apply eq_equivalence.
+  - apply take_first_Proper.
+  - intros ??????.
+*)
 Admitted.
 
 Definition singleton {elt} (k : M.key) (e : elt) : M.t elt :=
