@@ -365,75 +365,104 @@ Qed.
 (* Move *)
 
 Global Program Instance Map_Map_AbsR :
-  (@Map _ _ _) [R (O.eq ==> R ==> R) ==> Map_AbsR R ==> Map_AbsR R]
-  (@M.mapi _ _).
+  Proper (O.eq ==> eq ==> eq) f ->
+  Proper (O.eq ==> eq ==> eq) f'
+    -> f [R O.eq ==> R ==> R] f'
+    -> (@Map _ _ _ f) [R Map_AbsR R ==> Map_AbsR R] (@M.mapi _ _ f').
 Obligation 1.
-(*
-  split; intros.
-  - teardown.
-    do 2 destruct H1.
-    reduce_context.
-    exists (y addr cblk).
+  relational.
+  - repeat teardown.
+    reduction.
+    exists (f' addr cblk).
     split.
-      rewrite F.mapi_o, <- F.map_o.
-        apply F.find_mapsto_iff, F.map_mapsto_iff.
-        exists cblk; intuition.
-        apply F.find_mapsto_iff; assumption.
-      intros; equalities.
-    admit.
-  - simplify_maps.
-      simplify_maps.
-      reduce_context.
-      exists (x addr blk).
-      split.
+      apply F.mapi_mapsto_iff; eauto; intros.
+      rewrite H2.
+      reflexivity.
+    apply H1; auto.
+  - teardown.
+    reduction.
+    apply F.mapi_mapsto_iff in H3.
+      reduction.
+      exists blk0.
+      split; trivial.
+      eapply (H1 addr) in HD; eauto.
+      admit.
+    intros.
+    rewrite H6.
+    reflexivity.
+  - apply F.mapi_mapsto_iff in H3.
+      reduction.
+      exists (f addr blk).
+      split; trivial.
         teardown.
-      apply H; trivial.
-    intros; equalities.
-*)
+        exists blk.
+        intuition.
+      apply H1; auto.
+    intros.
+    rewrite H5.
+    reflexivity.
+  - apply F.mapi_mapsto_iff; eauto; intros.
+      rewrite H4.
+      reflexivity.
+    reduction.
+    exists cblk0.
+    split; trivial.
+    eapply (H1 addr) in HB; eauto.
+    admit.
 Admitted.
 
 Global Program Instance Filter_Map_AbsR :
-  (@Filter _ _) [R (O.eq ==> R ==> boolR) ==> Map_AbsR R ==> Map_AbsR R]
-  (@P.filter _).
+  Proper (O.eq ==> eq ==> eq) f ->
+  Proper (O.eq ==> eq ==> eq) f'
+    -> f [R O.eq ==> R ==> boolR] f'
+    -> (@Filter _ _ f) [R Map_AbsR R ==> Map_AbsR R] (@P.filter _ f').
 Obligation 1.
-(*
-  split; intros.
+  relational.
+  - reduction.
+    related.
+    simplify_maps; auto.
+    intuition.
+    eapply H1; eauto.
+  - reduction.
+    simplify_maps; auto.
     reduction.
-    apply F.find_mapsto_iff, P.filter_iff.
-      intros ??????; subst; equalities.
-    split.
-      apply F.find_mapsto_iff; trivial.
-    eapply H in H1; eauto.
-  simplify_maps.
-  reduction.
-  eexists; simpl; trivial.
-    eapply H in H3; eauto.
-  intros ??????; subst; equalities.
-*)
+    intuition.
+      admit.
+    eapply H1; eauto.
+  - simplify_maps; auto.
+    reduction.
+    related.
+    teardown.
+    intuition.
+    eapply H1; eauto.
+  - simplify_maps; auto.
+    reduction.
+    intuition.
+      admit.
+    eapply H1; eauto.
 Admitted.
 
 (* Define *)
 (* Modify *)
 (* Overlay *)
 
-Global Program Instance All_Proper :
-  Proper ((O.eq ==> eq ==> iff) ==> Same (B:=A) ==> iff) (All (B:=A)).
-Obligation 1.
-Admitted.
+(* Global Program Instance All_Proper : *)
+(*   Proper ((O.eq ==> eq ==> iff) ==> Same (B:=A) ==> iff) (All (B:=A)). *)
+(* Obligation 1. *)
 
-Global Program Instance for_all_Proper :
-  Proper ((O.eq ==> eq ==> eq) ==> M.Equal ==> eq) (P.for_all (elt:=B)).
-Obligation 1.
-Admitted.
+(* Global Program Instance for_all_Proper : *)
+(*   Proper ((O.eq ==> eq ==> eq) ==> M.Equal ==> eq) (P.for_all (elt:=B)). *)
+(* Obligation 1. *)
 
 Global Program Instance All_Map_AbsR
        `{Hsym : Equivalence B Q}
        `{HQ : Proper _ (O.eq ==> Q ==> eq) f'} :
-  f [R O.eq ==> R ==> boolR] f' ->
-  All f [R Map_AbsR R ==> boolR] P.for_all f'.
+  f [R O.eq ==> R ==> boolR] f'
+    -> All f [R Map_AbsR R ==> boolR] P.for_all f'.
 Obligation 1.
-(*
+  relational.
   unfold All, P.for_all in *.
+  split; intros.
     apply P.fold_rec_bis; intros; trivial; subst.
     apply F.find_mapsto_iff in H2.
     reduction.
@@ -444,23 +473,22 @@ Obligation 1.
   reduction.
   eapply H; eauto.
   revert H1.
-  revert HC.
+  revert HA.
   apply P.fold_rec; intros; subst; intuition.
     simplify_maps.
-  rewrite H3 in HC.
+  apply add_equal_iff in H2.
+  rewrite <- H2 in HA.
   simplify_maps.
-    rewrite <- H6.
+    rewrite <- H5.
     destruct (f' k cblk) eqn:Heqe; intuition.
   destruct (f' k e) eqn:Heqe; intuition.
 Qed.
-*)
-Admitted.
 
 Global Program Instance Any_Map_AbsR :
   (@Any _ _) [R (O.eq ==> R ==> boolR) ==> Map_AbsR R ==> boolR]
   (@P.exists_ _).
 Obligation 1.
-(*
+  relational.
   split; intros;
   unfold Any in *.
     apply P.exists_iff.
@@ -469,41 +497,31 @@ Obligation 1.
     reduction.
     exists (x1, cblk).
     split; simpl.
-      apply F.find_mapsto_iff; assumption.
+      assumption.
     eapply H; eauto.
   apply P.exists_iff in H1.
     do 2 destruct H1.
-    apply F.find_mapsto_iff in H1.
     reduction.
     exists k.
     exists blk.
     split; trivial.
     eapply H; eauto.
   intros ??????; subst; equalities.
-*)
-Admitted.
+Qed.
 
 End FunMaps_AbsR.
 
 Lemma Map_AbsR_impl :
-  forall A B (R : A -> B -> Prop)
-         `{HB : Equivalence B Q}
-         `{HQ : Proper _ (equiv ==> equiv ==> iff)%signature Q}
-         a b c,
-    (forall a b c, R a b -> R a c -> Q b c)
+  forall A B (R : A -> B -> Prop) a b c,
+    (forall a b c, R a b -> R a c -> b = c)
       -> Map_AbsR R a b -> Map_AbsR R a c -> M.Equal b c.
 Proof.
-(*
+  relational.
+  intros.
   apply F.Equal_mapsto_iff; split; intros;
-  apply F.find_mapsto_iff in H2;
-  apply F.find_mapsto_iff.
-    reduction; clear H0; reduction.
-    pose proof (H _ _ _ HD HD0); subst.
-    rewrite H0.
-    assumption.
-  reduction; clear H1; reduction.
-  pose proof (forward_impl _ _ _ HD HD0); subst.
-*)
-Admitted.
+  reduction; reduction;
+  pose proof (H _ _ _ HD HB); subst;
+  assumption.
+Qed.
 
 End FunMaps.

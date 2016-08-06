@@ -198,6 +198,17 @@ Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
 Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
   Decidable_witness (P:=within b (memCSize e) pos).
 
+Global Program Instance withinMemBlock_Proper :
+  Morphisms.Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlock.
+Obligation 1.
+  relational.
+  subst.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Hint Resolve withinMemBlock_Proper.
+
 Global Program Instance withinMemBlockC_Proper :
   Morphisms.Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlockC.
 Obligation 1.
@@ -206,6 +217,8 @@ Obligation 1.
   rewrite H.
   reflexivity.
 Qed.
+
+Hint Resolve withinMemBlockC_Proper.
 
 Global Program Instance withinMemBlock_AbsR :
   withinMemBlock [R eq ==> eq ==> MemoryBlock_AbsR ==> boolR]
@@ -254,8 +267,10 @@ Proof.
   eapply Same_Map_AbsR with (R:=MemoryBlock_AbsR) in H2.
     Focus 2.
     apply Filter_Map_AbsR; eauto.
-    apply withinMemBlock_AbsR; eauto.
-    apply (proj1 AbsR).
+      apply withinMemBlock_Proper; reflexivity.
+      apply withinMemBlockC_Proper; reflexivity.
+      apply withinMemBlock_AbsR; eauto.
+      apply (proj1 AbsR).
     Focus 2.
     apply Single_Map_AbsR; eauto.
   apply find_if_filter_is_singleton in H2.
@@ -459,8 +474,11 @@ Proof.
 
     pose proof (Poke_in_heap H0).
     AbsR_prep.
-    - apply Map_Map_AbsR; auto.
-      relational; subst.
+
+    apply Map_Map_AbsR; auto.
+    - admit.
+    - admit.
+    - relational; subst.
       rewrite (proj1 H4).
       decisions; auto.
       apply MemoryBlock_AbsR_impl; auto.

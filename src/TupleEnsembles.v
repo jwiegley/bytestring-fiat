@@ -295,7 +295,7 @@ Proof.
 Qed.
 
 Lemma Lookup_Map : forall a b f r,
-  Lookup a b r -> Lookup a (f a b) (Map f r).
+  (exists b', f a b' = b /\ Lookup a b' r) -> Lookup a b (Map f r).
 Proof. firstorder. Qed.
 
 Lemma Lookup_Map_inv : forall a b f r,
