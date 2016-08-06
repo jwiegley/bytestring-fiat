@@ -164,7 +164,7 @@ Definition HeapSpec := Def ADT {
                   (* [s'] is s, shift to the right offset *)
                   let s' := Map_set  (fun p : N * Word8 =>
                                         ((fst p - soff) + doff, snd p)) s in
-                  Union _ d s |} r
+                  Union _ d s' |} r
          | _, _ => r
          end, tt),
 
@@ -249,8 +249,7 @@ Proof.
   ADT induction r; [inversion H0|..]; inspect;
   complete IHfromADT.
   - apply (IHfromADT x) in H2; trivial; nomega.
-  - admit.
-Admitted.
+Qed.
 
 Ltac match_sizes H IHfromADT :=
   match goal with
@@ -396,6 +395,70 @@ Proof.
   omega.
 Qed.
 
+Lemma added : forall b e,
+  b <= e ->
+  Same_set _ (fun x : N => b <= x < N.succ e)
+             (Add _ (fun x : N => b <= x < e) e).
+Proof.
+  split; intros; intros ??.
+    unfold Ensembles.In in *.
+    destruct H0.
+    destruct (N.eq_dec x e); subst.
+      right; constructor.
+    left.
+    unfold Ensembles.In in *.
+    apply N.lt_gt_cases in n.
+    destruct n.
+      nomega.
+    apply N.lt_succ_r in H1.
+    nomega.
+  inversion H0; clear H0; subst;
+  unfold Ensembles.In in *;
+  destruct H1; subst;
+  split; trivial.
+    apply N.lt_lt_succ_r.
+    assumption.
+  apply N.lt_succ_diag_r.
+Qed.
+
+Lemma not_added : forall b e,
+  ~ b <= e ->
+  Same_set _ (fun x : N => b <= x < N.succ e)
+             (fun x : N => b <= x < e).
+Proof.
+  split; intros; intros ??.
+    unfold Ensembles.In in *.
+    destruct H0.
+    destruct (N.eq_dec x e); subst.
+      nomega.
+    split; trivial.
+    apply N.lt_gt_cases in n.
+    destruct n; trivial.
+    apply N.lt_succ_r in H1.
+    nomega.
+  inversion H0; clear H0; subst.
+  unfold Ensembles.In in *.
+  split; trivial.
+  apply N.lt_lt_succ_r.
+  assumption.
+Qed.
+
+Lemma N_Finite : forall b e, Finite N (fun x : N => b <= x < e).
+Proof.
+  intros.
+  induction e using N.peano_ind; intros.
+    eapply Finite_downward_closed; eauto with sets.
+    unfold Included, Ensembles.In; intros.
+    destruct H.
+    contradiction (N.nlt_0_r x).
+  destruct (N.le_decidable b e).
+    rewrite added; trivial.
+    constructor; trivial.
+    unfold Ensembles.In.
+    nomega.
+  rewrite not_added; trivial.
+Qed.
+
 Theorem finite_blocks : forall r : Rep HeapSpec, fromADT _ r ->
   All (fun _ blk => Finite _ (memData blk)) r.
 Proof.
@@ -403,22 +466,20 @@ Proof.
   generalize dependent b.
   generalize dependent a.
   ADT induction r; inspect; eauto with sets.
-  - apply Union_preserves_Finite;
-    apply Filter_preserves_Finite;
+  - apply Union_preserves_Finite.
+      apply Filter_preserves_Finite.
+      eapply IHfromADT; eauto.
+    apply Map_set_preserves_Finite.
+    apply Filter_preserves_Finite.
     eapply IHfromADT; eauto.
   - apply Define_preserves_Finite; eauto.
       apply within_dec.
-    clear -Heqe.
     apply Bool.andb_true_iff in Heqe; destruct Heqe.
-    apply within_reflect in H.
     apply within_reflect in H0.
+    apply within_reflect in H2.
     unfold within in *.
-    generalize dependent x.
-    generalize dependent a.
-    induction x0 using N.peano_ind.
-      admit.
-    admit.
-Admitted.
+    apply N_Finite.
+Qed.
 
 End Heap.
 

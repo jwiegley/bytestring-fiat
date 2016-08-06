@@ -272,11 +272,9 @@ Qed.
 Lemma Conjunction_preserves_finite_right {U} :
   forall A:Ensemble U,
     Finite U A -> forall X:Ensemble U,
-      Finite U (fun x : U => In U X x /\ In U A x) <-> Finite U (In U A).
+      Finite U (fun x : U => In U X x /\ In U A x).
 Proof.
   intros A' H' X.
-  split; intros.
-    apply Finite_downward_closed with A'; auto with sets.
   apply Finite_downward_closed with A'; auto with sets.
   intros ? H0; inversion H0; assumption.
 Qed.
@@ -284,11 +282,9 @@ Qed.
 Lemma Conjunction_preserves_finite_left {U} :
   forall X:Ensemble U,
     Finite U X -> forall A:Ensemble U,
-      Finite U (fun x : U => In U X x /\ In U A x) <-> Finite U (In U X).
+      Finite U (fun x : U => In U X x /\ In U A x).
 Proof.
   intros X H' A'.
-  split; intros.
-    apply Finite_downward_closed with X; auto with sets.
   apply Finite_downward_closed with X; auto with sets.
   intros ? H0; inversion H0; assumption.
 Qed.

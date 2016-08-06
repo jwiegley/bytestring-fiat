@@ -306,6 +306,28 @@ Proof.
   firstorder.
 Qed.
 
+Lemma Lookup_Map_set : forall a b f r,
+  Lookup a b r -> Lookup (fst (f (a, b))) (snd (f (a, b))) (Map_set f r).
+Proof.
+  unfold Map_set, Lookup, Ensembles.In; simpl.
+  intuition.
+  exists (a, b); simpl.
+  rewrite <- surjective_pairing.
+  intuition.
+Qed.
+
+Lemma Lookup_Map_set_inv : forall a b f r,
+  Lookup a b (Map_set f r)
+    -> exists p, f p = (a, b) /\ Lookup (fst p) (snd p) r.
+Proof.
+  intros.
+  inversion H; clear H.
+  exists x.
+  unfold Lookup.
+  rewrite <- surjective_pairing.
+  firstorder.
+Qed.
+
 Lemma Lookup_Filter : forall a b P r,
   Lookup a b r /\ P a b -> Lookup a b (Filter P r).
 Proof. firstorder. Qed.
@@ -473,6 +495,7 @@ Ltac teardown :=
   | [ H : Lookup _ _ (Update _ _ _)  |- _ ] => apply Lookup_Update_inv in H
   | [ H : Lookup _ _ (Move _ _ _)    |- _ ] => apply Lookup_Move_inv in H
   | [ H : Lookup _ _ (Map _ _)       |- _ ] => apply Lookup_Map_inv in H
+  | [ H : Lookup _ _ (Map_set _ _)   |- _ ] => apply Lookup_Map_set_inv in H
   | [ H : Lookup _ _ (Relate _ _)    |- _ ] => apply Lookup_Relate_inv in H
   | [ H : Lookup _ _ (Filter _ _)    |- _ ] => apply Lookup_Filter_inv in H
   | [ H : Lookup _ _ (Define _ _ _)  |- _ ] => apply Lookup_Define_inv in H
@@ -486,6 +509,7 @@ Ltac teardown :=
   | [ H : Member _ (Update _ _ _)  |- _ ] => unfold Member in H
   | [ H : Member _ (Move _ _ _)    |- _ ] => unfold Member in H
   | [ H : Member _ (Map _ _)       |- _ ] => unfold Member in H
+  | [ H : Member _ (Map_set _ _)   |- _ ] => unfold Member in H
   | [ H : Member _ (Relate _ _)    |- _ ] => unfold Member in H
   | [ H : Member _ (Filter _ _)    |- _ ] => unfold Member in H
   | [ H : Member _ (Define _ _ _)  |- _ ] => unfold Member in H
@@ -499,6 +523,7 @@ Ltac teardown :=
   | [ |- Lookup _ _ (Update _ _ _)  ] => apply Lookup_Update
   | [ |- Lookup _ _ (Move _ _ _)    ] => apply Lookup_Move
   | [ |- Lookup _ _ (Map _ _)       ] => apply Lookup_Map
+  | [ |- Lookup _ _ (Map_set _ _)   ] => apply Lookup_Map_set
   | [ |- Lookup _ _ (Relate _ _)    ] => apply Lookup_Relate
   | [ |- Lookup _ _ (Filter _ _)    ] => apply Lookup_Filter
   | [ |- Lookup _ _ (Define _ _ _)  ] => apply Lookup_Define
