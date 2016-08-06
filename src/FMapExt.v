@@ -4,16 +4,6 @@ Require Import
   Coq.Structures.OrderedTypeEx
   Coq.Sorting.Permutation.
 
-Lemma fold_right_filter : forall A B (f : A -> B -> B) z P l,
-  fold_right f z (filter P l) =
-  fold_right (fun x rest => if P x then f x rest else rest) z l.
-Proof.
-  intros.
-  induction l; simpl; trivial.
-  rewrite <- IHl; clear IHl.
-  destruct (P a); reflexivity.
-Qed.
-
 Module FMapExt (O : OrderedType).
 
 Module M := FMapList.Make(O).
@@ -194,44 +184,6 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma fold_Some (m : list (M.key * elt))
-      A (z : A) (f : M.key * elt -> option A) :
-  List.fold_left (fun (x : option A) (k : M.key * elt) =>
-                    match x with
-                    | Some _ => x
-                    | None => f k
-                    end) m (Some z) = Some z.
-Proof.
-  induction m; simpl; intros.
-    reflexivity.
-  rewrite IHm.
-  reflexivity.
-Qed.
-
-Lemma fold_Some_cons (m : list (M.key * elt))
-      A (z : A) y (f : M.key * elt -> option A) :
-  List.fold_left (fun (x : option A) (k : M.key * elt) =>
-                    match x with
-                    | Some _ => x
-                    | None => f k
-                    end) (y :: m) None =
-  match f y with
-  | Some x => Some x
-  | None =>
-    List.fold_left (fun (x : option A) (k : M.key * elt) =>
-                      match x with
-                      | Some _ => x
-                      | None => f k
-                      end) m None
-  end.
-Proof.
-  induction m; simpl; intros.
-    destruct (f y); reflexivity.
-  destruct (f y); simpl.
-    rewrite fold_Some; reflexivity.
-  reflexivity.
-Qed.
-
 Definition build_map_left (x : M.t elt) (k : M.key * elt) :=
   if P (fst k) (snd k)
   then M.add (fst k) (snd k) x
@@ -274,20 +226,6 @@ Obligation 1.
   reflexivity.
 Qed.
 
-Global Program Instance fold_left_Equal_Proper (m : list (M.key * elt)) :
-  Proper (M.Equal ==> M.Equal) (fold_left build_map_left m).
-Obligation 1.
-  relational'.
-  generalize dependent x.
-  generalize dependent y.
-  induction m; simpl; trivial.
-  destruct a; simpl.
-  destruct (P k e); simpl; intros;
-  apply IHm;
-  rewrite H;
-  reflexivity.
-Qed.
-
 Theorem add_transitive
         (k : M.key) (e : elt)
         (k0 : M.key) (e0 : elt)
@@ -302,42 +240,6 @@ Proof.
   apply O.eq_sym in e2.
   pose proof (O.eq_trans e1 e2).
   rewrite (H H0).
-  reflexivity.
-Qed.
-
-Lemma fold_add_cons (m : list (M.key * elt)) (z : M.t elt) y :
-  (forall k e, O.eq k (fst y) -> e = snd y) ->
-  M.Equal
-    (List.fold_left
-       (fun (x : M.t elt) (k : M.key * elt) =>
-          if P (fst k) (snd k) then M.add (fst k) (snd k) x else x)
-       (y :: m) z)
-    (if P (fst y) (snd y)
-     then M.add (fst y) (snd y)
-                (List.fold_left
-                   (fun (x : M.t elt) (k : M.key * elt) =>
-                      if P (fst k) (snd k) then M.add (fst k) (snd k) x else x)
-                   m z)
-     else List.fold_left
-            (fun (x : M.t elt) (k : M.key * elt) =>
-               if P (fst k) (snd k) then M.add (fst k) (snd k) x else x)
-            m z).
-Proof.
-  intros.
-  destruct y as [k e]; simpl in *.
-  destruct (P k e); simpl.
-    generalize dependent z.
-    generalize dependent e.
-    generalize dependent k.
-    induction m; simpl.
-      reflexivity.
-    destruct a; simpl; intros.
-    rewrite <- IHm; clear IHm.
-      destruct (P k e); simpl.
-        apply fold_left_Equal_Proper, add_transitive.
-        apply H.
-      reflexivity.
-    apply H.
   reflexivity.
 Qed.
 
@@ -554,6 +456,7 @@ Proof.
   rewrite F.remove_neq_o; auto.
 Qed.
 
+(*
 Global Program Instance find_if_Proper {elt} :
   Proper ((O.eq ==> @eq elt ==> eq)
             ==> M.Equal
@@ -574,9 +477,6 @@ Obligation 1.
   unfold optionP, pairP in *.
   destruct a; simpl in *.
     destruct p; simpl in *.
-    admit.
-  admit.
-(*
   unfold P.Add in H2.
   rewrite P.fold_Add; eauto.
   -
@@ -587,7 +487,6 @@ Obligation 1.
   - apply take_first_Proper.
   - intros ??????.
 *)
-Admitted.
 
 Definition singleton {elt} (k : M.key) (e : elt) : M.t elt :=
   M.add k e (M.empty _).
@@ -596,10 +495,6 @@ Arguments singleton {elt} k e /.
 Corollary MapsTo_singleton : forall k elt (e : elt),
   M.MapsTo k e (singleton k e).
 Proof. intros; constructor; reflexivity. Qed.
-
-Corollary fold_left_singleton : forall elt k (e : elt) A (z : A) f,
-  M.fold f (M.add k e (M.empty elt)) z = f k e z.
-Proof. intros; rewrite M.fold_1; reflexivity. Qed.
 
 Lemma find_if_singleton : forall elt (P : M.key -> elt -> bool) k k' e e',
   find_if P (singleton k e) = Some (k', e')
@@ -628,59 +523,6 @@ Proof.
   rewrite H3 in H1; simpl in H1.
   rewrite F.add_eq_o in H1; [| apply O.eq_refl].
   discriminate.
-Qed.
-
-Lemma fold_left_cons {elt}
-      (m : list (M.key * elt)) (z : list (M.key * elt)) p
-      (f : M.key -> elt -> bool) :
-  List.fold_left (fun m' p => if f (fst p) (snd p)
-                              then (fst p, snd p) :: m'
-                              else m') (p :: m) z =
-  if f (fst p) (snd p)
-  then List.fold_left (fun m' p => if f (fst p) (snd p)
-                                        then (fst p, snd p) :: m'
-                                        else m') m ([p] ++ z)
-  else List.fold_left (fun m' p => if f (fst p) (snd p)
-                                   then (fst p, snd p) :: m'
-                                   else m') m z.
-Proof.
-  generalize dependent z.
-  induction m; simpl; intros.
-    rewrite <- surjective_pairing.
-    destruct (f _ _); reflexivity.
-  destruct (f _ _); simpl; auto.
-  rewrite <- !surjective_pairing; auto.
-Qed.
-
-Lemma fold_right_rapp : forall A B (xs : list (A * B)) (P : A -> B -> bool) a,
-  fold_right (fun p m' => if P (fst p) (snd p) then p :: m' else m')
-             [] (xs ++ [a]) =
-  fold_right (fun p m' => if P (fst p) (snd p) then p :: m' else m')
-             [] xs ++ (if P (fst a) (snd a) then [a] else []).
-Proof.
-  induction xs; intros; simpl; trivial.
-  destruct (P _ _); simpl.
-    f_equal.
-    apply IHxs.
-  apply IHxs.
-Qed.
-
-Lemma rev_fold_right : forall A B (xs : list (A * B)) (P : A -> B -> bool),
-  List.fold_right (fun p m' => if P (fst p) (snd p)
-                               then p :: m'
-                               else m') [] xs =
-  rev (List.fold_right (fun p m' => if P (fst p) (snd p)
-                                    then p :: m'
-                                    else m') [] (rev xs)).
-Proof.
-  intros.
-  induction xs; simpl; trivial.
-  rewrite fold_right_rapp.
-  destruct (P _ _); simpl; trivial.
-    rewrite rev_unit.
-    f_equal; apply IHxs.
-  rewrite app_nil_r.
-  apply IHxs.
 Qed.
 
 Lemma filter_for_all : forall elt (m : M.t elt) P,
@@ -751,49 +593,19 @@ Lemma find_if_filter_is_singleton :
   forall elt k (e : elt) m P,
     Proper (O.eq ==> eq ==> eq) P
       -> M.Equal (P.filter P m) (singleton k e)
-      -> find_if P m = Some (k, e).
+      -> optionP (pairP O.eq eq) (find_if P m) (Some (k, e)).
 Proof.
-  unfold find_if, P.filter; intros.
-Abort.
-
-Lemma build_map_left_add :
-  forall elt (l : list (M.key * elt)) k e
-         (P : M.key -> elt -> bool) m,
-    Proper (O.eq ==> eq ==> eq) P
-      -> (forall k0 e0, O.eq k k0 -> e = e0)
-      -> M.elements (fold_left (build_map_left _ P) l (M.add k e m)) =
-         M.elements ((M.add k e (fold_left (build_map_left _ P) l m))).
-Proof.
-  intros.
-  generalize dependent m.
-  generalize dependent e.
-  generalize dependent k.
-  induction l; intros.
-    reflexivity.
-  unfold build_map_left in *.
-  destruct a; simpl.
-  destruct (P k0 e0); simpl.
-    simpl in IHl.
-    rewrite <- IHl.
-    f_equal.
-    f_equal.
-    unfold M.add. simpl.
-Admitted.
-
-Corollary fold_right_filter : forall A P (l : list A),
-  List.filter P l =
-  fold_right (fun x rest => if P x then x :: rest else rest) [] l.
-Proof. intros; induction l; simpl; auto. Qed.
-
-Lemma filter_elements : forall elt (P : M.key -> elt -> bool) m,
-  Proper (O.eq ==> eq ==> eq) P
-    -> M.elements (P.filter P m) =
-       List.filter (fun p => P (fst p) (snd p)) (M.elements m).
-Proof.
-  intros.
+  unfold find_if, singleton; intros.
+  revert H0.
+  revert e.
+  revert k.
   unfold P.filter.
-  rewrite P.fold_spec_right, fold_right_filter.
-  unfold P.uncurry.
-Abort.
+  apply P.fold_rec; intros.
+    specialize (H1 k).
+    rewrite F.empty_o, F.add_eq_o in H1; auto.
+    discriminate.
+  (* jww (2016-08-05): What to do here? How to use [a] or how to rewrite [m'']
+     in the call to [M.fold] in the goal? *)
+Admitted.
 
 End FMapExt.

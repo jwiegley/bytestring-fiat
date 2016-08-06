@@ -13,13 +13,13 @@ Section TupleEnsembleFinite.
 Variable A : Type.
 Variable B : Type.
 
-Lemma Empty_Finite : Finite _ (@Empty A B).
+Lemma Empty_preserves_Finite : Finite _ (@Empty A B).
 Proof. constructor. Qed.
 
-Lemma Single_Finite : forall a b, Finite _ (@Single A B a b).
+Lemma Single_is_Finite : forall a b, Finite _ (@Single A B a b).
 Proof. intros; apply Singleton_is_finite. Qed.
 
-Lemma Insert_Finite : forall a b `(_ : Finite _ r) H,
+Lemma Insert_preserves_Finite : forall a b `(_ : Finite _ r) H,
   Finite _ (@Insert A B a b r H).
 Proof. intros; apply Add_preserves_Finite; assumption. Qed.
 
@@ -31,16 +31,18 @@ Proof.
   intros ? H0; inversion H0; assumption.
 Qed.
 
-Lemma Remove_Finite : forall a `(_ : Finite _ r), Finite _ (@Remove A B a r).
+Lemma Remove_preserves_Finite : forall a `(_ : Finite _ r),
+  Finite _ (@Remove A B a r).
 Proof. intros; apply Setminus_preserves_finite; assumption. Qed.
 
-Lemma Update_Finite : forall a b `(_ : Finite _ r),
+Lemma Update_preserves_Finite : forall a b `(_ : Finite _ r),
   Finite _ (@Update A B a b r).
 Proof.
   intros; apply Add_preserves_Finite, Setminus_preserves_finite; assumption.
 Qed.
 
-Lemma Filter_Finite : forall P `(_ : Finite _ r), Finite _ (@Filter A B P r).
+Lemma Filter_preserves_Finite : forall P `(_ : Finite _ r),
+  Finite _ (@Filter A B P r).
 Proof.
   unfold Filter; intros.
   eapply Finite_downward_closed; eauto with sets.
@@ -106,7 +108,8 @@ Proof.
   constructor.
 Qed.
 
-Theorem Map_Finite {C} : forall f `(_ : Finite _ r), Finite _ (@Map A B C f r).
+Theorem Map_preserves_Finite {C} : forall f `(_ : Finite _ r),
+  Finite _ (@Map A B C f r).
 Proof.
   unfold Map; intros.
   apply Surjection_preserves_Finite
@@ -119,12 +122,12 @@ Proof.
   intuition.
 Qed.
 
-Theorem Relate_Finite :
+Theorem Relate_preserves_Finite :
   forall A B C D (f : A -> B -> C -> D -> Prop) `(_ : Finite _ r)
          (is_functional : forall k e k' e' k'' e'',
             f k e k' e' -> f k e k'' e'' -> k' = k'' /\ e' = e'')
          (is_total : forall (k : A) (e : B),
-            { p : C * D | Lookup k e r -> f k e (fst p) (snd p) }),
+            { p : C * D | f k e (fst p) (snd p) }),
     Finite _ (Relate f r).
 Proof.
   unfold Relate; intros ????? r ? g k.
@@ -137,85 +140,200 @@ Proof.
   exists (x, x0); simpl.
   destruct (k x x0), x1.
   simpl in *; intuition.
-  destruct (g _ _ _ _ _ _ H H1); subst.
+  destruct (g _ _ _ _ _ _ f0 H1); subst.
   reflexivity.
 Qed.
 
-Lemma Move_Finite : forall a a' `(_ : Finite _ r),
+Lemma Move_preserves_Finite : forall a a' `(_ : Finite _ r),
   (forall x y : A, {x = y} + {x <> y})
     -> Finite _ (@Move A B a a' r).
 Proof.
   intros.
-  apply Relate_Finite; trivial; intros.
-    intuition.
-      destruct H2, H3; intuition; subst; auto.
-    congruence.
+  apply Relate_preserves_Finite; trivial; intros.
+    intuition; subst; congruence.
   destruct (X k a); subst.
     exists (a', e); simpl; intuition.
-    left; intuition.
-  destruct (X k a'); subst.
-    admit.
   exists (k, e); simpl; intuition.
-  right; intuition.
-Admitted.
+Qed.
 
-Lemma Modify_Finite : forall a f `(_ : Finite _ r),
+Lemma Modify_preserves_Finite : forall a f `(_ : Finite _ r),
   (forall x y : A, {x = y} + {x <> y})
     -> Finite _ (@Modify A B a f r).
 Proof.
   intros.
-  apply Relate_Finite; trivial; intros.
+  apply Relate_preserves_Finite; trivial; intros.
     intuition.
       destruct H2, H3; intuition; subst; auto.
     destruct H2, H3; intuition; subst; tauto.
-Admitted.
+  destruct (X k a); subst.
+    exists (a, f e); simpl; intuition.
+    left; intuition.
+  exists (k, e); simpl; intuition.
+  right; intuition.
+Qed.
 
-Lemma Define_Finite : forall P b `(_ : Finite _ r),
-  (forall x : A, {P x} + {~ P x})
-    -> Finite _ (@Define A B P b r).
+Definition Product {T U} (X : Ensemble T) (Y : Ensemble U) : Ensemble (T * U) :=
+  fun p => In T X (fst p) /\ In U Y (snd p).
+
+Lemma Product_Add_left : forall T U (X : Ensemble T) (Y : Ensemble U) x,
+  Same_set _ (Product (Add T X x) Y)
+             (Union _ (Product (Singleton _ x) Y) (Product X Y)).
 Proof.
-  unfold Define; intros.
-(*
-  eapply Surjection_preserves_Finite
-   with (X:=r) (f:=fun p => match X (fst p) with
-                            | left _ => (fst p, b)
-                            | right _ => p
-                            end); trivial.
-  intros ??.
-  unfold Ensembles.In in H.
-  do 2 destruct H;
-  destruct y; simpl in *; subst.
-    exists (a, b); simpl.
-    destruct (X a); simpl in *; intuition.
+  unfold Product; split; intros;
+  intros ??; unfold Ensembles.In in *;
+  destruct H;
+  destruct x0; simpl in *;
+  destruct H.
+  - right; constructor; simpl; auto.
+  - left; constructor; simpl; auto.
+  - simpl in *; intuition; right; intuition.
+  - simpl in *; intuition; left; intuition.
+Qed.
 
-  exists (a, b0); simpl.
-  destruct (X a); simpl in *; intuition.
-*)
-Admitted.
+Lemma Product_Add_right : forall T (X : Ensemble T) U (Y : Ensemble U) y,
+  Same_set _ (Product X (Add U Y y))
+             (Union _ (Product X Y) (Product X (Singleton _ y))).
+Proof.
+  unfold Product; split; intros;
+  intros ??; unfold Ensembles.In in *;
+  destruct H;
+  destruct x; simpl in *.
+  - destruct H0.
+    + left; constructor; simpl; auto.
+    + right; constructor; simpl; auto.
+  - destruct H. intuition; left; intuition.
+  - destruct H. intuition; right; intuition.
+Qed.
 
-Lemma Overlay_Finite : forall P `(_ : Finite _ r) `(_ : Finite _ r'),
-  Finite _ (@Overlay A B P r r').
+Lemma Product_Empty_set_left : forall T U (X : Ensemble U),
+  Same_set _ (Product (Empty_set T) X) (Empty_set (T * U)).
+Proof.
+  unfold Product; split; intros;
+  intros ??; unfold Ensembles.In in *.
+  destruct H;
+  destruct x; simpl in *;
+  destruct H.
+  destruct H.
+Qed.
+
+Lemma Product_Empty_set_right : forall T (X : Ensemble T) U,
+  Same_set _ (Product X (Empty_set U)) (Empty_set (T * U)).
+Proof.
+  unfold Product; split; intros;
+  intros ??; unfold Ensembles.In in *.
+  destruct H;
+  destruct x; simpl in *.
+  destruct H0.
+  destruct H.
+Qed.
+
+Lemma Product_Singleton_Singleton : forall T U x y,
+  Same_set _ (Product (Singleton T x) (Singleton U y))
+             (Singleton (T * U) (x, y)).
+Proof.
+  unfold Product; split; intros;
+  intros ??; unfold Ensembles.In in *;
+  destruct H.
+    inversion H; subst; clear H.
+    inversion H0; subst; clear H0.
+    rewrite <- surjective_pairing.
+    constructor.
+  simpl.
+  intuition.
+Qed.
+
+Lemma Conjunction_preserves_finite_right {U} :
+  forall A:Ensemble U,
+    Finite U A -> forall X:Ensemble U,
+      Finite U (fun x : U => In U X x /\ In U A x) <-> Finite U (In U A).
+Proof.
+  intros A' H' X.
+  split; intros.
+    apply Finite_downward_closed with A'; auto with sets.
+  apply Finite_downward_closed with A'; auto with sets.
+  intros ? H0; inversion H0; assumption.
+Qed.
+
+Lemma Conjunction_preserves_finite_left {U} :
+  forall X:Ensemble U,
+    Finite U X -> forall A:Ensemble U,
+      Finite U (fun x : U => In U X x /\ In U A x) <-> Finite U (In U X).
+Proof.
+  intros X H' A'.
+  split; intros.
+    apply Finite_downward_closed with X; auto with sets.
+  apply Finite_downward_closed with X; auto with sets.
+  intros ? H0; inversion H0; assumption.
+Qed.
+
+Lemma Product_preserves_Finite {T U X Y} :
+  Finite T X -> Finite U Y -> Finite (T * U) (Product X Y).
 Proof.
   intros.
-  apply Relate_Finite; trivial; intros.
-    intuition.
-      destruct (P k'), (P k''); intuition; subst; auto.
+  generalize dependent Y.
+  induction H; intros.
+    eapply Finite_downward_closed; eauto with sets.
+    intros ? H1; inversion H1; inversion H.
+  rewrite Product_Add_left.
+  apply Union_preserves_Finite; auto.
+  clear IHFinite H0 H A0.
+  induction H1.
+    eapply Finite_downward_closed; eauto with sets.
+    intros ? H1; inversion H1; inversion H0.
+  rewrite Product_Add_right.
+  apply Union_preserves_Finite; auto.
+  rewrite Product_Singleton_Singleton.
+  rewrite <- Empty_set_zero'.
+  constructor.
+    constructor.
+  unfold not; intros.
+  inversion H0.
+Qed.
+
+Lemma Define_preserves_Finite : forall P b `(_ : Finite _ r),
+  (forall x : A, {P x} + {~ P x})
+    -> Finite _ P -> Finite _ (@Define A B P b r).
+Proof.
+  unfold Define; intros.
+  apply Union_preserves_Finite.
+    apply Product_preserves_Finite; auto.
+    apply Singleton_is_finite.
+  apply Filter_preserves_Finite; auto.
+Qed.
+
+Lemma Overlay_preserves_Finite :
+  forall P `(_ : Finite _ r') `(_ : Finite _ r)
+         (P_injective : forall k k' a,
+                          P k = Some a -> P k' = Some a -> k = k'),
+    Finite _ (@Overlay A B P r' r).
+Proof.
+  unfold Overlay; intros.
+  apply Union_preserves_Finite.
+    apply Relate_preserves_Finite; auto.
+      intros.
+      destruct H, H0; subst.
+      intuition.
+      firstorder.
+    intros.
+    admit.
+  apply Filter_preserves_Finite; auto.
 Admitted.
 
 End TupleEnsembleFinite.
 
 Ltac finitary :=
   repeat match goal with
-    | [ |- Finite _ Empty            ] => eapply Empty_Finite
-    | [ |- Finite _ (Single _ _)     ] => eapply Single_Finite
-    | [ |- Finite _ (Insert _ _ _ _) ] => eapply Insert_Finite
-    | [ |- Finite _ (Remove _ _)     ] => eapply Remove_Finite
+    | [ |- Finite _ Empty            ] => eapply Empty_preserves_Finite
+    | [ |- Finite _ (Single _ _)     ] => eapply Single_is_Finite
+    | [ |- Finite _ (Singleton _ _)  ] => eapply Singleton_is_finite
+    | [ |- Finite _ (Insert _ _ _ _) ] => eapply Insert_preserves_Finite
+    | [ |- Finite _ (Remove _ _)     ] => eapply Remove_preserves_Finite
     | [ |- Finite _ (Setminus _)     ] => eapply Setminus_preserves_finite
-    | [ |- Finite _ (Update _ _ _)   ] => eapply Update_Finite
-    | [ |- Finite _ (Move _ _ _)     ] => eapply Move_Finite
-    | [ |- Finite _ (Filter _ _)     ] => eapply Filter_Finite
-    | [ |- Finite _ (Map _ _)        ] => eapply Map_Finite
-    | [ |- Finite _ (Modify _ _ _)   ] => eapply Modify_Finite
-    | [ |- Finite _ (Define _ _ _)   ] => eapply Define_Finite
-    | [ |- Finite _ (Overlay _ _ _)  ] => eapply Overlay_Finite
+    | [ |- Finite _ (Update _ _ _)   ] => eapply Update_preserves_Finite
+    | [ |- Finite _ (Move _ _ _)     ] => eapply Move_preserves_Finite
+    | [ |- Finite _ (Filter _ _)     ] => eapply Filter_preserves_Finite
+    | [ |- Finite _ (Map _ _)        ] => eapply Map_preserves_Finite
+    | [ |- Finite _ (Modify _ _ _)   ] => eapply Modify_preserves_Finite
+    | [ |- Finite _ (Define _ _ _)   ] => eapply Define_preserves_Finite
+    | [ |- Finite _ (Overlay _ _ _)  ] => eapply Overlay_preserves_Finite
     end; eauto.

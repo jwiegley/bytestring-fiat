@@ -129,9 +129,7 @@ Qed.
 
 Definition Move (a a' : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
   Relate (fun k e k' e' =>
-            e = e' /\ IF k = a
-                      then k' = a'
-                      else k <> a' /\ k = k') r.
+            e = e' /\ ((k' = a' /\ k = a) \/ (k' <> a /\ k = k'))) r.
 
 Definition Filter (P : A -> B -> Prop) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
@@ -139,22 +137,28 @@ Definition Filter (P : A -> B -> Prop) (r : Ensemble (A * B)) :
 
 Definition Define (P : A -> Prop) (b : B) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
-  fun p =>
-    IF P (fst p)
-    then snd p = b
-    else Lookup (fst p) (snd p) r.
+  Ensembles.Union
+    _ (fun p => P (fst p) /\ In _ (Singleton _ b) (snd p))
+      (Filter (fun k _ => ~ P k) r).
 
 Definition Modify (a : A) (f : B -> B) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
   Relate (fun k e k' e' => k = k' /\ IF k' = a then e' = f e else e' = e) r.
 
+(* Given sets [r'] and [r], for every index on [r'] that yield [Some x] from
+   [P], substitute its value for [x] in [r].
+
+   For example, take:
+     r' = ((1, 6), (2, 7))
+     r  = ((2,10), (3,11))
+     P  = ((2, Some 3), (3, Some 2))
+   Then [Overlay P r' r] would be [((1,6), (2,11), (3,10))]. *)
+
 Definition Overlay (P : A -> option A) (r' r : Ensemble (A * B)) :
   Ensemble (A * B) :=
-  Relate (fun k e k' e' =>
-            match P k' with
-            | Some a => Lookup a e' r
-            | None   => k = k' /\ e = e'
-            end) r'.
+  Ensembles.Union
+    _ (Relate (fun k e k' e' => P k' = Some k /\ e = e') r)
+      (Filter (fun k _ => P k = None) r').
 
 Definition All (P : A -> B -> Prop) (r : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b r -> P a b.
@@ -236,18 +240,28 @@ Proof.
   firstorder.
 Qed.
 
-Lemma Lookup_Move : forall a b a' a'' r,
-  (IF a = a''
-   then Lookup a' b r
-   else a <> a' /\ Lookup a b r)
-    -> Lookup a b (Move a' a'' r).
+Lemma Lookup_Relate : forall a b c d (f : A -> B -> A -> B -> Prop) r,
+  Lookup a b r -> f a b c d -> Lookup c d (Relate f r).
 Proof. firstorder. Qed.
 
-Lemma Lookup_Move_inv : forall a b a' a'' r,
-  Lookup a b (Move a' a'' r)
-    -> IF a = a''
-       then Lookup a' b r
-       else a <> a' /\ Lookup a b r.
+Lemma Lookup_Relate_inv : forall a b (f : A -> B -> A -> B -> Prop) r,
+  Lookup a b (Relate f r) -> exists a' b', f a' b' a b /\ Lookup a' b' r.
+Proof.
+  intros.
+  inversion H; clear H.
+  firstorder.
+Qed.
+
+Lemma Lookup_Move : forall k e a a' r,
+  (IF k = a'
+   then Lookup a e r
+   else k <> a /\ Lookup k e r)
+    -> Lookup k e (Move a a' r).
+Proof. firstorder. Qed.
+
+Lemma Lookup_Move_inv : forall k e a a' r,
+  Lookup k e (Move a a' r)
+    -> (k = a' /\ Lookup a e r) \/ (k <> a /\ Lookup k e r).
 Proof.
   firstorder;
   simpl in *; subst;
@@ -266,18 +280,6 @@ Proof.
   firstorder.
 Qed.
 
-Lemma Lookup_Relate : forall a b c d (f : A -> B -> A -> B -> Prop) r,
-  Lookup a b r -> f a b c d -> Lookup c d (Relate f r).
-Proof. firstorder. Qed.
-
-Lemma Lookup_Relate_inv : forall a b (f : A -> B -> A -> B -> Prop) r,
-  Lookup a b (Relate f r) -> exists a' b', f a' b' a b /\ Lookup a' b' r.
-Proof.
-  intros.
-  inversion H; clear H.
-  firstorder.
-Qed.
-
 Lemma Lookup_Filter : forall a b P r,
   Lookup a b r /\ P a b -> Lookup a b (Filter P r).
 Proof. firstorder. Qed.
@@ -286,14 +288,63 @@ Lemma Lookup_Filter_inv : forall a b P r,
   Lookup a b (Filter P r) -> P a b /\ Lookup a b r.
 Proof. firstorder. Qed.
 
+Lemma Lookup_Union : forall a b r r',
+  Lookup a b r \/ Lookup a b r'
+    -> Lookup a b (Union (A * B) r r').
+Proof.
+  firstorder.
+    left; exact H.
+  right; exact H.
+Qed.
+
+Lemma Lookup_Union_inv : forall a b r r',
+  Lookup a b (Union (A * B) r r')
+    -> Lookup a b r \/ Lookup a b r'.
+Proof.
+  firstorder.
+  unfold Lookup, Ensembles.In in *.
+  apply Constructive_sets.Union_inv in H.
+  intuition.
+Qed.
+
 Lemma Lookup_Define : forall a b c P r,
-  (IF P a then b = c else Lookup a b r)
+  (IF P a then In _ (Singleton _ c) b else Lookup a b r)
     -> Lookup a b (Define P c r).
-Proof. firstorder. Qed.
+Proof.
+  unfold Define; intros.
+  apply Lookup_Union.
+  do 2 destruct H.
+    left.
+    unfold Lookup, Ensembles.In; simpl.
+    intuition.
+  right.
+  apply Lookup_Filter.
+  intuition.
+Qed.
 
 Lemma Lookup_Define_inv : forall a b c P r,
-  Lookup a b (Define P c r) -> (P a /\ b = c) \/ (~ P a /\ Lookup a b r).
-Proof. firstorder. Qed.
+  Lookup a b (Define P c r)
+    -> IF P a
+       then In _ (Singleton _ c) b
+       else Lookup a b r.
+Proof.
+  unfold Define; intros.
+  apply Lookup_Union_inv in H.
+  destruct H.
+    firstorder.
+  apply Lookup_Filter_inv in H.
+  firstorder.
+Qed.
+
+Lemma Lookup_Modify : forall a b a' f r,
+  (a = a' /\ exists b', f b' = b /\ Lookup a b' r)
+    \/ (a <> a' /\ Lookup a b r)
+    -> Lookup a b (Modify a' f r).
+Proof.
+  firstorder;
+  simpl in *; subst;
+  firstorder.
+Qed.
 
 Lemma Lookup_Modify_inv : forall a b a' f r,
   Lookup a b (Modify a' f r)
@@ -305,6 +356,24 @@ Proof.
   firstorder.
 Qed.
 
+Lemma Lookup_Overlay : forall a b P r' r,
+  match P a with
+  | Some a' => Lookup a' b r
+  | None    => Lookup a b r'
+  end -> Lookup a b (Overlay P r' r).
+Proof.
+  unfold Overlay; intros.
+  apply Lookup_Union.
+  destruct (P a) eqn:Heqe.
+    left.
+    eapply Lookup_Relate.
+      exact H.
+    intuition.
+  right.
+  apply Lookup_Filter.
+  intuition.
+Qed.
+
 Lemma Lookup_Overlay_inv : forall a b P r' r,
   Lookup a b (Overlay P r' r)
     -> match P a with
@@ -312,10 +381,15 @@ Lemma Lookup_Overlay_inv : forall a b P r' r,
        | None    => Lookup a b r'
        end.
 Proof.
-  firstorder.
-  simpl in *; subst.
-  destruct (P a); firstorder.
-  subst; assumption.
+  unfold Overlay; intros.
+  apply Lookup_Union_inv in H.
+  destruct H.
+    apply Lookup_Relate_inv in H.
+    do 4 destruct H; subst.
+    rewrite H; assumption.
+  apply Lookup_Filter_inv in H.
+  destruct H.
+  rewrite H; assumption.
 Qed.
 
 Lemma Lookup_Member : forall a b r,
@@ -415,6 +489,7 @@ Ltac teardown :=
   | [ H : Lookup _ _ (Define _ _ _)  |- _ ] => apply Lookup_Define_inv in H
   | [ H : Lookup _ _ (Modify _ _ _)  |- _ ] => apply Lookup_Modify_inv in H
   | [ H : Lookup _ _ (Overlay _ _ _) |- _ ] => apply Lookup_Overlay_inv in H
+  | [ H : Lookup _ _ (Union _ _ _)   |- _ ] => apply Lookup_Union_inv in H
 
   | [ H : Member _ Empty           |- _ ] => unfold Member in H
   | [ H : Member _ (Single _ _)    |- _ ] => unfold Member in H
@@ -438,9 +513,10 @@ Ltac teardown :=
   | [ |- Lookup _ _ (Map _ _)       ] => apply Lookup_Map
   | [ |- Lookup _ _ (Relate _ _)    ] => apply Lookup_Relate
   | [ |- Lookup _ _ (Filter _ _)    ] => apply Lookup_Filter
-  (* | [ |- Lookup _ _ (Define _ _ _)  ] => apply Lookup_Define *)
-  (* | [ |- Lookup _ _ (Modify _ _ _)  ] => apply Lookup_Modify *)
-  (* | [ |- Lookup _ _ (Overlay _ _ _) ] => apply Lookup_Overlay *)
+  | [ |- Lookup _ _ (Define _ _ _)  ] => apply Lookup_Define
+  | [ |- Lookup _ _ (Modify _ _ _)  ] => apply Lookup_Modify
+  | [ |- Lookup _ _ (Overlay _ _ _) ] => apply Lookup_Overlay
+  | [ |- Lookup _ _ (Union _ _ _)   ] => apply Lookup_Union
 
   | [ H : Lookup ?X ?Y ?R |- Member ?X ?R ] => exists Y; exact H
 
@@ -449,13 +525,18 @@ Ltac teardown :=
 
   | [ H : IF _ then _ else _ |- _ ] => destruct H
   | [ H : _ /\ _             |- _ ] => destruct H
+  | [ H : _ \/ _             |- _ ] => destruct H
   | [ H : _ * _              |- _ ] => destruct H
   | [ H : exists _, _        |- _ ] => destruct H
   | [ H : @sig _ _           |- _ ] => destruct H
+  | [ H : @sig2 _ _ _        |- _ ] => destruct H
   | [ H : @sigT _ _          |- _ ] => destruct H
+  | [ H : @sigT2 _ _ _       |- _ ] => destruct H
   | [ H : bool               |- _ ] => destruct H
   | [ H : option _           |- _ ] => destruct H
-  | [ H : _ \/ _             |- _ ] => destruct H
+  | [ H : sum _ _            |- _ ] => destruct H
+  | [ H : sumor _ _          |- _ ] => destruct H
+  | [ H : sumbool _ _        |- _ ] => destruct H
 
   | [ H : forall x, Some ?X = Some x -> _  |- _ ] => specialize (H X eq_refl)
   | [ H : forall x y, Some (?X, ?Y) = Some (x, y) -> _  |- _ ] =>

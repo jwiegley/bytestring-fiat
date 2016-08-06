@@ -7,6 +7,7 @@ Require Import
   Here.BindDep
   Here.Tactics
   Here.ADTInduction
+  Here.Same_set
   Here.TupleEnsemblesFinite.
 
 Generalizable All Variables.
@@ -371,7 +372,21 @@ Proof.
 Qed.
 
 Theorem finite_heap : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
-Proof. intros; ADT induction r; inspect; finitary. Admitted.
+Proof.
+  intros; ADT induction r; inspect; finitary.
+  apply N.eq_dec.
+Qed.
+
+Lemma Nsub_eq : forall x y n,
+  n <= x -> n <= y -> x - n = y - n -> x = y.
+Proof.
+  intros.
+  apply N2Z.inj_iff in H1.
+  rewrite !N2Z.inj_sub in H1; auto.
+  rewrite N2Z.inj_le in H, H0.
+  apply N2Z.inj_iff.
+  omega.
+Qed.
 
 Theorem finite_blocks : forall r : Rep HeapSpec, fromADT _ r ->
   All (fun _ blk => Finite _ (memData blk)) r.
@@ -380,6 +395,19 @@ Proof.
   generalize dependent b.
   generalize dependent a.
   ADT induction r; inspect; finitary.
+  - intros.
+    decisions; try discriminate.
+    rewrite <- H6 in H7.
+    inversion H7; clear H6 H7.
+    apply Nplus_reg_l in H9.
+    nomega_reduce.
+    eapply Nsub_eq; eauto.
+  - apply within_dec.
+  - clear -Heqe.
+    apply Bool.andb_true_iff in Heqe; destruct Heqe.
+    apply within_reflect in H.
+    apply within_reflect in H0.
+    admit.
 Admitted.
 
 End Heap.

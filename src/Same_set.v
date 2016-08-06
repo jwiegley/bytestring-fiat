@@ -282,8 +282,8 @@ Proof.
   destruct c; eauto.
 Qed.
 
-Program Instance Finite_Proper A B :
-  Proper (Same_set (A * B) ==> impl) (Finite (A * B)).
+Program Instance Finite_Proper A :
+  Proper (Same_set A ==> impl) (Finite A).
 Obligation 1.
   intros ????.
   eapply Finite_downward_closed; eauto with sets.
@@ -292,8 +292,8 @@ Obligation 1.
   assumption.
 Qed.
 
-Program Instance Finite_Proper_flip A B :
-  Proper (Same_set (A * B) --> flip impl) (Finite (A * B)).
+Program Instance Finite_Proper_flip A :
+  Proper (Same_set A --> flip impl) (Finite A).
 Obligation 1.
   intros ????.
   eapply Finite_downward_closed; eauto with sets.

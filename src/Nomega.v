@@ -218,3 +218,14 @@ Proof.
     right; nomega.
   unfold Decidable.decidable; nomega.
 Qed.
+
+Lemma within_dec : forall a l x,
+  {within a l x} + {~ within a l x}.
+Proof.
+  intros.
+  destruct (Decidable.Decidable_witness (P:=within a l x)) eqn:Heqe.
+    apply within_reflect in Heqe.
+    left; assumption.
+  apply not_within_reflect in Heqe.
+  right; assumption.
+Qed.

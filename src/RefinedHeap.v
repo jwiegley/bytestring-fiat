@@ -198,6 +198,15 @@ Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
 Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
   Decidable_witness (P:=within b (memCSize e) pos).
 
+Global Program Instance withinMemBlockC_Proper :
+  Morphisms.Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlockC.
+Obligation 1.
+  relational.
+  subst.
+  rewrite H.
+  reflexivity.
+Qed.
+
 Global Program Instance withinMemBlock_AbsR :
   withinMemBlock [R eq ==> eq ==> MemoryBlock_AbsR ==> boolR]
   withinMemBlockC.
@@ -242,9 +251,22 @@ Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
 Proof.
   intros.
   pose proof (find_partitions_a_singleton (proj2_sig r_o) _ H0 H1).
-  destruct AbsR.
-  reduction.
-Abort.
+  eapply Same_Map_AbsR with (R:=MemoryBlock_AbsR) in H2.
+    Focus 2.
+    apply Filter_Map_AbsR; eauto.
+    apply withinMemBlock_AbsR; eauto.
+    apply (proj1 AbsR).
+    Focus 2.
+    apply Single_Map_AbsR; eauto.
+  apply find_if_filter_is_singleton in H2.
+    unfold optionP, pairP in H2.
+    destruct (find_if (withinMemBlockC pos) (snd r_n)).
+      destruct p, H2; subst.
+      reflexivity.
+    contradiction.
+  apply withinMemBlockC_Proper.
+  reflexivity.
+Qed.
 
 Theorem Poke_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos val :
   P.for_all (within_allocated_mem (fst r_n))
@@ -275,18 +297,20 @@ Lemma Heap_AbsR_outside_mem
   All (fun addr' blk' =>
          ~ overlaps addr' (memSize blk') (fst r_n) (` d)) (` r_o).
 Proof.
-  destruct AbsR; intros ???.
-  apply LogicFacts.not_and_implication; intros.
-  reduction.
-  (* eapply P.for_all_iff with (k:=a) (e:=cblk) in H0; eauto. *)
-  (*   unfold within_allocated_mem in H0; simpl in H0. *)
-  (*   rewrite (proj1 HD). *)
-  (*   unfold not; intros. *)
-  (*   clear -H0 H1. *)
-  (*   undecide; nomega. *)
-  (* apply F.find_mapsto_iff. *)
-  (* assumption. *)
-Admitted.
+  intros addr blk H.
+  apply AbsR in H; destruct H as [cblk [? ?]].
+  rewrite (proj1 H0).
+  destruct AbsR as [_ ?].
+  eapply P.for_all_iff with (k:=addr) (e:=cblk) in H1; eauto.
+    unfold within_allocated_mem in H1; simpl in H1.
+    unfold not; intros.
+    clear -H1 H2.
+    unfold overlaps, within in *.
+    undecide.
+    nomega.
+  apply within_allocated_mem_Proper.
+  reflexivity.
+Qed.
 
 Ltac AbsR_prep :=
   repeat
@@ -347,9 +371,20 @@ Proof.
       apply MemoryBlock_AbsR_impl; auto.
       apply Empty_Map_AbsR.
     - apply for_all_add; auto.
-      apply within_allocated_mem_Proper; auto.
-      admit.
-      admit.
+      + apply within_allocated_mem_Proper; auto.
+      + apply for_all_impl
+         with (P':=within_allocated_mem (fst r_n + ` d)) in H1; auto.
+        * apply within_allocated_mem_Proper; auto.
+        * apply within_allocated_mem_Proper; auto.
+        * intros.
+          clear -H2.
+          unfold within_allocated_mem in *.
+          undecide.
+          destruct d; simpl.
+          apply Nle_add_plus; eauto.
+      + destruct d; simpl.
+        unfold within_allocated_mem; simpl.
+        nomega.
   }
 
   refine method freeS.
@@ -383,15 +418,11 @@ Proof.
     remove_dependency.
     simplify with monad laws; simpl.
 
-    (* In a strictly evaluated environment, this is needlessly inefficient. *)
     refine pick val
-      (match M.elements (P.filter (withinMemBlockC d) (snd r_n)) with
-       | [ ]%list => Zero
-       | ((base, cblk) :: _)%list =>
-           Ifopt M.find (d - base) (memCData cblk) as v
-           Then v
-           Else Zero
-       end).
+      (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
+       Then Ifopt M.find (d - fst p) (memCData (snd p)) as v
+            Then v Else Zero
+       Else Zero).
 
     simplify with monad laws; simpl.
     refine pick val r_n.
@@ -400,42 +431,14 @@ Proof.
 
     AbsR_prep.
     intros; subst; clear H.
-    pose proof H1.
-    eapply (find_partitions_a_singleton (proj2_sig r_o)) in H; eauto.
-    replace (fun (a : N) (b : Heap.MemoryBlock Word8) => within a (memSize b) d)
-       with (withinMemBlock d) in H; trivial.
-(*
-    edestruct (Filter_Map_AbsR _ MemoryBlock_AbsR) as [Hfilter _].
-    destruct withinMemBlock_AbsR as [HmemBlock _].
-    specialize (Hfilter (withinMemBlock d) (withinMemBlockC d)
-                        (HmemBlock d d eq_refl)
-                        (` r_o) (snd r_n) (proj1 H0)); clear HmemBlock.
-    rewrite H in Hfilter; clear H.
-    destruct (Single_Map_AbsR MemoryBlock_AbsR eq_impl_eq) as [Hsingle _].
-    destruct H0; reduction.
-    specialize (Hsingle base base eq_refl blk' cblk HD).
-    pose proof (Map_AbsR_impl).
-    destruct (Hfilter base) as [H4 _]; clear Hfilter.
-    destruct (H4 blk' (Lookup_Single _ _ _ _))
-      as [cblk [H5 H6]]; clear H4.
-    destruct H0; reduction; clear H H0.
-    induction t using P.map_induction.
-      admit.
-    simplify_maps.
-      rewrite H0 in H1, HC.
-      repeat simplify_maps.
-        clear IHt1.
-        admit.
-      destruct (M.elements _).
-      inversion H5.
-    destruct H6.
-    reduction; subst.
-    unfold F.eqb in *.
-    destruct (F.eq_dec base k).
-      inv H5.
-      rewrite HC0; reflexivity.
-*)
-    admit.
+    pose proof H1 as H4.
+    apply H0 in H1.
+    destruct H1 as [cblk [? ?]].
+    erewrite Peek_in_heap; eauto; simpl.
+    apply H1 in H3.
+    destruct H3 as [mem [? ?]]; subst.
+    apply F.find_mapsto_iff in H3.
+    rewrite H3; reflexivity.
   }
 
   refine method pokeS.
@@ -454,15 +457,15 @@ Proof.
       simplify with monad laws.
       finish honing.
 
+    pose proof (Poke_in_heap H0).
     AbsR_prep.
     - apply Map_Map_AbsR; auto.
       relational; subst.
-      rewrite (proj1 H3).
+      rewrite (proj1 H4).
       decisions; auto.
       apply MemoryBlock_AbsR_impl; auto.
       apply Update_Map_AbsR; auto.
-      exact (proj2 H3).
-    - admit.
+      exact (proj2 H4).
   }
 
   refine method memcpyS.
@@ -484,6 +487,6 @@ Proof.
   }
 
   finish_SharpeningADT_WithoutDelegation.
-Abort.
+Admitted.
 
 End RefinedHeap.
