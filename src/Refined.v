@@ -427,7 +427,6 @@ Proof.
   autorewrite with monad laws;
   simplify_ensembles; subst; simpl;
   intros; reduction.
-Admitted.
 
 Theorem buffer_cons_sound
         (r_o : list Word8) `(r_n : Correct ps)
@@ -471,7 +470,6 @@ Proof.
   apply H3.
   rewrite N.add_1_r, <- Nsucc_nat.
   exact H5.
-Admitted.
 
 Lemma ByteStringImpl (heap : Rep HeapSpec) : FullySharpened ByteStringSpec.
 Proof.
@@ -506,7 +504,6 @@ Proof.
     finish honing.
   }
   Fail finish_SharpeningADT_WithoutDelegation.
-Abort.
 
 Fail Definition ByteStringImpl' := Eval simpl in projT1 ByteStringImpl.
 (* Print ByteStringImpl'. *)
