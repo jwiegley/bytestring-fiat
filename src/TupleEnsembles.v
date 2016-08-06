@@ -186,28 +186,6 @@ Definition Modify (a : A) (f : B -> B) (r : Ensemble (A * B)) :
   Ensemble (A * B) :=
   Relate (fun k e k' e' => k = k' /\ IF k' = a then e' = f e else e' = e) r.
 
-(* Given sets [r'] and [r], for every index on [r'] that yield [Some x] from
-   [P], substitute its value for [x] in [r].
-
-   For example, take:
-     r' = ((1, 6), (2, 7))
-     r  = ((2,10), (3,11))
-     P  = ((2, Some 3), (3, Some 2))
-   Then [Overlay P r' r] would be [((1,6), (2,11), (3,10))]. *)
-
-(*
-Definition Overlay (b1 b2 : N) (r r' : Ensemble (A * B)) :
-  Ensemble (A * B) :=
-  Ensembles.Union
-    _ (ContraMap_set
-         (fun p => match P (fst p) with
-                   | Some k => (k, snd p)
-                   | None => p
-                   end)
-         (Filter (fun k _ => exists k', P k' = Some k) r))
-      (Filter (fun k _ => P k = None) r').
-*)
-
 Definition All (P : A -> B -> Prop) (r : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b r -> P a b.
 
@@ -404,50 +382,6 @@ Proof.
   firstorder.
 Qed.
 
-(*
-Lemma Lookup_Overlay : forall a b P r' r,
-  match P a with
-  | Some a' => Lookup a' b r
-  | None    => Lookup a b r'
-  end -> Lookup a b (Overlay P r' r).
-Proof.
-  unfold Overlay; intros.
-  apply Lookup_Union.
-  destruct (P a) eqn:Heqe.
-    left.
-(*
-    eapply Lookup_Relate.
-      exact H.
-    intuition.
-  right.
-  apply Lookup_Filter.
-  intuition.
-Qed.
-*)
-Admitted.
-
-Lemma Lookup_Overlay_inv : forall a b P r' r,
-  Lookup a b (Overlay P r' r)
-    -> match P a with
-       | Some a' => Lookup a' b r
-       | None    => Lookup a b r'
-       end.
-Proof.
-  unfold Overlay; intros.
-  apply Lookup_Union_inv in H.
-  destruct H.
-(*
-    apply Lookup_Relate_inv in H.
-    do 4 destruct H; subst.
-    rewrite H; assumption.
-  apply Lookup_Filter_inv in H.
-  destruct H.
-  rewrite H; assumption.
-Qed.
-*)
-Admitted.
-*)
-
 Lemma Lookup_Member : forall a b r,
   Lookup a b r -> Member a r.
 Proof. firstorder. Qed.
@@ -491,9 +425,6 @@ Arguments Relate : default implicits.
 Arguments All : default implicits.
 Arguments Any : default implicits.
 Arguments Define : default implicits.
-(*
-Arguments Overlay : default implicits.
-*)
 Arguments Lookup : default implicits.
 Arguments Same : default implicits.
 Arguments Member : default implicits.
@@ -546,7 +477,6 @@ Ltac teardown :=
   | [ H : Lookup _ _ (Filter _ _)    |- _ ] => apply Lookup_Filter_inv in H
   | [ H : Lookup _ _ (Define _ _ _)  |- _ ] => apply Lookup_Define_inv in H
   | [ H : Lookup _ _ (Modify _ _ _)  |- _ ] => apply Lookup_Modify_inv in H
-  (* | [ H : Lookup _ _ (Overlay _ _ _) |- _ ] => apply Lookup_Overlay_inv in H *)
   | [ H : Lookup _ _ (Union _ _ _)   |- _ ] => apply Lookup_Union_inv in H
 
   | [ H : Member _ Empty           |- _ ] => unfold Member in H
@@ -560,7 +490,6 @@ Ltac teardown :=
   | [ H : Member _ (Filter _ _)    |- _ ] => unfold Member in H
   | [ H : Member _ (Define _ _ _)  |- _ ] => unfold Member in H
   | [ H : Member _ (Modify _ _ _)  |- _ ] => unfold Member in H
-  (* | [ H : Member _ (Overlay _ _ _) |- _ ] => unfold Member in H *)
   | [ H : Member _ (Union _ _ _)   |- _ ] => unfold Member in H
 
   | [ |- Lookup _ _ Empty           ] => apply Lookup_Empty
@@ -574,7 +503,6 @@ Ltac teardown :=
   | [ |- Lookup _ _ (Filter _ _)    ] => apply Lookup_Filter
   | [ |- Lookup _ _ (Define _ _ _)  ] => apply Lookup_Define
   | [ |- Lookup _ _ (Modify _ _ _)  ] => apply Lookup_Modify
-  (* | [ |- Lookup _ _ (Overlay _ _ _) ] => apply Lookup_Overlay *)
   | [ |- Lookup _ _ (Union _ _ _)   ] => apply Lookup_Union
 
   | [ H : Lookup ?X ?Y ?R |- Member ?X ?R ] => exists Y; exact H

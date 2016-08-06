@@ -328,30 +328,6 @@ Proof.
   apply Filter_preserves_Finite; auto.
 Qed.
 
-(*
-Lemma Overlay_preserves_Finite :
-  forall P `(_ : Finite _ r') `(_ : Finite _ r)
-         (P_injective : forall k k' a,
-            P k = Some a -> P k' = Some a -> k = k'),
-    Finite _ (@Overlay A B P r' r).
-Proof.
-  unfold Overlay; intros.
-  apply Union_preserves_Finite.
-    clear Finite0 r'.
-    apply ContraMap_set_preserves_Finite; auto with sets.
-      intros.
-      destruct x, y; simpl in H.
-      destruct (P a) eqn:Heqe1.
-        destruct (P a0) eqn:Heqe2.
-          admit.
-        admit.
-      admit.
-    apply Filter_preserves_Finite; auto.
-  clear Finite1 r.
-  apply Filter_preserves_Finite; auto.
-Admitted.
-*)
-
 End TupleEnsembleFinite.
 
 Hint Resolve Conjunction_preserves_finite_left : sets.
@@ -364,7 +340,6 @@ Hint Resolve Insert_preserves_Finite : sets.
 Hint Resolve Map_preserves_Finite : sets.
 Hint Resolve Modify_preserves_Finite : sets.
 Hint Resolve Move_preserves_Finite : sets.
-(* Hint Resolve Overlay_preserves_Finite : sets. *)
 Hint Resolve Product_Add_left : sets.
 Hint Resolve Product_Add_right : sets.
 Hint Resolve Product_Empty_set_left : sets.
