@@ -108,7 +108,7 @@ Proof.
   constructor.
 Qed.
 
-Theorem Map_preserves_Finite {C} : forall f `(_ : Finite _ r),
+Lemma Map_preserves_Finite {C} : forall f `(_ : Finite _ r),
   Finite _ (@Map A B C f r).
 Proof.
   unfold Map; intros.
@@ -122,7 +122,19 @@ Proof.
   intuition.
 Qed.
 
-Theorem Relate_preserves_Finite :
+Lemma Map_set_preserves_Finite {T T'} : forall f `(_ : Finite _ r),
+  Finite _ (@Map_set T T' f r).
+Proof.
+  unfold Map_set; intros.
+  apply Surjection_preserves_Finite with (X:=r) (f:=f); trivial.
+  intros ??.
+  unfold Ensembles.In in H.
+  do 2 destruct H; subst.
+  exists x; simpl.
+  intuition.
+Qed.
+
+Lemma Relate_preserves_Finite :
   forall A B C D (f : A -> B -> C -> D -> Prop) `(_ : Finite _ r)
          (is_functional : forall k e k' e' k'' e'',
             f k e k' e' -> f k e k'' e'' -> k' = k'' /\ e' = e'')
@@ -142,6 +154,21 @@ Proof.
   simpl in *; intuition.
   destruct (g _ _ _ _ _ _ f0 H1); subst.
   reflexivity.
+Qed.
+
+Lemma Relate_Add_preserves_Finite :
+  forall A B C D (f : A -> B -> C -> D -> Prop) `(_ : Finite _ r) x
+         (is_functional : forall k e k' e' k'' e'',
+            f k e k' e' -> f k e k'' e'' -> k' = k'' /\ e' = e'')
+         (is_total : forall (k : A) (e : B),
+            { p : C * D | f k e (fst p) (snd p) }),
+    ~ In (A * B) r x
+      -> Finite _ (Relate f r)
+      -> Finite _ (Relate f (Add (A * B) r x)).
+Proof.
+  intros.
+  apply Relate_preserves_Finite; auto.
+  constructor; auto.
 Qed.
 
 Lemma Move_preserves_Finite : forall a a' `(_ : Finite _ r),
@@ -301,39 +328,54 @@ Proof.
   apply Filter_preserves_Finite; auto.
 Qed.
 
+(*
 Lemma Overlay_preserves_Finite :
   forall P `(_ : Finite _ r') `(_ : Finite _ r)
          (P_injective : forall k k' a,
-                          P k = Some a -> P k' = Some a -> k = k'),
+            P k = Some a -> P k' = Some a -> k = k'),
     Finite _ (@Overlay A B P r' r).
 Proof.
   unfold Overlay; intros.
   apply Union_preserves_Finite.
-    apply Relate_preserves_Finite; auto.
+    clear Finite0 r'.
+    apply ContraMap_set_preserves_Finite; auto with sets.
       intros.
-      destruct H, H0; subst.
-      intuition.
-      firstorder.
-    intros.
-    admit.
+      destruct x, y; simpl in H.
+      destruct (P a) eqn:Heqe1.
+        destruct (P a0) eqn:Heqe2.
+          admit.
+        admit.
+      admit.
+    apply Filter_preserves_Finite; auto.
+  clear Finite1 r.
   apply Filter_preserves_Finite; auto.
 Admitted.
+*)
 
 End TupleEnsembleFinite.
 
-Ltac finitary :=
-  repeat match goal with
-    | [ |- Finite _ Empty            ] => eapply Empty_preserves_Finite
-    | [ |- Finite _ (Single _ _)     ] => eapply Single_is_Finite
-    | [ |- Finite _ (Singleton _ _)  ] => eapply Singleton_is_finite
-    | [ |- Finite _ (Insert _ _ _ _) ] => eapply Insert_preserves_Finite
-    | [ |- Finite _ (Remove _ _)     ] => eapply Remove_preserves_Finite
-    | [ |- Finite _ (Setminus _)     ] => eapply Setminus_preserves_finite
-    | [ |- Finite _ (Update _ _ _)   ] => eapply Update_preserves_Finite
-    | [ |- Finite _ (Move _ _ _)     ] => eapply Move_preserves_Finite
-    | [ |- Finite _ (Filter _ _)     ] => eapply Filter_preserves_Finite
-    | [ |- Finite _ (Map _ _)        ] => eapply Map_preserves_Finite
-    | [ |- Finite _ (Modify _ _ _)   ] => eapply Modify_preserves_Finite
-    | [ |- Finite _ (Define _ _ _)   ] => eapply Define_preserves_Finite
-    | [ |- Finite _ (Overlay _ _ _)  ] => eapply Overlay_preserves_Finite
-    end; eauto.
+Hint Resolve Conjunction_preserves_finite_left : sets.
+Hint Resolve Conjunction_preserves_finite_right : sets.
+Hint Resolve Define_preserves_Finite : sets.
+Hint Resolve Empty_preserves_Finite : sets.
+Hint Resolve Filter_preserves_Finite : sets.
+Hint Resolve Finite_Add_Subtract : sets.
+Hint Resolve Insert_preserves_Finite : sets.
+Hint Resolve Map_preserves_Finite : sets.
+Hint Resolve Modify_preserves_Finite : sets.
+Hint Resolve Move_preserves_Finite : sets.
+(* Hint Resolve Overlay_preserves_Finite : sets. *)
+Hint Resolve Product_Add_left : sets.
+Hint Resolve Product_Add_right : sets.
+Hint Resolve Product_Empty_set_left : sets.
+Hint Resolve Product_Empty_set_right : sets.
+Hint Resolve Product_Singleton_Singleton : sets.
+Hint Resolve Product_preserves_Finite : sets.
+Hint Resolve Relate_Add_preserves_Finite : sets.
+Hint Resolve Relate_preserves_Finite : sets.
+Hint Resolve Remove_preserves_Finite : sets.
+Hint Resolve Setminus_preserves_finite : sets.
+Hint Resolve Single_is_Finite : sets.
+Hint Resolve Surjection_preserves_Finite : sets.
+Hint Resolve Surjective_Add_Subtract : sets.
+Hint Resolve Update_preserves_Finite : sets.

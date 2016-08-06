@@ -150,15 +150,21 @@ Definition HeapSpec := Def ADT {
               fits addr' (memSize blk') addr2 len };
     ret (match ms, md with
          | Some (saddr, sblk), Some (daddr, dblk) =>
-           Update daddr {| memSize := memSize dblk
-                         ; memData :=
-                             let soff := addr1 - saddr in
-                             let doff := addr2 - daddr in
-                             Overlay (fun a =>
-                                        IfDec within doff len a
-                                        Then Some (soff + (a - doff))
-                                        Else None)
-                                     (memData dblk) (memData sblk) |} r
+           Update daddr
+             {| memSize := memSize dblk
+              ; memData :=
+                  let soff := addr1 - saddr in
+                  let doff := addr2 - daddr in
+                  (* [s] is the source region to copy from *)
+                  let s := Filter (fun pos w => within soff len pos)
+                                  (memData sblk) in
+                  (* [d] has a hole where the region will be copied to *)
+                  let d := Filter (fun pos w => ~ within doff len pos)
+                                  (memData dblk) in
+                  (* [s'] is s, shift to the right offset *)
+                  let s' := Map_set  (fun p : N * Word8 =>
+                                        ((fst p - soff) + doff, snd p)) s in
+                  Union _ d s |} r
          | _, _ => r
          end, tt),
 
@@ -243,7 +249,8 @@ Proof.
   ADT induction r; [inversion H0|..]; inspect;
   complete IHfromADT.
   - apply (IHfromADT x) in H2; trivial; nomega.
-Qed.
+  - admit.
+Admitted.
 
 Ltac match_sizes H IHfromADT :=
   match goal with
@@ -373,7 +380,8 @@ Qed.
 
 Theorem finite_heap : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
 Proof.
-  intros; ADT induction r; inspect; finitary.
+  intros; ADT induction r; inspect; auto with sets.
+  apply Modify_preserves_Finite; auto.
   apply N.eq_dec.
 Qed.
 
@@ -394,19 +402,21 @@ Proof.
   unfold All; intros.
   generalize dependent b.
   generalize dependent a.
-  ADT induction r; inspect; finitary.
-  - intros.
-    decisions; try discriminate.
-    rewrite <- H6 in H7.
-    inversion H7; clear H6 H7.
-    apply Nplus_reg_l in H9.
-    nomega_reduce.
-    eapply Nsub_eq; eauto.
-  - apply within_dec.
-  - clear -Heqe.
+  ADT induction r; inspect; eauto with sets.
+  - apply Union_preserves_Finite;
+    apply Filter_preserves_Finite;
+    eapply IHfromADT; eauto.
+  - apply Define_preserves_Finite; eauto.
+      apply within_dec.
+    clear -Heqe.
     apply Bool.andb_true_iff in Heqe; destruct Heqe.
     apply within_reflect in H.
     apply within_reflect in H0.
+    unfold within in *.
+    generalize dependent x.
+    generalize dependent a.
+    induction x0 using N.peano_ind.
+      admit.
     admit.
 Admitted.
 
