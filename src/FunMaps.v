@@ -248,25 +248,6 @@ Proof.
   congruence.
 Qed.
 
-Lemma in_mapsto_iff : forall elt k m,
-  M.In (elt:=elt) k m <-> exists e, M.MapsTo (elt:=elt) k e m.
-Proof.
-  split; intros.
-    apply F.mem_in_iff in H.
-    rewrite F.mem_find_b in H.
-    destruct (M.find (elt:=elt) k m) eqn:Heqe.
-      exists e.
-      apply F.find_mapsto_iff.
-      assumption.
-    discriminate.
-  apply F.mem_in_iff.
-  rewrite F.mem_find_b.
-  destruct H.
-  apply F.find_mapsto_iff in H.
-  rewrite H.
-  reflexivity.
-Qed.
-
 Global Program Instance Member_In_Map_AbsR :
   (@Member _ _) [R O.eq ==> Map_AbsR R ==> iff] (@M.In _).
 Obligation 1.
@@ -281,7 +262,44 @@ Obligation 1.
   assumption.
 Qed.
 
-(* Insert *)
+Global Program Instance Insert_Map_AbsR : forall k e e' r m,
+  forall H : ~ Member k r, R e e' -> Map_AbsR R r m
+    -> Insert k e r (not_ex_all_not _ _ H) [R Map_AbsR R] M.add k e' m.
+Obligation 1.
+  relational; equalities.
+  - repeat teardown; subst.
+      related.
+      simplify_maps.
+      firstorder.
+    reduction.
+    related.
+    simplify_maps.
+    firstorder.
+  - reduction.
+    simplify_maps.
+      left; intuition.
+      admit.
+    right.
+    split; eauto.
+    equalities.
+  - simplify_maps.
+      related.
+      teardown.
+      intuition.
+    reduction.
+    related.
+    teardown.
+    right.
+    split; trivial.
+    equalities.
+  - repeat teardown; subst.
+    simplify_maps.
+      left; intuition.
+      admit.
+    simplify_maps.
+    right.
+    split; eauto.
+Admitted.
 
 Global Program Instance Remove_Map_AbsR :
   (@Remove _ _) [R O.eq ==> Map_AbsR R ==> Map_AbsR R] (@M.remove _).
@@ -322,7 +340,6 @@ Obligation 1.
     firstorder.
   - reduction.
     simplify_maps.
-      equalities.
       left; intuition.
       admit.
     right.
@@ -331,7 +348,6 @@ Obligation 1.
   - simplify_maps.
       related.
       teardown.
-      equalities.
       intuition.
     reduction.
     related.
@@ -522,6 +538,49 @@ Proof.
   reduction; reduction;
   pose proof (H _ _ _ HD HB); subst;
   assumption.
+Qed.
+
+Lemma Functional_Add : forall elt r k e,
+  Functional (Ensembles.Add (M.key * elt) r (k, e))
+    -> Functional r.
+Proof.
+  unfold Functional; intros.
+  eapply H.
+    left; exact H0.
+  left; exact H1.
+Qed.
+
+Theorem every_finite_map_has_an_associated_fmap
+        (Oeq_eq : forall x y, O.eq x y -> x = y) :
+  forall A B (R : A -> B -> Prop) (r : Ensemble (M.key * A)),
+    Finite _ r
+      -> Functional r
+      -> (forall k e, Lookup k e r -> exists e', R e e')
+      -> exists m : M.t B, Map_AbsR R r m.
+Proof.
+  intros.
+  induction H.
+    exists (M.empty _).
+    apply Empty_Map_AbsR.
+  destruct x; simpl in *.
+  unfold Functional in H0.
+  destruct (IHFinite (Functional_Add H0)), (H1 k a).
+  - right; constructor.
+  - intros.
+    eapply H1.
+    left; exact H4.
+  - right; constructor.
+  - clear IHFinite H1.
+    exists (M.add k x0 x).
+    eapply Insert_Map_AbsR; eauto.
+    Grab Existential Variables.
+    unfold Member.
+    apply all_not_not_ex.
+    unfold not; intros.
+    specialize (H0 k a (Union_intror _ _ _ _ (In_singleton _ _))
+                     n (Union_introl (M.key * A) A0 _ _ H1)).
+    subst.
+    contradiction.
 Qed.
 
 End FunMaps.

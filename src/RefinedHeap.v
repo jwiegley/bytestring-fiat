@@ -327,6 +327,21 @@ Proof.
   reflexivity.
 Qed.
 
+Hint Resolve Map_AbsR_Proper : maps.
+Hint Resolve Empty_Map_AbsR : maps.
+Hint Resolve MapsTo_Map_AbsR : maps.
+Hint Resolve Lookup_Map_AbsR : maps.
+Hint Resolve Same_Map_AbsR : maps.
+Hint Resolve Member_Map_AbsR : maps.
+Hint Resolve Member_In_Map_AbsR : maps.
+Hint Resolve Remove_Map_AbsR : maps.
+Hint Resolve Update_Map_AbsR : maps.
+Hint Resolve Single_Map_AbsR : maps.
+Hint Resolve Map_Map_AbsR : maps.
+Hint Resolve Filter_Map_AbsR : maps.
+Hint Resolve All_Map_AbsR : maps.
+Hint Resolve Any_Map_AbsR : maps.
+
 Ltac AbsR_prep :=
   repeat
     match goal with
@@ -334,7 +349,7 @@ Ltac AbsR_prep :=
     | [ |- Heap_AbsR _ _ ] => unfold Heap_AbsR; simpl
     | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
     | [ |- _ /\ _ ] => split
-    end; try monotonicity; simpl; eauto.
+    end; try monotonicity; simpl; eauto; eauto with maps.
 
 Corollary eq_impl_eq : forall a b : N, a = b <-> a = b.
 Proof. split; intros; assumption. Qed.
@@ -343,6 +358,26 @@ Hint Resolve eq_impl_eq.
 Corollary neq_impl_neq : forall a b : N, a <> b <-> a <> b.
 Proof. split; intros; assumption. Qed.
 Hint Resolve neq_impl_neq.
+
+Theorem heaps_refine_to_maps : forall r : Rep HeapSpec, fromADT _ r ->
+  exists m : M.t MemoryBlockC, Map_AbsR MemoryBlock_AbsR r m.
+Proof.
+  intros.
+  apply every_finite_map_has_an_associated_fmap; auto.
+  - apply heap_is_finite; auto.
+  - apply allocations_unique; auto.
+  - intros.
+    elimtype ((exists size : N, memSize e = size) /\
+              (exists data : M.t Word8, Map_AbsR eq (memData e) data)).
+      do 2 destruct 1.
+      eexists {| memCSize := x; memCData := x0 |}.
+      constructor; auto.
+    split.
+      eexists; reflexivity.
+    apply every_finite_map_has_an_associated_fmap; eauto.
+      eapply all_blocks_are_finite; eauto.
+    eapply all_block_maps_are_unique; eauto.
+Qed.
 
 Lemma HeapImpl : FullySharpened HeapSpec.
 Proof.
@@ -475,15 +510,13 @@ Proof.
     pose proof (Poke_in_heap H0).
     AbsR_prep.
 
-    apply Map_Map_AbsR; auto.
-    - admit.
-    - admit.
-    - relational; subst.
-      rewrite (proj1 H4).
-      decisions; auto.
-      apply MemoryBlock_AbsR_impl; auto.
-      apply Update_Map_AbsR; auto.
-      exact (proj2 H4).
+    apply Map_Map_AbsR; auto;
+    relational; subst; auto.
+    rewrite (proj1 H4).
+    decisions; auto.
+    apply MemoryBlock_AbsR_impl; auto.
+    apply Update_Map_AbsR; auto.
+    exact (proj2 H4).
   }
 
   refine method memcpyS.

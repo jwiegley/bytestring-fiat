@@ -589,6 +589,42 @@ Proof.
     contradiction.
 Qed.
 
+Lemma in_mapsto_iff : forall elt k (m : M.t elt),
+  M.In (elt:=elt) k m <-> exists e, M.MapsTo (elt:=elt) k e m.
+Proof.
+  split; intros.
+    apply F.mem_in_iff in H.
+    rewrite F.mem_find_b in H.
+    destruct (M.find (elt:=elt) k m) eqn:Heqe.
+      exists e.
+      apply F.find_mapsto_iff.
+      assumption.
+    discriminate.
+  apply F.mem_in_iff.
+  rewrite F.mem_find_b.
+  destruct H.
+  apply F.find_mapsto_iff in H.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Lemma filter_singleton_inv : forall elt k (e : elt) m P,
+  Proper (O.eq ==> eq ==> eq) P
+    -> M.Equal (P.filter P m) (singleton k e)
+    -> P k e = true /\
+       forall k' e', ~ O.eq k' k -> M.In k' m -> P k' e' = false.
+Proof.
+  unfold singleton; intros.
+  pose proof H0.
+  specialize (H0 k).
+  rewrite F.add_eq_o in H0; auto.
+  simplify_maps; auto.
+  intuition.
+  destruct (proj1 (in_mapsto_iff elt k' m) H4); clear H4.
+  induction m using P.map_induction.
+    simplify_maps.
+Abort.
+
 Lemma find_if_filter_is_singleton :
   forall elt k (e : elt) m P,
     Proper (O.eq ==> eq ==> eq) P

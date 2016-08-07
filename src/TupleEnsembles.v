@@ -59,6 +59,10 @@ Definition Single (a : A) (b : B) : Ensemble (A * B) := Singleton _ (a, b).
 
 Definition Lookup (a : A) (b : B) (r : Ensemble (A * B)) := In _ r (a, b).
 
+Definition Functional (r : Ensemble (A * B)) :=
+  forall addr blk1, Lookup addr blk1 r ->
+  forall blk2, Lookup addr blk2 r -> blk1 = blk2.
+
 Definition Same (x y : Ensemble (A * B)) : Prop :=
   forall a b, Lookup a b x <-> Lookup a b y.
 
@@ -434,6 +438,7 @@ Proof. intros; apply H, Lookup_Remove; trivial. Qed.
 
 End TupleEnsemble.
 
+Arguments Functional : default implicits.
 Arguments Empty {_ _} _.
 Arguments Single : default implicits.
 Arguments Insert : default implicits.
@@ -488,47 +493,47 @@ Qed.
 
 Ltac teardown :=
   match goal with
-  | [ H : Lookup _ _ Empty           |- _ ] => contradiction (Lookup_Empty H)
-  | [ H : Lookup _ _ (Single _ _)    |- _ ] => apply Lookup_Single_inv in H
-  | [ H : Lookup _ _ (Insert _ _ _)  |- _ ] => apply Lookup_Insert_inv in H
-  | [ H : Lookup _ _ (Remove _ _)    |- _ ] => apply Lookup_Remove_inv in H
-  | [ H : Lookup _ _ (Update _ _ _)  |- _ ] => apply Lookup_Update_inv in H
-  | [ H : Lookup _ _ (Move _ _ _)    |- _ ] => apply Lookup_Move_inv in H
-  | [ H : Lookup _ _ (Map _ _)       |- _ ] => apply Lookup_Map_inv in H
-  | [ H : Lookup _ _ (Map_set _ _)   |- _ ] => apply Lookup_Map_set_inv in H
-  | [ H : Lookup _ _ (Relate _ _)    |- _ ] => apply Lookup_Relate_inv in H
-  | [ H : Lookup _ _ (Filter _ _)    |- _ ] => apply Lookup_Filter_inv in H
-  | [ H : Lookup _ _ (Define _ _ _)  |- _ ] => apply Lookup_Define_inv in H
-  | [ H : Lookup _ _ (Modify _ _ _)  |- _ ] => apply Lookup_Modify_inv in H
-  | [ H : Lookup _ _ (Union _ _ _)   |- _ ] => apply Lookup_Union_inv in H
+  | [ H : Lookup _ _ Empty            |- _ ] => contradiction (Lookup_Empty H)
+  | [ H : Lookup _ _ (Single _ _)     |- _ ] => apply Lookup_Single_inv in H
+  | [ H : Lookup _ _ (Insert _ _ _ _) |- _ ] => apply Lookup_Insert_inv in H
+  | [ H : Lookup _ _ (Remove _ _)     |- _ ] => apply Lookup_Remove_inv in H
+  | [ H : Lookup _ _ (Update _ _ _)   |- _ ] => apply Lookup_Update_inv in H
+  | [ H : Lookup _ _ (Move _ _ _)     |- _ ] => apply Lookup_Move_inv in H
+  | [ H : Lookup _ _ (Map _ _)        |- _ ] => apply Lookup_Map_inv in H
+  | [ H : Lookup _ _ (Map_set _ _)    |- _ ] => apply Lookup_Map_set_inv in H
+  | [ H : Lookup _ _ (Relate _ _)     |- _ ] => apply Lookup_Relate_inv in H
+  | [ H : Lookup _ _ (Filter _ _)     |- _ ] => apply Lookup_Filter_inv in H
+  | [ H : Lookup _ _ (Define _ _ _)   |- _ ] => apply Lookup_Define_inv in H
+  | [ H : Lookup _ _ (Modify _ _ _)   |- _ ] => apply Lookup_Modify_inv in H
+  | [ H : Lookup _ _ (Union _ _ _)    |- _ ] => apply Lookup_Union_inv in H
 
-  | [ H : Member _ Empty           |- _ ] => unfold Member in H
-  | [ H : Member _ (Single _ _)    |- _ ] => unfold Member in H
-  | [ H : Member _ (Insert _ _ _)  |- _ ] => unfold Member in H
-  | [ H : Member _ (Remove _ _)    |- _ ] => unfold Member in H
-  | [ H : Member _ (Update _ _ _)  |- _ ] => unfold Member in H
-  | [ H : Member _ (Move _ _ _)    |- _ ] => unfold Member in H
-  | [ H : Member _ (Map _ _)       |- _ ] => unfold Member in H
-  | [ H : Member _ (Map_set _ _)   |- _ ] => unfold Member in H
-  | [ H : Member _ (Relate _ _)    |- _ ] => unfold Member in H
-  | [ H : Member _ (Filter _ _)    |- _ ] => unfold Member in H
-  | [ H : Member _ (Define _ _ _)  |- _ ] => unfold Member in H
-  | [ H : Member _ (Modify _ _ _)  |- _ ] => unfold Member in H
-  | [ H : Member _ (Union _ _ _)   |- _ ] => unfold Member in H
+  | [ H : Member _ Empty            |- _ ] => unfold Member in H
+  | [ H : Member _ (Single _ _)     |- _ ] => unfold Member in H
+  | [ H : Member _ (Insert _ _ _ _) |- _ ] => unfold Member in H
+  | [ H : Member _ (Remove _ _)     |- _ ] => unfold Member in H
+  | [ H : Member _ (Update _ _ _)   |- _ ] => unfold Member in H
+  | [ H : Member _ (Move _ _ _)     |- _ ] => unfold Member in H
+  | [ H : Member _ (Map _ _)        |- _ ] => unfold Member in H
+  | [ H : Member _ (Map_set _ _)    |- _ ] => unfold Member in H
+  | [ H : Member _ (Relate _ _)     |- _ ] => unfold Member in H
+  | [ H : Member _ (Filter _ _)     |- _ ] => unfold Member in H
+  | [ H : Member _ (Define _ _ _)   |- _ ] => unfold Member in H
+  | [ H : Member _ (Modify _ _ _)   |- _ ] => unfold Member in H
+  | [ H : Member _ (Union _ _ _)    |- _ ] => unfold Member in H
 
-  | [ |- Lookup _ _ Empty           ] => apply Lookup_Empty
-  | [ |- Lookup _ _ (Single _ _)    ] => apply Lookup_Single
-  | [ |- Lookup _ _ (Insert _ _ _)  ] => apply Lookup_Insert
-  | [ |- Lookup _ _ (Remove _ _)    ] => apply Lookup_Remove
-  | [ |- Lookup _ _ (Update _ _ _)  ] => apply Lookup_Update
-  | [ |- Lookup _ _ (Move _ _ _)    ] => apply Lookup_Move
-  | [ |- Lookup _ _ (Map _ _)       ] => apply Lookup_Map
-  | [ |- Lookup _ _ (Map_set _ _)   ] => apply Lookup_Map_set
-  | [ |- Lookup _ _ (Relate _ _)    ] => apply Lookup_Relate
-  | [ |- Lookup _ _ (Filter _ _)    ] => apply Lookup_Filter
-  | [ |- Lookup _ _ (Define _ _ _)  ] => apply Lookup_Define
-  | [ |- Lookup _ _ (Modify _ _ _)  ] => apply Lookup_Modify
-  | [ |- Lookup _ _ (Union _ _ _)   ] => apply Lookup_Union
+  | [ |- Lookup _ _ Empty            ] => apply Lookup_Empty
+  | [ |- Lookup _ _ (Single _ _)     ] => apply Lookup_Single
+  | [ |- Lookup _ _ (Insert _ _ _ _) ] => apply Lookup_Insert
+  | [ |- Lookup _ _ (Remove _ _)     ] => apply Lookup_Remove
+  | [ |- Lookup _ _ (Update _ _ _)   ] => apply Lookup_Update
+  | [ |- Lookup _ _ (Move _ _ _)     ] => apply Lookup_Move
+  | [ |- Lookup _ _ (Map _ _)        ] => apply Lookup_Map
+  | [ |- Lookup _ _ (Map_set _ _)    ] => apply Lookup_Map_set
+  | [ |- Lookup _ _ (Relate _ _)     ] => apply Lookup_Relate
+  | [ |- Lookup _ _ (Filter _ _)     ] => apply Lookup_Filter
+  | [ |- Lookup _ _ (Define _ _ _)   ] => apply Lookup_Define
+  | [ |- Lookup _ _ (Modify _ _ _)   ] => apply Lookup_Modify
+  | [ |- Lookup _ _ (Union _ _ _)    ] => apply Lookup_Union
 
   | [ H : Lookup ?X ?Y ?R |- Member ?X ?R ] => exists Y; exact H
 

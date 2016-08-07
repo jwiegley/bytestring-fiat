@@ -156,14 +156,14 @@ Definition HeapSpec := Def ADT {
                   let soff := addr1 - saddr in
                   let doff := addr2 - daddr in
                   (* [s] is the source region to copy from *)
-                  let s := Filter (fun pos w => within soff len pos)
+                  let s := Filter (fun pos _ => within soff len pos)
                                   (memData sblk) in
                   (* [d] has a hole where the region will be copied to *)
-                  let d := Filter (fun pos w => ~ within doff len pos)
+                  let d := Filter (fun pos _ => ~ within doff len pos)
                                   (memData dblk) in
-                  (* [s'] is s, shift to the right offset *)
-                  let s' := Map_set  (fun p : N * Word8 =>
-                                        ((fst p - soff) + doff, snd p)) s in
+                  (* [s'] is s, shifted to the correct offset *)
+                  let s' := Map_set (fun p : N * Word8 =>
+                                       (fst p - soff + doff, snd p)) s in
                   Union _ d s' |} r
          | _, _ => r
          end, tt),
@@ -280,10 +280,9 @@ Ltac check_overlaps :=
   end.
 
 Theorem allocations_unique : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr blk1, Lookup addr blk1 r ->
-  forall blk2, Lookup addr blk2 r -> blk1 = blk2.
+  Functional r.
 Proof.
-  intros.
+  unfold Functional; intros.
   pose proof (allocations_have_size H _ _ H0).
   pose proof (allocations_have_size H _ _ H1).
   generalize dependent blk2.
@@ -293,6 +292,34 @@ Proof.
   try solve [ match_sizes H IHfromADT ];
   try discriminate;
   check_overlaps.
+Qed.
+
+Theorem all_block_maps_are_unique : forall r : Rep HeapSpec, fromADT _ r ->
+  All (fun _ blk => Functional (memData blk)) r.
+Proof.
+  unfold All, Functional; intros.
+  generalize dependent b.
+  generalize dependent a.
+  generalize dependent blk1.
+  generalize dependent blk2.
+  generalize dependent addr.
+  ADT induction r; inspect; eauto with sets.
+  - unfold fits, within in *.
+    repeat teardown; nomega.
+  - unfold fits, within in *.
+    repeat teardown; nomega.
+  - apply N.add_cancel_r in H6.
+    apply Nsub_eq in H6.
+    + subst.
+      clear H7.
+      eapply IHfromADT; eauto.
+    + unfold fits, within in *.
+      repeat teardown; nomega.
+    + unfold fits, within in *.
+      repeat teardown; nomega.
+  - inversion H3.
+    inversion H4.
+    congruence.
 Qed.
 
 Ltac lookup_uid H :=
@@ -318,7 +345,8 @@ Proof. unfold overlaps; intros; nomega. Qed.
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 blk1, Lookup addr1 blk1 r ->
   forall addr2 blk2, Lookup addr2 blk2 r
-    -> addr1 <> addr2 -> ~ overlaps addr1 (memSize blk1) addr2 (memSize blk2).
+    -> addr1 <> addr2
+    -> ~ overlaps addr1 (memSize blk1) addr2 (memSize blk2).
 Proof.
   intros.
   pose proof (allocations_have_size H _ _ H0).
@@ -377,22 +405,11 @@ Proof.
   unfold within, overlaps in *; nomega.
 Qed.
 
-Theorem finite_heap : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
+Theorem heap_is_finite : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
 Proof.
   intros; ADT induction r; inspect; auto with sets.
   apply Modify_preserves_Finite; auto.
   apply N.eq_dec.
-Qed.
-
-Lemma Nsub_eq : forall x y n,
-  n <= x -> n <= y -> x - n = y - n -> x = y.
-Proof.
-  intros.
-  apply N2Z.inj_iff in H1.
-  rewrite !N2Z.inj_sub in H1; auto.
-  rewrite N2Z.inj_le in H, H0.
-  apply N2Z.inj_iff.
-  omega.
 Qed.
 
 Lemma added : forall b e,
@@ -459,7 +476,7 @@ Proof.
   rewrite not_added; trivial.
 Qed.
 
-Theorem finite_blocks : forall r : Rep HeapSpec, fromADT _ r ->
+Theorem all_blocks_are_finite : forall r : Rep HeapSpec, fromADT _ r ->
   All (fun _ blk => Finite _ (memData blk)) r.
 Proof.
   unfold All; intros.

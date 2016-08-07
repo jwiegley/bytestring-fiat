@@ -185,6 +185,17 @@ Proof.
   apply N.add_le_mono; nomega.
 Qed.
 
+Lemma Nsub_eq : forall x y n,
+  n <= x -> n <= y -> x - n = y - n -> x = y.
+Proof.
+  intros.
+  apply N2Z.inj_iff in H1.
+  rewrite !N2Z.inj_sub in H1; auto.
+  rewrite N2Z.inj_le in H, H0.
+  apply N2Z.inj_iff.
+  omega.
+Qed.
+
 Theorem Nle_impossible : forall n m, 0 < m -> n + m <= n -> False.
 Proof.
   intros.
