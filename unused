@@ -1,0 +1,8 @@
+#!/bin/bash
+
+for i in $(perl -ne 'print $2, "\n" if /^(Lemma|Program [^ ]+ |Fixpoint|Definition|Remark|Function|Axiom|Hypothesis|Corollary) (\w+)/' src/*.v | sort | uniq); do
+  echo $(cat src/*.v | egrep "\\<$i\\>" | egrep -c -v "^\\(\\*") $i
+done | sort -n | egrep '^1 ' | awk '{print $2}' | \
+while read i; do
+  egrep -n "\\<$i\\>" src/*.v | egrep -v ":[0-9]+:\\(\\*"
+done | sort

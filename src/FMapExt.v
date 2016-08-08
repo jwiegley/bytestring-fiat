@@ -104,9 +104,7 @@ Ltac relational' :=
   | [ |- Proper _ _ ] => intros ???
   | [ |- respectful _ _ _ _ ] => intros ???
   | [ |- iff _ _ ] => split; intro
-  end;
-  try simplify_maps; subst;
-  auto.
+  end; try simplify_maps; subst; auto.
 
 Global Program Instance MapsTo_Proper {elt} :
   Proper (O.eq ==> eq ==> M.Equal ==> iff) (@M.MapsTo elt) :=
@@ -117,10 +115,8 @@ Global Program Instance find_Proper {elt} :
          (fun k e m => @M.find elt k m = Some e).
 Obligation 1.
   relational'.
-    rewrite <- H, <- H1.
-    assumption.
-  rewrite H, H1.
-  assumption.
+    rewrite <- H, <- H1; assumption.
+  rewrite H, H1; assumption.
 Qed.
 
 Global Program Instance fold_Proper {elt A} : forall f (eqA : relation A),
@@ -128,20 +124,7 @@ Global Program Instance fold_Proper {elt A} : forall f (eqA : relation A),
     -> Proper (O.eq ==> eq ==> eqA ==> eqA) f
     -> P.transpose_neqkey eqA f
     -> Proper (M.Equal (elt:=elt) ==> eqA ==> eqA) (@M.fold elt A f).
-Obligation 1.
-  relational'.
-  revert H2.
-  revert y.
-  apply P.fold_rec; intros.
-    rewrite P.fold_Empty; auto.
-    rewrite <- H4.
-    assumption.
-  rewrite (P.fold_Add (eqA:=eqA)); eauto.
-  - f_equiv.
-    apply H6.
-    congruence.
-  - congruence.
-Qed.
+Obligation 1. relational'; eapply P.fold_Equal2; eauto. Qed.
 
 Lemma add_equal_iff : forall elt k (e : elt) m1 m2,
   P.Add k e m1 m2 <-> M.Equal (M.add k e m1) m2.
@@ -493,16 +476,6 @@ Proof.
   inversion H0.
 Qed.
 
-(*
-Global Program Instance find_if_Proper {elt} P :
-  Proper (O.eq ==> @eq elt ==> eq) P
-    -> Proper (M.Equal ==> optionP (pairP O.eq eq)) (find_if P).
-Obligation 1.
-  relational'.
-  unfold find_if.
-  apply P.fold_Equal; auto.
-*)
-
 Definition singleton {elt} (k : M.key) (e : elt) : M.t elt :=
   M.add k e (M.empty _).
 Arguments singleton {elt} k e /.
@@ -580,28 +553,6 @@ Proof.
   apply filter_for_all; eauto.
   unfold P.for_all.
   apply filter_idempotent; assumption.
-Qed.
-
-Lemma eqb_refl : forall k, F.eqb k k = true.
-Proof.
-  unfold F.eqb; intros.
-  destruct (O.eq_dec k k); trivial.
-  contradiction n; reflexivity.
-Qed.
-
-Lemma compare_refl : forall t H, O.compare t t = EQ H.
-Proof.
-  intros.
-  destruct (O.compare t t).
-  - pose proof l.
-    apply O.lt_not_eq in H0.
-    contradiction.
-  - f_equal.
-    Require Import ProofIrrelevance.
-    apply proof_irrelevance.
-  - pose proof l.
-    apply O.lt_not_eq in H0.
-    contradiction.
 Qed.
 
 Theorem add_associative {elt}
@@ -825,9 +776,8 @@ Proof.
       simplify_maps.
       left; intuition.
     apply filter_add_false in H2; auto.
-    destruct a.
-      destruct p; intuition.
-    intuition.
+    destruct a; intuition.
+    destruct p; intuition.
 Qed.
 
 Lemma find_if_filter_is_singleton : forall elt k (e : elt) m P,
@@ -835,19 +785,15 @@ Lemma find_if_filter_is_singleton : forall elt k (e : elt) m P,
     -> M.Equal (P.filter P m) (singleton k e)
     -> optionP (pairP O.eq eq) (find_if P m) (Some (k, e)).
 Proof.
-  intros.
-  apply find_if_filter in H0; auto.
+  simpl; intros.
+  apply find_if_filter in H0; trivial.
   destruct (find_if P m).
     destruct p.
-    unfold singleton in H0.
     simplify_maps.
-      symmetry in H1.
       unfold optionP, pairP.
       intuition.
     simplify_maps.
-  unfold singleton in H0.
   apply P.elements_Empty in H0.
-  simpl in H0.
   discriminate.
 Qed.
 
