@@ -420,19 +420,38 @@ Proof.
     - apply Update_Map_AbsR; auto.
       apply MemoryBlock_AbsR_impl; auto.
       apply Empty_Map_AbsR.
-    - apply for_all_add; auto.
+    - apply for_all_add_iff.
       + apply within_allocated_mem_Proper; auto.
-      + apply for_all_impl
-         with (P':=within_allocated_mem (fst r_n + ` d)) in H1; auto.
-        * apply within_allocated_mem_Proper; auto.
-        * apply within_allocated_mem_Proper; auto.
-        * intros.
-          clear -H2.
-          unfold within_allocated_mem in *.
+      + unfold not; intros.
+        apply (proj1 (in_mapsto_iff _ _ _)) in H2.
+        destruct H2.
+        pose proof H2.
+        apply H0 in H3.
+        do 2 destruct H3.
+        eapply P.for_all_iff
+          with (f:=within_allocated_mem (fst r_n)) in H2; auto.
+        * unfold within_allocated_mem in H2.
           undecide.
-          destruct d; simpl.
-          apply Nle_add_plus; eauto.
-      + destruct d; simpl.
+          pose proof (allocations_have_size (proj2_sig r_o) _ _ H3).
+          rewrite (proj1 H4) in H5.
+          reduction.
+          clear -H2 H5.
+          eapply Nle_impossible; eauto.
+        * apply within_allocated_mem_Proper; auto.
+      + split.
+        {
+          apply for_all_impl
+           with (P':=within_allocated_mem (fst r_n + ` d)) in H1; auto.
+          * apply within_allocated_mem_Proper; auto.
+          * apply within_allocated_mem_Proper; auto.
+          * intros.
+            clear -H2.
+            unfold within_allocated_mem in *.
+            undecide.
+            destruct d; simpl.
+            apply Nle_add_plus; eauto.
+        }
+        destruct d; simpl.
         unfold within_allocated_mem; simpl.
         nomega.
   }

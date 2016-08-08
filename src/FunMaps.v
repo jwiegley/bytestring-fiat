@@ -255,7 +255,7 @@ Obligation 1.
     destruct H1.
     reduction.
     apply in_mapsto_iff; eauto.
-  apply (proj1 (in_mapsto_iff _ _)) in H1.
+  apply (proj1 (in_mapsto_iff _ _ _)) in H1.
   destruct H1.
   reduction.
   exists blk.
