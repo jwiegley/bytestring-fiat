@@ -73,7 +73,8 @@ Ltac equalities :=
   | [ |- ?X <> ?Y ]                  => unfold not; intros; subst
   | [ |- ?X = ?X ]                   => reflexivity
   | [ |- O.eq ?X ?X ]                => apply O.eq_refl
-  | [ H : O.eq ?X ?Y |- _ ]          => rewrite !H in *; clear H
+  | [ H : O.eq ?X ?Y |- _ ]          =>
+      rewrite !H in * || rewrite <- !H in *; clear H
   | [ H : ~ O.eq ?X ?X |- _ ]        => contradiction H; apply O.eq_refl
   | [ H : O.eq ?X ?X -> False |- _ ] => contradiction H; apply O.eq_refl
 
