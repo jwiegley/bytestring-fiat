@@ -1,12 +1,14 @@
 Require Import
   Here.Relations
+  Here.Decidable
+  Here.Nomega
   Here.FMapExt
   Here.TupleEnsembles
   Here.TupleEnsemblesFinite
   Here.Same_set
   Coq.FSets.FMapList
   Coq.FSets.FMapFacts
-  Coq.Structures.OrderedTypeEx.
+  Coq.Structures.DecidableTypeEx.
 
 Require Import
   Here.Relations
@@ -14,10 +16,9 @@ Require Import
 
 Generalizable All Variables.
 
-Module FunMaps (O : OrderedType).
+Module FunMaps (E:DecidableType) (M:WSfun E).
 
-Module E := FMapExt(O).
-Include E.
+Module Import X := FMapExt E M.
 
 Definition Map_AbsR `(R : A -> B -> Prop)
            (or : Ensemble (M.key * A)) (nr : M.t B) : Prop :=
@@ -27,14 +28,8 @@ Definition Map_AbsR `(R : A -> B -> Prop)
     (forall cblk, M.MapsTo addr cblk nr
        <-> exists blk, Lookup addr blk or /\ R blk cblk).
 
-Ltac normalize :=
-  repeat match goal with
-  | [ H : M.find ?ADDR ?Z = Some ?CBLK |- _ ] => apply F.find_mapsto_iff in H
-  | [ |-  M.find ?ADDR ?Z = Some ?CBLK ]      => apply F.find_mapsto_iff
-  end.
-
 Ltac reduction :=
-  try repeat teardown; subst; normalize;
+  try repeat teardown; subst; X.normalize;
   repeat match goal with
   | [ R : ?A -> ?B -> Prop,
       H1 : Map_AbsR ?R ?X ?Y,
@@ -67,16 +62,16 @@ Ltac related :=
   end.
 
 Ltac equalities :=
-  normalize;
+  X.normalize;
   repeat match goal with
   | [ H : ?X <> ?X |- _ ]            => contradiction H; reflexivity
   | [ |- ?X <> ?Y ]                  => unfold not; intros; subst
   | [ |- ?X = ?X ]                   => reflexivity
-  | [ |- O.eq ?X ?X ]                => apply O.eq_refl
-  | [ H : O.eq ?X ?Y |- _ ]          =>
+  | [ |- E.eq ?X ?X ]                => apply E.eq_refl
+  | [ H : E.eq ?X ?Y |- _ ]          =>
       rewrite !H in * || rewrite <- !H in *; clear H
-  | [ H : ~ O.eq ?X ?X |- _ ]        => contradiction H; apply O.eq_refl
-  | [ H : O.eq ?X ?X -> False |- _ ] => contradiction H; apply O.eq_refl
+  | [ H : ~ E.eq ?X ?X |- _ ]        => contradiction H; apply E.eq_refl
+  | [ H : E.eq ?X ?X -> False |- _ ] => contradiction H; apply E.eq_refl
 
   | [ H1 : Same ?X ?Y, _ : Map_AbsR _ ?Y _, H2 : Lookup _ _ ?X |- _ ] =>
       apply H1 in H2
@@ -102,8 +97,8 @@ Ltac equalities :=
   | [ H1 : M.Equal ?X ?Y, _ : Map_AbsR _ ?X _
     |- exists _, M.MapsTo _ _ ?Y /\ _ ] => rewrite <- H1
 
-  | [ Oeq_eq : forall x y : O.t, O.eq x y -> x = y,
-      H1 : O.eq ?X ?Y |- _ ] => apply Oeq_eq in H1; subst
+  | [ Oeq_eq : forall x y : E.t, E.eq x y -> x = y,
+      H1 : E.eq ?X ?Y |- _ ] => apply Oeq_eq in H1; subst
   end.
 
 Section FunMaps_AbsR.
@@ -208,7 +203,7 @@ Global Program Instance Empty_Map_AbsR : Empty [R Map_AbsR R] (M.empty _).
 Obligation 1. relational_maps; repeat teardown; simplify_maps. Qed.
 
 Global Program Instance Lookup_Map_AbsR :
-  (@Lookup _ _) [R O.eq ==> R ==> Map_AbsR R ==> iff] (@M.MapsTo _).
+  (@Lookup _ _) [R E.eq ==> R ==> Map_AbsR R ==> iff] (@M.MapsTo _).
 Obligation 1. relational; equalities; eauto. Qed.
 
 Global Program Instance Same_Map_AbsR :
@@ -236,7 +231,7 @@ Qed.
 Definition boolR (P : Prop) (b : bool) : Prop := P <-> b = true.
 
 Global Program Instance Member_Map_AbsR :
-  (@Member _ _) [R O.eq ==> Map_AbsR R ==> boolR] (@M.mem _).
+  (@Member _ _) [R E.eq ==> Map_AbsR R ==> boolR] (@M.mem _).
 Obligation 1.
   relational; equalities.
   split; intros.
@@ -255,7 +250,7 @@ Obligation 1.
 Qed.
 
 Global Program Instance Member_In_Map_AbsR :
-  (@Member _ _) [R O.eq ==> Map_AbsR R ==> iff] (@M.In _).
+  (@Member _ _) [R E.eq ==> Map_AbsR R ==> iff] (@M.In _).
 Obligation 1.
   relational; equalities.
     destruct H1.
@@ -280,7 +275,7 @@ Proof.
   assumption.
 Qed.
 
-Hypothesis Oeq_eq : forall x y, O.eq x y -> x = y.
+Hypothesis Oeq_eq : forall x y, E.eq x y -> x = y.
 
 Global Program Instance Insert_Map_AbsR : forall k e e' r m,
   FunctionalRelation -> InjectiveRelation
@@ -293,7 +288,6 @@ Obligation 1.
   - repeat teardown; subst.
       exists e'.
       intuition.
-      simplify_maps.
     reduction; related.
     simplify_maps.
     right; intuition.
@@ -317,7 +311,7 @@ Obligation 1.
 Qed.
 
 Global Program Instance Remove_Map_AbsR :
-  (@Remove _ _) [R O.eq ==> Map_AbsR R ==> Map_AbsR R] (@M.remove _).
+  (@Remove _ _) [R E.eq ==> Map_AbsR R ==> Map_AbsR R] (@M.remove _).
 Obligation 1.
   relational; equalities;
   relational_maps.
@@ -343,7 +337,7 @@ Qed.
 
 Global Program Instance Update_Map_AbsR :
   FunctionalRelation -> InjectiveRelation
-    -> (@Update _ _) [R O.eq ==> R ==> Map_AbsR R ==> Map_AbsR R] (@M.add _).
+    -> (@Update _ _) [R E.eq ==> R ==> Map_AbsR R ==> Map_AbsR R] (@M.add _).
 Obligation 1.
   relational; equalities;
   relational_maps.
@@ -377,7 +371,7 @@ Proof. split; intros; repeat teardown. Qed.
 
 Global Program Instance Single_Map_AbsR :
   FunctionalRelation -> InjectiveRelation
-    -> (@Single _ _) [R O.eq ==> R ==> Map_AbsR R] singleton.
+    -> (@Single _ _) [R E.eq ==> R ==> Map_AbsR R] singleton.
 Obligation 1.
   intros ??????.
   rewrite Single_is_Update.
@@ -390,9 +384,9 @@ Qed.
 
 Global Program Instance Map_Map_AbsR :
   FunctionalRelation -> InjectiveRelation ->
-  Proper (O.eq ==> eq ==> eq) f ->
-  Proper (O.eq ==> eq ==> eq) f'
-    -> f [R O.eq ==> R ==> R] f'
+  Proper (E.eq ==> eq ==> eq) f ->
+  Proper (E.eq ==> eq ==> eq) f'
+    -> f [R E.eq ==> R ==> R] f'
     -> (@Map _ _ _ f) [R Map_AbsR R ==> Map_AbsR R] (@M.mapi _ _ f').
 Obligation 1.
   relational; relational_maps.
@@ -432,9 +426,9 @@ Qed.
 
 Global Program Instance Filter_Map_AbsR :
   FunctionalRelation -> InjectiveRelation ->
-  Proper (O.eq ==> eq ==> eq) f ->
-  Proper (O.eq ==> eq ==> eq) f'
-    -> f [R O.eq ==> R ==> boolR] f'
+  Proper (E.eq ==> eq ==> eq) f ->
+  Proper (E.eq ==> eq ==> eq) f'
+    -> f [R E.eq ==> R ==> boolR] f'
     -> (@Filter _ _ f) [R Map_AbsR R ==> Map_AbsR R] (@P.filter _ f').
 Obligation 1.
   relational; relational_maps.
@@ -469,8 +463,8 @@ Qed.
 (* Overlay *)
 
 Global Program Instance All_Map_AbsR :
-  Proper (O.eq ==> eq ==> eq) f' ->
-  f [R O.eq ==> R ==> boolR] f'
+  Proper (E.eq ==> eq ==> eq) f' ->
+  f [R E.eq ==> R ==> boolR] f'
     -> All f [R Map_AbsR R ==> boolR] P.for_all f'.
 Obligation 1.
   relational.
@@ -496,7 +490,7 @@ Obligation 1.
 Qed.
 
 Global Program Instance Any_Map_AbsR :
-  (@Any _ _) [R (O.eq ==> R ==> boolR) ==> Map_AbsR R ==> boolR]
+  (@Any _ _) [R (E.eq ==> R ==> boolR) ==> Map_AbsR R ==> boolR]
   (@P.exists_ _).
 Obligation 1.
   relational.

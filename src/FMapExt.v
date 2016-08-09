@@ -2,16 +2,22 @@ Require Import
   Here.Relations
   Coq.FSets.FMapList
   Coq.FSets.FMapFacts
-  Coq.Structures.OrderedTypeEx
+  Coq.Structures.DecidableTypeEx
   Coq.Sorting.Permutation.
 
-Module FMapExt (O : OrderedType).
+Module FMapExt (E:DecidableType) (M:WSfun E).
 
-Module M := FMapList.Make(O).
-Module P := FMapFacts.Properties M.
+Module P := WProperties_fun E M.
 Module F := P.F.
 
+Ltac normalize :=
+  repeat match goal with
+  | [ H : M.find ?ADDR ?Z = Some ?CBLK |- _ ] => apply F.find_mapsto_iff in H
+  | [ |-  M.find ?ADDR ?Z = Some ?CBLK ]      => apply F.find_mapsto_iff
+  end.
+
 Ltac simplify_maps :=
+  normalize;
   match goal with
   | [ H : M.MapsTo (elt:=?T) ?A ?B (M.add ?K ?E ?M) |- _ ] =>
     apply F.add_mapsto_iff in H;
@@ -61,53 +67,14 @@ Ltac simplify_maps :=
   | [ |- M.MapsTo (elt:=?T) ?A ?B (M.mapi ?F ?M) ] =>
     rewrite F.mapi_o, <- F.map_o;
     apply F.map_mapsto_iff
-
-  | [ H : M.find (elt:=?T) ?A (M.add ?K ?E ?M) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, F.add_mapsto_iff in H;
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    let H3 := fresh "H3" in
-    let H4 := fresh "H4" in
-    destruct H as [[H1 H2]|[H3 H4]];
-    [subst|apply F.find_mapsto_iff in H4]
-  | [ H : M.find (elt:=?T) ?A (M.remove ?KE ?M) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, F.remove_mapsto_iff in H;
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    destruct H as [H1 H2];
-    apply F.find_mapsto_iff in H2
-  | [ H : M.find (elt:=?T) ?A (M.map ?F ?M) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, F.map_mapsto_iff in H;
-    let cblk := fresh "cblk" in
-    let H1 := fresh "H1" in
-    let H2 := fresh "H2" in
-    destruct H as [cblk [H1 H2]];
-    apply F.find_mapsto_iff in H2
-  | [ H : M.find (elt:=?T) ?A (P.filter ?F ?M) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, P.filter_iff in H;
-    [let H1 := fresh "H1" in
-     let H2 := fresh "H2" in
-     destruct H as [H1 H2];
-     apply F.find_mapsto_iff in H1|]
-  | [ H : M.find (elt:=?T) ?A (M.mapi ?F ?M) = Some ?B |- _ ] =>
-    rewrite F.mapi_o, <- F.map_o in H
-  | [ H : M.find (elt:=?T) ?A (M.empty ?U) = Some ?B |- _ ] =>
-    apply F.find_mapsto_iff, F.empty_mapsto_iff in H;
-    contradiction
-  | [ H1 : M.find (elt:=?T) ?A ?M = Some ?B,
-      H2 : M.Empty (elt:=?T) ?M |- _ ] =>
-    apply P.elements_Empty in H2;
-    rewrite F.elements_o in H1;
-    rewrite H2 in H1;
-    inversion H1
   end; simpl; auto.
 
 Global Program Instance MapsTo_Proper {elt} :
-  Proper (O.eq ==> eq ==> M.Equal ==> iff) (@M.MapsTo elt) :=
+  Proper (E.eq ==> eq ==> M.Equal ==> iff) (@M.MapsTo elt) :=
   (@F.MapsTo_m_Proper elt).
 
 Global Program Instance find_Proper {elt} :
-  Proper (O.eq ==> eq ==> M.Equal ==> iff)
+  Proper (E.eq ==> eq ==> M.Equal ==> iff)
          (fun k e m => @M.find elt k m = Some e).
 Obligation 1.
   relational.
@@ -117,7 +84,7 @@ Qed.
 
 Global Program Instance fold_Proper {elt A} : forall f (eqA : relation A),
   Equivalence eqA
-    -> Proper (O.eq ==> eq ==> eqA ==> eqA) f
+    -> Proper (E.eq ==> eq ==> eqA ==> eqA) f
     -> P.transpose_neqkey eqA f
     -> Proper (M.Equal (elt:=elt) ==> eqA ==> eqA) (@M.fold elt A f).
 Obligation 1. relational; eapply P.fold_Equal2; eauto. Qed.
@@ -131,7 +98,7 @@ Proof.
 Qed.
 
 Global Program Instance filter_Proper {elt} : forall P,
-  Proper (O.eq ==> eq ==> eq) P
+  Proper (E.eq ==> eq ==> eq) P
     -> Proper (M.Equal (elt:=elt) ==> M.Equal) (@P.filter elt P).
 Obligation 1.
   relational.
@@ -140,7 +107,7 @@ Obligation 1.
   apply P.fold_rec; intros.
     apply F.Equal_mapsto_iff.
     split; intros.
-      inversion H2.
+      simplify_maps.
     simplify_maps.
     rewrite <- H1 in H3.
     apply P.elements_Empty in H0.
@@ -190,11 +157,11 @@ Obligation 1.
 Qed.
 
 Global Instance add_Proper {elt} :
-  Proper (O.eq ==> eq ==> M.Equal ==> M.Equal) (M.add (elt:=elt)) :=
+  Proper (E.eq ==> eq ==> M.Equal ==> M.Equal) (M.add (elt:=elt)) :=
   (@F.add_m_Proper elt).
 
 Lemma mapi_empty : forall elt (f : M.key -> elt -> elt),
-  Proper (O.eq ==> eq ==> eq) f
+  Proper (E.eq ==> eq ==> eq) f
     -> M.Equal (M.mapi f (M.empty elt)) (M.empty elt).
 Proof.
   intros elt f H addr.
@@ -208,7 +175,7 @@ Proof.
   intros.
   intro addr.
   specialize (H0 addr).
-  destruct (O.eq_dec k addr).
+  destruct (E.eq_dec k addr).
     rewrite F.remove_eq_o; auto.
     rewrite F.add_eq_o in H0; auto.
     apply F.not_find_in_iff.
@@ -241,7 +208,7 @@ Section for_all.
 
 Variable elt : Type.
 Variable P : M.key -> elt -> bool.
-Variable P_Proper : Proper (O.eq ==> eq ==> eq) P.
+Variable P_Proper : Proper (E.eq ==> eq ==> eq) P.
 
 Global Program Instance for_all_Proper :
   Proper (M.Equal ==> eq) (@P.for_all elt P).
@@ -281,13 +248,13 @@ Lemma for_all_add_true : forall (m : M.t elt) k e,
 Proof.
   unfold P.for_all.
   remember (fun _ _ _ => _) as f.
-  assert (Proper (O.eq ==> eq ==> eq ==> eq) f).
+  assert (Proper (E.eq ==> eq ==> eq ==> eq) f).
     relational.
     rewrite H; reflexivity.
   assert (P.transpose_neqkey eq f).
     rewrite Heqf; intros ??????.
     destruct (P k e), (P k' e'); auto.
-  assert (Proper (O.eq ==> eq ==> eq --> flip eq) f).
+  assert (Proper (E.eq ==> eq ==> eq --> flip eq) f).
     unfold flip; relational.
     rewrite H1; reflexivity.
   assert (P.transpose_neqkey (flip eq) f).
@@ -311,13 +278,13 @@ Lemma for_all_add_false : forall (m : M.t elt) k e,
 Proof.
   unfold P.for_all.
   remember (fun _ _ _ => _) as f.
-  assert (Proper (O.eq ==> eq ==> eq ==> eq) f).
+  assert (Proper (E.eq ==> eq ==> eq ==> eq) f).
     relational.
     rewrite H; reflexivity.
   assert (P.transpose_neqkey eq f).
     rewrite Heqf; intros ??????.
     destruct (P k e), (P k' e'); auto.
-  assert (Proper (O.eq ==> eq ==> eq --> flip eq) f).
+  assert (Proper (E.eq ==> eq ==> eq --> flip eq) f).
     unfold flip; relational.
     rewrite H1; reflexivity.
   assert (P.transpose_neqkey (flip eq) f).
@@ -365,7 +332,7 @@ Qed.
 
 Lemma for_all_impl : forall (P' : M.key -> elt -> bool) m,
   P.for_all P m = true
-    -> Proper (O.eq ==> eq ==> eq) P'
+    -> Proper (E.eq ==> eq ==> eq) P'
     -> (forall k e, P k e = true -> P' k e = true)
     -> P.for_all P' m = true.
 Proof.
@@ -434,11 +401,11 @@ Definition take_first {elt} (f : M.key -> elt -> bool) (k : M.key) (e : elt)
   end.
 
 Program Instance take_first_Proper {elt} :
-  Proper ((O.eq ==> eq ==> eq)
-            ==> O.eq
+  Proper ((E.eq ==> eq ==> eq)
+            ==> E.eq
             ==> eq
-            ==> optionP (pairP O.eq eq)
-            ==> optionP (pairP O.eq eq)) (take_first (elt:=elt)).
+            ==> optionP (pairP E.eq eq)
+            ==> optionP (pairP E.eq eq)) (take_first (elt:=elt)).
 Obligation 1.
   relational.
   destruct x2, y2.
@@ -478,19 +445,7 @@ Arguments singleton {elt} k e /.
 
 Corollary MapsTo_singleton : forall k elt (e : elt),
   M.MapsTo k e (singleton k e).
-Proof. intros; constructor; reflexivity. Qed.
-
-Lemma find_if_singleton : forall elt (P : M.key -> elt -> bool) k k' e e',
-  find_if P (singleton k e) = Some (k', e')
-    -> k = k' /\ e = e' /\ P k e = true.
-Proof.
-  unfold find_if, singleton; intros.
-  rewrite M.fold_1 in H.
-  simpl in H.
-  destruct (P k e).
-    intuition; congruence.
-  discriminate.
-Qed.
+Proof. unfold singleton; intros; simplify_maps. Qed.
 
 Lemma filter_empty : forall elt (m : M.t elt) P,
   M.Empty (elt:=elt) m -> M.Empty (elt:=elt) (P.filter P m).
@@ -505,12 +460,12 @@ Proof.
   rewrite F.elements_o in H1.
   apply P.elements_Empty in H3.
   rewrite H3 in H1; simpl in H1.
-  rewrite F.add_eq_o in H1; [| apply O.eq_refl].
+  rewrite F.add_eq_o in H1; [| apply E.eq_refl].
   discriminate.
 Qed.
 
 Lemma filter_for_all : forall elt (m : M.t elt) P,
-  Proper (O.eq ==> eq ==> eq) P
+  Proper (E.eq ==> eq ==> eq) P
     -> M.Equal (P.filter P m) m -> P.for_all P m = true.
 Proof.
   unfold P.for_all; intros.
@@ -522,7 +477,7 @@ Proof.
 Qed.
 
 Lemma filter_idempotent : forall elt (m : M.t elt) P,
-  Proper (O.eq ==> eq ==> eq) P
+  Proper (E.eq ==> eq ==> eq) P
     -> M.Equal (P.filter P (P.filter P m)) (P.filter P m).
 Proof.
   intros.
@@ -543,7 +498,7 @@ Proof.
 Qed.
 
 Lemma filter_for_all_2 : forall elt (m : M.t elt) P,
-  Proper (O.eq ==> eq ==> eq) P -> P.for_all P (P.filter P m) = true.
+  Proper (E.eq ==> eq ==> eq) P -> P.for_all P (P.filter P m) = true.
 Proof.
   intros.
   apply filter_for_all; eauto.
@@ -555,39 +510,39 @@ Theorem add_associative {elt}
         (k : M.key) (e : elt)
         (k0 : M.key) (e0 : elt)
         (z : M.t elt) :
-  (O.eq k k0 -> e = e0)
+  (E.eq k k0 -> e = e0)
     -> M.Equal (M.add k e (M.add k0 e0 z)) (M.add k0 e0 (M.add k e z)).
 Proof.
   intros H addr.
   rewrite !F.add_o.
-  destruct (O.eq_dec k addr);
-  destruct (O.eq_dec k0 addr); eauto.
-  apply O.eq_sym in e2.
-  pose proof (O.eq_trans e1 e2).
+  destruct (E.eq_dec k addr);
+  destruct (E.eq_dec k0 addr); eauto.
+  apply E.eq_sym in e2.
+  pose proof (E.eq_trans e1 e2).
   rewrite (H H0).
   reflexivity.
 Qed.
 
-Lemma Oeq_neq_sym : forall x y, ~ O.eq x y -> ~ O.eq y x.
+Lemma Oeq_neq_sym : forall x y, ~ E.eq x y -> ~ E.eq y x.
 Proof.
   intros.
   unfold not; intros.
-  apply O.eq_sym in H0.
+  apply E.eq_sym in H0.
   contradiction.
 Qed.
 
 Hint Resolve Oeq_neq_sym.
 
 Lemma Proper_Oeq_negb : forall B f,
-  Proper (O.eq ==> eq ==> eq) f ->
-  Proper (O.eq ==> eq ==> eq) (fun (k : M.key) (e : B) => negb (f k e)).
+  Proper (E.eq ==> eq ==> eq) f ->
+  Proper (E.eq ==> eq ==> eq) (fun (k : M.key) (e : B) => negb (f k e)).
 Proof. intros ?????????; f_equal; subst; rewrite H0; reflexivity. Qed.
 
 Hint Resolve Proper_Oeq_negb.
 
 Lemma for_all_remove_false : forall elt k (m : M.t elt) P,
-  Proper (O.eq ==> eq ==> eq) P
-    -> (forall k' e', M.MapsTo k' e' m -> ~ O.eq k' k -> P k' e' = false)
+  Proper (E.eq ==> eq ==> eq) P
+    -> (forall k' e', M.MapsTo k' e' m -> ~ E.eq k' k -> P k' e' = false)
     -> P.for_all (fun k e => negb (P k e)) (M.remove k m) = true.
 Proof.
   intros.
@@ -603,7 +558,7 @@ Proof.
 Qed.
 
 Lemma filter_singleton_inv : forall elt k (e : elt) m P,
-  Proper (O.eq ==> eq ==> eq) P
+  Proper (E.eq ==> eq ==> eq) P
     -> M.Equal (P.filter P m) (singleton k e)
     -> M.MapsTo k e m
          /\ P k e = true
@@ -618,7 +573,6 @@ Proof.
     specialize (H0 k).
     rewrite F.add_eq_o in H0; auto.
     simplify_maps.
-    apply F.find_mapsto_iff; auto.
   split.
     unfold singleton in H0.
     specialize (H0 k).
@@ -633,7 +587,7 @@ Proof.
   induction m using P.map_induction.
     simplify_maps.
   remember (fun _ _ _ => _) as f.
-  assert (Proper (O.eq ==> eq ==> M.Equal ==> M.Equal) f).
+  assert (Proper (E.eq ==> eq ==> M.Equal ==> M.Equal) f).
     relational.
     rewrite H5.
     destruct (P y y0); trivial.
@@ -647,15 +601,11 @@ Proof.
   pose proof (@fold_Proper elt _ f M.Equal (F.EqualSetoid _) H5 H6) as H7.
   apply add_equal_iff in H4.
   rewrite <- H4 in *; clear H4 m2.
-  apply F.add_mapsto_iff in H1.
-  destruct H1, H1.
+  simplify_maps.
     rewrite H4 in *; clear H4.
-    rewrite P.fold_Add with (k:=x) (e:=e') (m1:=m1) in H0; eauto;
+    rewrite P.fold_Add with (k:=k') (e:=e') (m1:=m1) in H0; eauto;
     [|constructor].
-    rewrite Heqf in *; clear Heqf H5 H6 H7.
-    rewrite <- H1 in H0.
-    rewrite <- H1.
-    destruct (P x e').
+    destruct (P k' e').
       rewrite F.add_eq_o in H0; auto.
       discriminate.
     reflexivity.
@@ -678,7 +628,7 @@ Proof.
     contradiction.
   apply F.not_find_in_iff in H.
   apply F.find_mapsto_iff in H0.
-  destruct (O.eq_dec k k0).
+  destruct (E.eq_dec k k0).
     rewrite e1 in H.
     rewrite H in H0.
     discriminate.
@@ -689,7 +639,7 @@ Proof.
 Qed.
 
 Lemma filter_add_true : forall elt k (e : elt) m m' P,
-  Proper (O.eq ==> eq ==> eq) P
+  Proper (E.eq ==> eq ==> eq) P
     -> ~ M.In (elt:=elt) k m
     -> M.Equal (P.filter P (M.add k e m)) m'
     -> P k e = true
@@ -702,9 +652,7 @@ Proof.
       rewrite <- H3.
       simplify_maps; intuition.
       simplify_maps.
-    simplify_maps.
     simplify_maps; intuition.
-    simplify_maps.
   simplify_maps.
   simplify_maps.
     rewrite H1.
@@ -715,7 +663,7 @@ Proof.
 Qed.
 
 Lemma filter_add_false : forall elt k (e : elt) m m' P,
-  Proper (O.eq ==> eq ==> eq) P
+  Proper (E.eq ==> eq ==> eq) P
     -> ~ M.In (elt:=elt) k m
     -> M.Equal (P.filter P (M.add k e m)) m'
     -> P k e = false
@@ -759,7 +707,7 @@ Proof.
 Qed.
 
 Lemma find_if_filter : forall elt (m m' : M.t elt) P,
-  Proper (O.eq ==> eq ==> eq) P
+  Proper (E.eq ==> eq ==> eq) P
     -> M.Equal (P.filter P m) m'
     -> match find_if P m with
        | Some (k, e) => M.MapsTo k e m'
@@ -792,19 +740,35 @@ Proof.
     destruct p; intuition.
 Qed.
 
+Lemma Empty_add : forall elt k (e : elt) m,
+  ~ M.In k m -> ~ M.Empty (M.add k e m).
+Proof.
+  unfold not; intros.
+  apply P.cardinal_Empty in H0.
+  rewrite P.cardinal_fold in H0.
+  rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m) in H0; auto.
+  - discriminate.
+  - congruence.
+  - congruence.
+  - constructor.
+Qed.
+
 Lemma find_if_filter_is_singleton : forall elt k (e : elt) m P,
-  Proper (O.eq ==> eq ==> eq) P
+  Proper (E.eq ==> eq ==> eq) P
     -> M.Equal (P.filter P m) (singleton k e)
-    -> optionP (pairP O.eq eq) (find_if P m) (Some (k, e)).
+    -> optionP (pairP E.eq eq) (find_if P m) (Some (k, e)).
 Proof.
   simpl; intros.
   apply find_if_filter in H0; trivial.
   destruct (find_if P m).
     destruct p.
     simplify_maps.
-    inversion H4.
-  apply P.elements_Empty in H0.
-  discriminate.
+    simplify_maps.
+  assert (~ M.In k (M.empty elt)).
+    unfold not; intros.
+    apply F.empty_in_iff in H1.
+    contradiction.
+  contradiction (Empty_add _ k _ (M.empty elt) H1 H0).
 Qed.
 
 End FMapExt.

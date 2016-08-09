@@ -1,4 +1,5 @@
 Require Import
+  Here.LibExt
   Here.ByteString
   Here.Heap
   Here.HeapADT
@@ -7,115 +8,31 @@ Require Import
   Here.FunMaps
   Here.FMapExt
   Here.Same_set
-  Here.Tactics
   Here.ADTInduction
   Here.TupleEnsembles
   Here.TupleEnsemblesFinite
   Here.Relations
+  Here.Tactics
+  Here.MemoryBlockC
+  Here.DefineAbsR
+  Coq.FSets.FMapFacts
+  Coq.Structures.DecidableTypeEx
   Coq.Structures.OrderedTypeEx.
 
 Generalizable All Variables.
 
-Module Import E := FunMaps N_as_OT.
+Module HeapFMap (Mem : Memory).
 
-Section HeapFMap.
+Module Import H := Heap Mem.
+Module Import A := HeapADT Mem.
+Module Import O := MemoryBlockC Mem.
 
-Variable Word8 : Type.
-Variable Zero : Word8.
+Module Import M := FMapAVL.Make(N_as_OT).
+Module Import U := FunMaps N_as_DT M.
+Module Import D := Define_AbsR M.
 
-Definition MemoryBlock := MemoryBlock Word8.
-Definition HeapSpec    := @HeapSpec Word8.
-
-Section MemoryBlockC.
-
-Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
-  memSize x = memSize y /\ Same (memData x) (memData y).
-
-Global Program Instance MemoryBlock_Proper :
-  Proper (eq ==> @Same _ _ ==> MemoryBlock_Same) (@Build_MemoryBlock Word8).
-Obligation 1. relational; split; simpl; subst; auto. Qed.
-
-Record MemoryBlockC := {
-  memCSize : N;
-  memCData : M.t Word8
-}.
-
-Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
-  memCSize x = memCSize y /\ M.Equal (memCData x) (memCData y).
-
-Global Program Instance MemoryBlockC_Proper :
-  Proper (eq ==> @M.Equal _ ==> MemoryBlockC_Equal) Build_MemoryBlockC.
-Obligation 1. relational; split; simpl; subst; auto. Qed.
-
-Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
-  memSize o = memCSize n /\ Map_AbsR eq (memData o) (memCData n).
-
-Open Scope lsignature_scope.
-
-Global Program Instance MemoryBlock_AbsR_AbsR :
-  (@Build_MemoryBlock Word8) [R eq ==> Map_AbsR eq ==> MemoryBlock_AbsR]
-  Build_MemoryBlockC.
-Obligation 1. relational; split; simpl; subst; auto. Qed.
-
-Global Program Instance MemoryBlock_AbsR_Proper :
-  Proper (MemoryBlock_Same ==> MemoryBlockC_Equal ==> iff) MemoryBlock_AbsR.
-Obligation 1.
-  relational; destruct H, H0, H1.
-  - split; intros.
-      congruence.
-    split; intros; subst;
-    split; intros.
-    + rewrite <- H2 in H5.
-      apply H4 in H5; trivial.
-      setoid_rewrite H3 in H5.
-      trivial.
-    + rewrite <- H2.
-      apply H4; trivial.
-      setoid_rewrite H3.
-      trivial.
-    + rewrite <- H3 in H5.
-      apply H4 in H5; trivial.
-      setoid_rewrite H2 in H5.
-      trivial.
-    + rewrite <- H3.
-      apply H4; trivial.
-      setoid_rewrite <- H2 in H5.
-      trivial.
-  - split; intros.
-      congruence.
-    split; intros; subst;
-    split; intros.
-    + rewrite H2 in H5.
-      apply H4 in H5; trivial.
-      setoid_rewrite <- H3 in H5.
-      trivial.
-    + rewrite H2.
-      apply H4; trivial.
-      setoid_rewrite <- H3.
-      trivial.
-    + rewrite H3 in H5.
-      apply H4 in H5; trivial.
-      setoid_rewrite <- H2 in H5.
-      trivial.
-    + rewrite H3.
-      apply H4; trivial.
-      setoid_rewrite H2 in H5.
-      trivial.
-Qed.
-
-Corollary MemoryBlock_AbsR_impl : forall s s' d d',
-    s = s' -> Map_AbsR eq d d' ->
-    MemoryBlock_AbsR {| memSize  := s;  memData  := d |}
-                     {| memCSize := s'; memCData := d' |}.
-Proof. intros; subst; split; intros; trivial. Qed.
-
-Corollary Empty_MemoryBlock_AbsR : forall n,
-  MemoryBlock_AbsR {| memSize  := n; memData  := Empty |}
-                   {| memCSize := n; memCData := M.empty Word8 |}.
-Proof.
-  split; trivial; simpl; intros; apply Empty_Map_AbsR. Qed.
-
-End MemoryBlockC.
+Module P := WProperties_fun N_as_DT M.
+Module F := P.F.
 
 Require Import
   Fiat.ADT
@@ -123,14 +40,36 @@ Require Import
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
+Lemma MemoryBlock_AbsR_TotalMapRelation :
+  forall r : Rep HeapSpec, fromADT _ r
+    -> TotalMapRelation MemoryBlock_AbsR r.
+Proof.
+  intros; intros ???.
+  pose proof (all_blocks_are_finite H _ _ H0).
+  pose proof (all_block_maps_are_unique H _ _ H0).
+  simpl in *.
+  elimtype ((exists size : N, memSize x = size) /\
+            (exists data : M.t Mem.Word8, Map_AbsR eq (memData x) data)).
+    do 2 destruct 1.
+    eexists {| memCSize := x0; memCData := x1 |}.
+    constructor; auto.
+  split; eauto.
+  apply every_finite_map_has_an_associated_fmap; auto.
+  intros ???.
+  exists x0.
+  reflexivity.
+Qed.
+
+Hint Resolve MemoryBlock_AbsR_TotalMapRelation.
+
+Section Within.
+
 Definition within_allocated_mem (n : N) :=
   fun (addr : M.key) (blk : MemoryBlockC) => addr + memCSize blk <=? n.
 
 Program Instance within_allocated_mem_Proper :
   Proper (eq ==> eq ==> eq ==> eq) within_allocated_mem.
 Obligation 1. relational; subst; reflexivity. Qed.
-
-Hint Resolve within_allocated_mem_Proper.
 
 Lemma within_allocated_mem_add : forall n x k e,
   within_allocated_mem n k e
@@ -148,28 +87,6 @@ Proof.
   unfold within_allocated_mem; simpl; intros.
   apply N.leb_refl.
 Qed.
-
-Definition Heap_AbsR
-           (or : { r : Rep HeapSpec | fromADT HeapSpec r})
-           (nr : N * M.t MemoryBlockC) : Prop :=
-  Map_AbsR MemoryBlock_AbsR (` or) (snd nr) /\
-  P.for_all (within_allocated_mem (fst nr)) (snd nr).
-
-Program Definition Empty_Heap : { r : Rep HeapSpec | fromADT HeapSpec r} :=
-  exist _ Empty (empty_fromADT _).
-Obligation 1. reflexivity. Qed.
-
-Lemma Empty_Heap_AbsR : Heap_AbsR Empty_Heap (0, M.empty MemoryBlockC).
-Proof.
-  split.
-    apply Empty_Map_AbsR.
-  simpl.
-  apply for_all_empty.
-  apply within_allocated_mem_Proper.
-  reflexivity.
-Qed.
-
-Require Import FunctionalExtensionality.
 
 Corollary Proper_within : forall pos,
    Proper (eq ==> eq ==> eq)
@@ -191,8 +108,6 @@ Obligation 1.
   reflexivity.
 Qed.
 
-Hint Resolve withinMemBlock_Proper.
-
 Global Program Instance withinMemBlockC_Proper :
   Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlockC.
 Obligation 1.
@@ -201,8 +116,6 @@ Obligation 1.
   rewrite H.
   reflexivity.
 Qed.
-
-Hint Resolve withinMemBlockC_Proper.
 
 Open Scope lsignature_scope.
 
@@ -241,73 +154,47 @@ Proof.
   assumption.
 Qed.
 
-(* [M.Equal] maps are not necessary identical -- for example, there is no
-   ordering requirement -- but for the purposes of proof, they are at least
-   extensionally equal. *)
-Axiom Extensionality_FMap : forall (elt : Type) (A B : M.t elt),
-  M.Equal (elt:=elt) A B -> A = B.
+End Within.
 
-Lemma MemoryBlock_AbsR_FunctionalRelation :
-  FunctionalRelation MemoryBlock_AbsR.
+Hint Resolve within_allocated_mem_Proper.
+Hint Resolve withinMemBlock_Proper.
+Hint Resolve withinMemBlockC_Proper.
+
+Definition Heap_AbsR
+           (or : { r : Rep HeapSpec | fromADT HeapSpec r})
+           (nr : N * M.t MemoryBlockC) : Prop :=
+  Map_AbsR MemoryBlock_AbsR (` or) (snd nr) /\
+  P.for_all (within_allocated_mem (fst nr)) (snd nr).
+
+Theorem heaps_refine_to_maps : forall r : Rep HeapSpec, fromADT _ r ->
+  exists m : M.t MemoryBlockC, Map_AbsR MemoryBlock_AbsR r m.
 Proof.
-  intros ?????.
-  destruct H, H0, x, y, z; simpl in *.
-  subst; f_equal.
-  apply Extensionality_FMap.
-  apply F.Equal_mapsto_iff; split; intros.
-    apply H2, H1; trivial.
-  apply H1, H2; trivial.
-Qed.
-
-Hint Resolve MemoryBlock_AbsR_FunctionalRelation.
-
-Lemma MemoryBlock_AbsR_InjectiveRelation :
-  InjectiveRelation MemoryBlock_AbsR.
-Proof.
-  intros ?????.
-  destruct H, H0, x, y, z; simpl in *.
-  subst; f_equal.
-  apply Extensionality_Ensembles.
-  split; intros;
-  intros ??; destruct x.
-    apply H2, H1; trivial.
-  apply H1, H2; trivial.
-Qed.
-
-Hint Resolve MemoryBlock_AbsR_InjectiveRelation.
-
-Lemma eq_FunctionalRelation : forall A, FunctionalRelation (A:=A) (B:=A) eq.
-Proof. intros ??????; subst; reflexivity. Qed.
-
-Hint Resolve eq_FunctionalRelation.
-
-Lemma eq_InjectiveRelation : forall A,
-  InjectiveRelation (A:=A) (B:=A) eq.
-Proof. intros ??????; subst; reflexivity. Qed.
-
-Hint Resolve eq_InjectiveRelation.
-
-Lemma MemoryBlock_AbsR_TotalMapRelation :
-  forall r : Rep HeapSpec, fromADT _ r
-    -> TotalMapRelation MemoryBlock_AbsR r.
-Proof.
-  intros; intros ???.
-  pose proof (all_blocks_are_finite H _ _ H0).
-  pose proof (all_block_maps_are_unique H _ _ H0).
-  simpl in *.
-  elimtype ((exists size : N, memSize x = size) /\
-            (exists data : M.t Word8, Map_AbsR eq (memData x) data)).
-    do 2 destruct 1.
-    eexists {| memCSize := x0; memCData := x1 |}.
-    constructor; auto.
-  split; eauto.
+  intros.
   apply every_finite_map_has_an_associated_fmap; auto.
-  intros ???.
-  exists x0.
+  - apply heap_is_finite; auto.
+  - apply allocations_unique; auto.
+Qed.
+
+Lemma Heap_AbsR_outside_mem
+      {r_o r_n} (AbsR : Heap_AbsR r_o r_n)
+      (d : {len : N | 0 < len}) :
+  All (fun addr' blk' =>
+         ~ overlaps addr' (memSize blk') (fst r_n) (` d)) (` r_o).
+Proof.
+  intros addr blk H.
+  apply AbsR in H; destruct H as [cblk [? ?]].
+  rewrite (proj1 H0).
+  destruct AbsR as [_ ?].
+  eapply P.for_all_iff with (k:=addr) (e:=cblk) in H1; eauto.
+    unfold within_allocated_mem in H1; simpl in H1.
+    unfold not; intros.
+    clear -H1 H2.
+    unfold overlaps, within in *.
+    undecide.
+    nomega.
+  apply within_allocated_mem_Proper.
   reflexivity.
 Qed.
-
-Hint Resolve MemoryBlock_AbsR_TotalMapRelation.
 
 Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
   forall base blk' cblk',
@@ -357,27 +244,6 @@ Proof.
   apply within_allocated_mem_Proper; reflexivity.
 Qed.
 
-Lemma Heap_AbsR_outside_mem
-      {r_o r_n} (AbsR : Heap_AbsR r_o r_n)
-      (d : {len : N | 0 < len}) :
-  All (fun addr' blk' =>
-         ~ overlaps addr' (memSize blk') (fst r_n) (` d)) (` r_o).
-Proof.
-  intros addr blk H.
-  apply AbsR in H; destruct H as [cblk [? ?]].
-  rewrite (proj1 H0).
-  destruct AbsR as [_ ?].
-  eapply P.for_all_iff with (k:=addr) (e:=cblk) in H1; eauto.
-    unfold within_allocated_mem in H1; simpl in H1.
-    unfold not; intros.
-    clear -H1 H2.
-    unfold overlaps, within in *.
-    undecide.
-    nomega.
-  apply within_allocated_mem_Proper.
-  reflexivity.
-Qed.
-
 Ltac AbsR_prep :=
   repeat
     match goal with
@@ -387,197 +253,10 @@ Ltac AbsR_prep :=
     | [ |- _ /\ _ ] => split
     end; simpl; eauto; eauto with maps.
 
-Theorem heaps_refine_to_maps : forall r : Rep HeapSpec, fromADT _ r ->
-  exists m : M.t MemoryBlockC, Map_AbsR MemoryBlock_AbsR r m.
-Proof.
-  intros.
-  apply every_finite_map_has_an_associated_fmap; auto.
-  - apply heap_is_finite; auto.
-  - apply allocations_unique; auto.
-Qed.
-
-Lemma find_define : forall addr len pos v w m,
-  (IfDec within addr len pos
-   Then v = w
-   Else M.MapsTo pos v m)
-    -> M.MapsTo pos v (N.peano_rect (fun _ => M.t Word8) m
-                                    (fun i => M.add (addr + i)%N w) len).
-Proof.
-  intros.
-  decisions; subst.
-    apply Bool.andb_true_iff in Heqe.
-    destruct Heqe.
-    undecide.
-    induction len using N.peano_ind; simpl in *.
-      rewrite N.add_0_r in H0.
-      nomega.
-    rewrite N.peano_rect_succ.
-    destruct (N.eq_dec pos (addr + len)); subst.
-      simplify_maps.
-    simplify_maps.
-    right; split; trivial.
-      apply not_eq_sym; assumption.
-    rewrite N.add_succ_r in H0.
-    apply N.lt_succ_r in H0.
-    pose proof (proj2 (N.le_neq pos (addr + len)) (conj H0 n)).
-    apply IHlen; assumption.
-  apply Bool.andb_false_iff in Heqe.
-  destruct Heqe; undecide;
-  induction len using N.peano_ind; simpl in *; auto;
-  rewrite N.peano_rect_succ.
-    simplify_maps.
-    right; split; trivial.
-    unfold not; intros; subst.
-    rewrite <- (N.add_0_r addr) in H0 at 2.
-    apply N.add_lt_cases in H0.
-    destruct H0.
-      nomega.
-    contradiction (N.nlt_0_r len).
-  rewrite N.add_succ_r in H0.
-  simplify_maps.
-  right; split.
-    unfold not; intros; subst.
-    apply N.le_succ_l in H0.
-    nomega.
-  apply IHlen.
-  apply N.le_succ_l in H0.
-  nomega.
-Qed.
-
-Lemma Nle_ne_succ : forall n m,
-  n <> m -> n < N.succ m -> n < m.
-Proof.
-  intros.
-  apply N.le_succ_l in H0.
-  apply N.succ_le_mono in H0.
-  apply N.le_neq; intuition.
-Qed.
-
-Lemma find_define_inv : forall addr len pos v w m,
-  M.MapsTo pos v (N.peano_rect (fun _ => M.t Word8) m
-                               (fun i => M.add (addr + i)%N w) len)
-    -> IfDec within addr len pos
-       Then v = w
-       Else M.MapsTo pos v m.
-Proof.
-  intros.
-  induction len using N.peano_ind; simpl in *;
-  decisions; auto.
-  - apply Bool.andb_true_iff in Heqe;
-    destruct Heqe; undecide.
-    rewrite N.add_0_r in H1.
-    nomega.
-  - rewrite N.peano_rect_succ in H.
-    simplify_maps; auto.
-  - rewrite N.peano_rect_succ in H.
-    simplify_maps; auto.
-      nomega.
-    apply Bool.andb_true_iff in Heqe;
-    destruct Heqe; undecide.
-    apply Bool.andb_false_iff in Heqe0;
-    destruct Heqe0; undecide.
-      nomega.
-    intuition; subst.
-    rewrite N.add_succ_r in H1.
-    apply N.le_succ_l in H1.
-    nomega.
-  - rewrite N.peano_rect_succ in H.
-    simplify_maps; auto.
-    intuition.
-    apply Bool.andb_true_iff in Heqe0;
-    destruct Heqe0; undecide.
-    apply Bool.andb_false_iff in Heqe;
-    destruct Heqe; undecide.
-      nomega.
-    rewrite N.add_succ_r in H1.
-    apply not_eq_sym in H3.
-    pose proof (Nle_ne_succ H3 H1).
-    nomega.
-  - rewrite N.peano_rect_succ in H.
-    simplify_maps; auto.
-    intuition.
-    apply Bool.andb_false_iff in Heqe0;
-    destruct Heqe0; undecide;
-    apply Bool.andb_false_iff in Heqe;
-    destruct Heqe; undecide.
-    + rewrite <- N.add_0_r in H0.
-      apply N.add_lt_cases in H0.
-      destruct H0.
-        nomega.
-      contradiction (N.nlt_0_r len).
-    + rewrite <- N.add_0_r in H.
-      apply N.add_lt_cases in H.
-      destruct H.
-        nomega.
-      contradiction (N.nlt_0_r len).
-    + rewrite <- N.add_0_r in H0.
-      apply N.add_lt_cases in H0.
-      destruct H0.
-        nomega.
-      contradiction (N.nlt_0_r len).
-    + rewrite N.add_succ_r in H.
-      apply N.le_succ_l in H.
-      nomega.
-Qed.
-
-Lemma Define_Map_AbsR : forall x y b len w,
-  Map_AbsR eq x y
-    -> Map_AbsR eq (Define (within b len) w x)
-                (N.peano_rect (fun _ => M.t Word8) y
-                              (fun i => M.add (b + i)%N w) len).
-Proof.
-  intros.
-  relational_maps.
-  - teardown.
-    destruct H0, H0; [inv H1|];
-    exists blk; intuition;
-    apply find_define;
-    unfold IfDec_Then_Else; simpl.
-      apply within_reflect in H0.
-      rewrite H0; reflexivity.
-    apply not_within_reflect in H0.
-    rewrite H0.
-    apply H.
-    exists blk; intuition.
-  - reduction.
-    apply find_define_inv in H0.
-    decisions; auto; subst.
-      left.
-      apply within_reflect in Heqe.
-      intuition.
-    right.
-    apply not_within_reflect in Heqe.
-    apply H in H0.
-    destruct H0, H0; subst.
-    intuition.
-  - reduction.
-    apply find_define_inv in H0.
-    decisions; auto; subst.
-      apply within_reflect in Heqe.
-      exists w; intuition.
-      teardown.
-      left; intuition.
-    apply not_within_reflect in Heqe.
-    apply H in H0.
-    destruct H0, H0; subst.
-    exists cblk; intuition.
-    teardown.
-    right; intuition.
-  - repeat teardown; subst; [inv H2|];
-    apply find_define;
-    unfold IfDec_Then_Else; simpl.
-      apply within_reflect in H0.
-      rewrite H0; reflexivity.
-    apply not_within_reflect in H0.
-    rewrite H0.
-    apply H.
-    exists cblk; intuition.
-Qed.
-
 Lemma HeapImpl : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
-  eapply SharpenStep; [ apply (projT2 (@HeapSpecADT Word8)) |].
+  eapply SharpenStep; [ apply (projT2 HeapSpecADT) |].
 
   hone representation using Heap_AbsR.
 

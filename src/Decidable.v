@@ -251,7 +251,7 @@ Definition IfDec_Then_Else {A} (P : Prop) `{Decidable P} (t e : A) :=
 Arguments IfDec_Then_Else {A} P {_} t e : simpl never.
 
 Notation "'IfDec' P 'Then' t 'Else' e" :=
-  (IfDec_Then_Else P t e) (at level 70) : comp_scope.
+  (IfDec_Then_Else P t e) (at level 70).
 
 Require Import Fiat.Common.
 Require Import Fiat.Computation.Core.

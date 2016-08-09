@@ -1,15 +1,15 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
-  Here.ADTInduction.
+  Here.ADTInduction
+  Here.LibExt.
 
 Require Import
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
 Require Import
-  Here.BindDep
-  Here.Tactics.
+  Here.BindDep.
 
 Definition fromADTConstructor'
            {dSig : DecoratedADTSig}

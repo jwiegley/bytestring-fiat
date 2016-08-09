@@ -1,51 +1,11 @@
 Require Export Coq.Sets.Ensembles.
 
 Require Import
+  Here.LibExt
   Here.Relations
   Here.Same_set.
 
 Generalizable All Variables.
-
-Definition Map_set {A B} (f : A -> B) (r : Ensemble A) : Ensemble B :=
-  fun b => exists a : A, In _ r a /\ b = f a.
-
-Lemma Map_set_left_identity {A} (r : Ensemble A) : Same_set A r (Map_set id r).
-Proof.
-  unfold Map_set; split; intros.
-    eexists; intuition.
-    assumption.
-  intros ??.
-  do 2 destruct H.
-  unfold id in H0.
-  congruence.
-Qed.
-
-Lemma Map_set_right_identity {A} (r : Ensemble A) : Same_set A (Map_set id r) r.
-Proof.
-  unfold Map_set; split; intros.
-    intros ??.
-    do 2 destruct H.
-    unfold id in H0.
-    congruence.
-  eexists; intuition.
-  assumption.
-Qed.
-
-Lemma Map_set_composition {A B C} (r : Ensemble A) :
-  forall (f : B -> C) (g : A -> B),
-   Same_set C (Map_set (fun x => f (g x)) r) (Map_set f (Map_set g r)).
-Proof.
-  unfold Map_set; split; intros; intros ??.
-    do 2 destruct H; subst.
-    exists (g x0); simpl in *.
-    split; trivial.
-    exists x0; simpl.
-    intuition.
-  do 2 destruct H; subst.
-  do 2 destruct H; simpl in *; subst.
-  exists x; simpl in *.
-  intuition.
-Qed.
 
 Section TupleEnsemble.
 

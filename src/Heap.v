@@ -2,10 +2,10 @@ Require Import
   Fiat.ADT
   Fiat.ADTNotation
   Here.TupleEnsembles
+  Here.LibExt
   Here.Nomega
   Here.Decidable
   Here.BindDep
-  Here.Tactics
   Here.ADTInduction
   Here.Same_set
   Here.TupleEnsemblesFinite.
@@ -14,23 +14,16 @@ Generalizable All Variables.
 
 Open Scope string_scope.
 
-Definition emptyS   := "empty".
-Definition allocS   := "alloc".
-Definition reallocS := "realloc".
-Definition freeS    := "free".
-Definition peekS    := "peek".
-Definition pokeS    := "poke".
-Definition memcpyS  := "memcpy".
-Definition memsetS  := "memset".
+Module Type Memory.
+  Parameter Word8 : Type.
+  Parameter Zero  : Word8.
+End Memory.
 
-Section Heap.
-
-Variable Word8 : Type.
-Variable Zero  : Word8.
+Module Heap (Mem : Memory).
 
 Record MemoryBlock := {
   memSize : N;
-  memData : Ensemble (N * Word8)
+  memData : Ensemble (N * Mem.Word8)
 }.
 
 Ltac tsubst :=
@@ -57,6 +50,15 @@ Ltac inspect :=
         let H0 := fresh "H0" in
         unfold not; intro H0; apply overlaps_sym in H0; contradiction
     end).
+
+Definition emptyS   := "empty".
+Definition allocS   := "alloc".
+Definition reallocS := "realloc".
+Definition freeS    := "free".
+Definition peekS    := "peek".
+Definition pokeS    := "poke".
+Definition memcpyS  := "memcpy".
+Definition memsetS  := "memset".
 
 Definition HeapSpec := Def ADT {
   (* a mapping of addr tokens to a length, and another mapping from
@@ -112,8 +114,8 @@ Definition HeapSpec := Def ADT {
       naddr),
 
   (* Peeking an unallocated address allows any value to be returned. *)
-  Def Method1 peekS (r : rep) (addr : N) : rep * Word8 :=
-    p <- { p : Word8
+  Def Method1 peekS (r : rep) (addr : N) : rep * Mem.Word8 :=
+    p <- { p : Mem.Word8
          | forall base blk',
              (* There are three cases to consider here:
                 1. Peeking an allocated, initialized byte. This must
@@ -128,7 +130,7 @@ Definition HeapSpec := Def ADT {
     ret (r, p),
 
   (* Poking an unallocated address is a no-op and returns false. *)
-  Def Method2 pokeS (r : rep) (addr : N) (w : Word8) : rep * unit :=
+  Def Method2 pokeS (r : rep) (addr : N) (w : Mem.Word8) : rep * unit :=
     ret (Map (fun base blk =>
                 IfDec within base (memSize blk) addr
                 Then {| memSize := memSize blk
@@ -162,7 +164,7 @@ Definition HeapSpec := Def ADT {
                   let d := Filter (fun pos _ => ~ within doff len pos)
                                   (memData dblk) in
                   (* [s'] is s, shifted to the correct offset *)
-                  let s' := Map_set (fun p : N * Word8 =>
+                  let s' := Map_set (fun p : N * Mem.Word8 =>
                                        (fst p - soff + doff, snd p)) s in
                   Union _ d s' |} r
          | _, _ => r
@@ -170,7 +172,7 @@ Definition HeapSpec := Def ADT {
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op that
      returns false. *)
-  Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Word8) :
+  Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Mem.Word8) :
     rep * unit :=
     ret (Map (fun base blk =>
                 IfDec fits base (memSize blk) addr len
@@ -196,10 +198,11 @@ Definition realloc (r : Rep HeapSpec) (addr : N) (len : N | 0 < len) :
   Comp (Rep HeapSpec * N) :=
   Eval simpl in callMeth HeapSpec reallocS r addr len.
 
-Definition peek (r : Rep HeapSpec) (addr : N) : Comp (Rep HeapSpec * Word8) :=
+Definition peek (r : Rep HeapSpec) (addr : N) :
+  Comp (Rep HeapSpec * Mem.Word8) :=
   Eval simpl in callMeth HeapSpec peekS r addr.
 
-Definition poke (r : Rep HeapSpec) (addr : N) (w : Word8) :
+Definition poke (r : Rep HeapSpec) (addr : N) (w : Mem.Word8) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec pokeS r addr w.
 
@@ -207,7 +210,7 @@ Definition memcpy (r : Rep HeapSpec) (addr : N) (addr2 : N) (len : N) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memcpyS r addr addr2 len.
 
-Definition memset (r : Rep HeapSpec) (addr : N) (len : N) (w : Word8) :
+Definition memset (r : Rep HeapSpec) (addr : N) (len : N) (w : Mem.Word8) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memsetS r addr len w.
 
@@ -499,16 +502,3 @@ Proof.
 Qed.
 
 End Heap.
-
-Ltac tsubst :=
-  repeat
-    match goal with
-    | [ H : (_, _) = (_, _) |- _ ] => inv H
-    | [ H : (_, _, _) = (_, _, _) |- _ ] => inv H
-    | [ H : (_, _, _, _) = (_, _, _, _) |- _ ] => inv H
-    | [ H : {| memSize := _
-             ; memData := _ |} =
-            {| memSize := _
-             ; memData := _ |} |- _ ] => inv H
-    end;
-  subst.

@@ -1,8 +1,7 @@
-Ltac inv H := inversion H; subst; clear H.
-
 Require Export
   Coq.Sets.Constructive_sets
-  Coq.Sets.Powerset_facts.
+  Coq.Sets.Powerset_facts
+  Here.LibExt.
 
 Require Import Fiat.ADT.
 

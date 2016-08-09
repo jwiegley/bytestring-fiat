@@ -1,4 +1,5 @@
 Require Export
+  Here.LibExt
   Here.TupleEnsembles
   Here.Relations
   Coq.Sets.Finite_sets
@@ -222,76 +223,6 @@ Proof.
     left; intuition.
   exists (k, e); simpl; intuition.
   right; intuition.
-Qed.
-
-Definition Product {T U} (X : Ensemble T) (Y : Ensemble U) : Ensemble (T * U) :=
-  fun p => In T X (fst p) /\ In U Y (snd p).
-
-Lemma Product_Add_left : forall T U (X : Ensemble T) (Y : Ensemble U) x,
-  Same_set _ (Product (Add T X x) Y)
-             (Union _ (Product (Singleton _ x) Y) (Product X Y)).
-Proof.
-  unfold Product; split; intros;
-  intros ??; unfold Ensembles.In in *;
-  destruct H;
-  destruct x0; simpl in *;
-  destruct H.
-  - right; constructor; simpl; auto.
-  - left; constructor; simpl; auto.
-  - simpl in *; intuition; right; intuition.
-  - simpl in *; intuition; left; intuition.
-Qed.
-
-Lemma Product_Add_right : forall T (X : Ensemble T) U (Y : Ensemble U) y,
-  Same_set _ (Product X (Add U Y y))
-             (Union _ (Product X Y) (Product X (Singleton _ y))).
-Proof.
-  unfold Product; split; intros;
-  intros ??; unfold Ensembles.In in *;
-  destruct H;
-  destruct x; simpl in *.
-  - destruct H0.
-    + left; constructor; simpl; auto.
-    + right; constructor; simpl; auto.
-  - destruct H. intuition; left; intuition.
-  - destruct H. intuition; right; intuition.
-Qed.
-
-Lemma Product_Empty_set_left : forall T U (X : Ensemble U),
-  Same_set _ (Product (Empty_set T) X) (Empty_set (T * U)).
-Proof.
-  unfold Product; split; intros;
-  intros ??; unfold Ensembles.In in *.
-  destruct H;
-  destruct x; simpl in *;
-  destruct H.
-  destruct H.
-Qed.
-
-Lemma Product_Empty_set_right : forall T (X : Ensemble T) U,
-  Same_set _ (Product X (Empty_set U)) (Empty_set (T * U)).
-Proof.
-  unfold Product; split; intros;
-  intros ??; unfold Ensembles.In in *.
-  destruct H;
-  destruct x; simpl in *.
-  destruct H0.
-  destruct H.
-Qed.
-
-Lemma Product_Singleton_Singleton : forall T U x y,
-  Same_set _ (Product (Singleton T x) (Singleton U y))
-             (Singleton (T * U) (x, y)).
-Proof.
-  unfold Product; split; intros;
-  intros ??; unfold Ensembles.In in *;
-  destruct H.
-    inversion H; subst; clear H.
-    inversion H0; subst; clear H0.
-    rewrite <- surjective_pairing.
-    constructor.
-  simpl.
-  intuition.
 Qed.
 
 Lemma Conjunction_preserves_finite_right {U} :
