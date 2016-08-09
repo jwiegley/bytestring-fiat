@@ -2,24 +2,23 @@
 -R fiat/src Fiat
 -R coqrel CoqRel
 -R src Here
--I fiat/src/Common/Tactics
-src/ADTInduction.v
-src/BindDep.v
-src/ByteString.v
-src/ByteStringLib.v
-src/Comp.v
-src/Composition.v
-src/Decidable.v
-src/FMapExt.v
-src/FromADT.v
-src/FunMaps.v
-src/Heap.v
-src/HeapADT.v
 src/LibExt.v
+src/Decidable.v
+src/Tactics.v
 src/LogicalRelations.v
 src/Nomega.v
-src/RefinedHeap.v
 src/Same_set.v
-src/Tactics.v
 src/TupleEnsembles.v
 src/TupleEnsemblesFinite.v
+src/FMapExt.v
+src/FunMaps.v
+src/Comp.v
+src/Composition.v
+src/ADTInduction.v
+src/FromADT.v
+src/BindDep.v
+src/Heap.v
+src/HeapADT.v
+src/RefinedHeap.v
+src/ByteString.v
+src/ByteStringLib.v

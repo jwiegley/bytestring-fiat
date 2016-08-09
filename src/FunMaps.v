@@ -1,18 +1,15 @@
 Require Import
   Here.FMapExt
-  Here.Nomega
   Here.TupleEnsembles
   Here.TupleEnsemblesFinite
   Coq.FSets.FMapList
   Coq.FSets.FMapFacts
   Coq.Structures.OrderedTypeEx.
 
+(* Without [Coq.Classes.Morphisms], some rewrites fail below *)
 Require Import
   CoqRel.LogicalRelations
   Coq.Classes.Morphisms
-  Coq.Classes.RelationClasses
-  Coq.Setoids.Setoid
-  Coq.Classes.Equivalence
   Here.Same_set.
 
 Generalizable All Variables.
@@ -22,27 +19,8 @@ Notation "f [R  rel ] f'" := (Related rel f f')
 
 Module FunMaps (O : OrderedType).
 
-Lemma Oeq_neq_sym : forall x y, ~ O.eq x y -> ~ O.eq y x.
-Proof.
-  intros.
-  unfold not; intros.
-  apply O.eq_sym in H0.
-  contradiction.
-Qed.
-
-Hint Resolve Oeq_neq_sym.
-
 Module E := FMapExt(O).
 Include E.
-
-Lemma Proper_Oeq_negb : forall B f,
-  Proper (O.eq ==> eq ==> eq) f ->
-  Proper (O.eq ==> eq ==> eq) (fun (k : M.key) (e : B) => negb (f k e)).
-Proof. intros ?????????; f_equal; subst; rewrite H0; reflexivity. Qed.
-
-Hint Resolve Proper_Oeq_negb.
-
-Open Scope rel_scope.
 
 Definition Map_AbsR `(R : A -> B -> Prop)
            (or : Ensemble (M.key * A)) (nr : M.t B) : Prop :=
@@ -140,48 +118,6 @@ Ltac relational :=
   | [ |- iff _ _ ] => split; intro
   end.
 
-Corollary Map_AbsR_Lookup_R `(R : A -> B -> Prop)
-          (or : Ensemble (M.key * A)) (nr : M.t B) :
-  Map_AbsR R or nr ->
-  forall addr blk cblk,
-    Lookup addr blk or -> R blk cblk -> M.MapsTo addr cblk nr.
-Proof. intros; eapply H; eauto. Qed.
-
-Hint Resolve Map_AbsR_Lookup_R.
-
-Corollary Map_AbsR_find_R `(R : A -> B -> Prop)
-          (or : Ensemble (M.key * A)) (nr : M.t B) :
-  Map_AbsR R or nr ->
-  forall addr blk cblk,
-    M.MapsTo addr cblk nr -> R blk cblk -> Lookup addr blk or.
-Proof. intros; eapply H; eauto. Qed.
-
-Hint Resolve Map_AbsR_find_R.
-
-Global Program Instance Map_AbsR_Proper :
-  Proper (@Same _ _ ==> @M.Equal _ ==> iff) (@Map_AbsR A B R).
-Obligation 1.
-  relational; equalities.
-  - reduction; related.
-    rewrite <- H0; trivial.
-  - reduction.
-    rewrite <- H0 in H2; eauto.
-  - rewrite <- H0 in H2.
-    reduction; related.
-    rewrite <- H; trivial.
-  - reduction; equalities.
-    rewrite <- H0; eauto.
-  - reduction; related.
-    rewrite H0; trivial.
-  - reduction.
-    rewrite H0 in H2; eauto.
-  - rewrite H0 in H2.
-    reduction; related.
-    rewrite H; trivial.
-  - reduction; equalities.
-    rewrite H0; eauto.
-Qed.
-
 Section FunMaps_AbsR.
 
 Variables A B : Type.
@@ -226,6 +162,48 @@ Qed.
 
 Hypothesis Oeq_eq : forall x y, O.eq x y -> x = y.
 
+Open Scope rel_scope.
+
+Corollary Map_AbsR_Lookup_R (or : Ensemble (M.key * A)) (nr : M.t B) :
+  Map_AbsR R or nr ->
+  forall addr blk cblk,
+    Lookup addr blk or -> R blk cblk -> M.MapsTo addr cblk nr.
+Proof. intros; eapply H; eauto. Qed.
+
+Hint Resolve Map_AbsR_Lookup_R.
+
+Corollary Map_AbsR_find_R (or : Ensemble (M.key * A)) (nr : M.t B) :
+  Map_AbsR R or nr ->
+  forall addr blk cblk,
+    M.MapsTo addr cblk nr -> R blk cblk -> Lookup addr blk or.
+Proof. intros; eapply H; eauto. Qed.
+
+Hint Resolve Map_AbsR_find_R.
+
+Global Program Instance Map_AbsR_Proper :
+  Proper (@Same _ _ ==> @M.Equal _ ==> iff) (@Map_AbsR A B R).
+Obligation 1.
+  relational; equalities.
+  - reduction; related.
+    rewrite <- H0; trivial.
+  - reduction.
+    rewrite <- H0 in H2; eauto.
+  - rewrite <- H0 in H2.
+    reduction; related.
+    rewrite <- H; trivial.
+  - reduction; equalities.
+    rewrite <- H0; eauto.
+  - reduction; related.
+    rewrite H0; trivial.
+  - reduction.
+    rewrite H0 in H2; eauto.
+  - rewrite H0 in H2.
+    reduction; related.
+    rewrite H; trivial.
+  - reduction; equalities.
+    rewrite H0; eauto.
+Qed.
+
 Global Program Instance Empty_Map_AbsR : Empty [R Map_AbsR R] (M.empty _).
 Obligation 1.
   relational; repeat teardown.
@@ -233,27 +211,30 @@ Obligation 1.
   simplify_maps.
 Qed.
 
-Global Program Instance MapsTo_Map_AbsR :
-  (@Lookup _ _) [R O.eq ==> R ==> Map_AbsR R ==> iff] (@M.MapsTo _).
-Obligation 1. relational; equalities; eauto. Qed.
-
 Global Program Instance Lookup_Map_AbsR :
-  (@Lookup _ _) [R O.eq ==> R ==> Map_AbsR R ==> iff]
-  (fun k e m => M.find k m = Some e).
+  (@Lookup _ _) [R O.eq ==> R ==> Map_AbsR R ==> iff] (@M.MapsTo _).
 Obligation 1. relational; equalities; eauto. Qed.
 
 Global Program Instance Same_Map_AbsR :
   (@Same _ _) [R Map_AbsR R ==> Map_AbsR R ==> iff] M.Equal.
 Obligation 1.
   relational.
-    rewrite <- H1 in H0; clear H1.
     apply F.Equal_mapsto_iff; split; intros.
-      apply H in H1; eapply H0; exact H1.
-    apply H0 in H1; eapply H; exact H1.
-  rewrite <- H1 in H0.
+      apply H0.
+      apply H in H2.
+      firstorder.
+    apply H.
+    apply H0 in H2.
+    firstorder.
   split; intros.
-    apply H in H2; eapply H0; exact H2.
-  apply H0 in H2; eapply H; exact H2.
+    apply H0.
+    apply H in H2.
+    setoid_rewrite <- H1.
+    exact H2.
+  apply H.
+  apply H0 in H2.
+  setoid_rewrite H1.
+  exact H2.
 Qed.
 
 Definition boolR (P : Prop) (b : bool) : Prop := P <-> b = true.
@@ -276,15 +257,6 @@ Obligation 1.
     assumption.
   rewrite F.mem_find_b, Heqe in H.
   discriminate.
-Qed.
-
-Lemma has_Some : forall A B (a : option A) (b : B),
-  a <> None -> exists b, a = Some b.
-Proof.
-  intros.
-  destruct a.
-    exists a; reflexivity.
-  congruence.
 Qed.
 
 Global Program Instance Member_In_Map_AbsR :
@@ -484,17 +456,8 @@ Qed.
 (* Modify *)
 (* Overlay *)
 
-(* Global Program Instance All_Proper : *)
-(*   Proper ((O.eq ==> eq ==> iff) ==> Same (B:=A) ==> iff) (All (B:=A)). *)
-(* Obligation 1. *)
-
-(* Global Program Instance for_all_Proper : *)
-(*   Proper ((O.eq ==> eq ==> eq) ==> M.Equal ==> eq) (P.for_all (elt:=B)). *)
-(* Obligation 1. *)
-
-Global Program Instance All_Map_AbsR
-       `{Hsym : Equivalence B Q}
-       `{HQ : Proper _ (O.eq ==> Q ==> eq) f'} :
+Global Program Instance All_Map_AbsR :
+  Proper (O.eq ==> eq ==> eq) f' ->
   f [R O.eq ==> R ==> boolR] f'
     -> All f [R Map_AbsR R ==> boolR] P.for_all f'.
 Obligation 1.
@@ -502,24 +465,22 @@ Obligation 1.
   unfold All, P.for_all in *.
   split; intros.
     apply P.fold_rec_bis; intros; trivial; subst.
-    apply F.find_mapsto_iff in H2.
     reduction.
-    apply H1 in HC.
-    eapply H in HC; eauto.
+    apply H2 in HC.
+    eapply H0 in HC; eauto.
     rewrite HC; reflexivity.
-  intros.
   reduction.
-  eapply H; eauto.
-  revert H1.
+  eapply H0; eauto.
+  revert H2.
   revert HA.
   apply P.fold_rec; intros; subst; intuition.
     simplify_maps.
-  apply add_equal_iff in H2.
-  rewrite <- H2 in HA.
+  apply add_equal_iff in H3.
+  rewrite <- H3 in HA; clear H3 m''.
   simplify_maps.
-    rewrite <- H5.
-    destruct (f' k cblk) eqn:Heqe; intuition.
-  destruct (f' k e) eqn:Heqe; intuition.
+    rewrite <- H3.
+    destruct (f' k _) eqn:Heqe; intuition.
+  destruct (f' k _) eqn:Heqe; intuition.
 Qed.
 
 Global Program Instance Any_Map_AbsR :
@@ -547,12 +508,10 @@ Obligation 1.
   intros ??????; subst; equalities.
 Qed.
 
-End FunMaps_AbsR.
-
 Lemma Map_AbsR_impl :
-  forall A B (R : A -> B -> Prop) a b c,
-    (forall a b c, R a b -> R a c -> b = c)
-      -> Map_AbsR R a b -> Map_AbsR R a c -> M.Equal b c.
+  FunctionalRelation ->
+    forall a b c,
+      Map_AbsR R a b -> Map_AbsR R a c -> M.Equal b c.
 Proof.
   relational; intros.
   apply F.Equal_mapsto_iff; split; intros;
@@ -561,9 +520,9 @@ Proof.
   subst; assumption.
 Qed.
 
-Lemma TotalMapRelation_Add : forall A B (R : A -> B -> Prop) r x,
-  TotalMapRelation R (Ensembles.Add (M.key * A) r x)
-    -> TotalMapRelation R r.
+Lemma TotalMapRelation_Add : forall r x,
+  TotalMapRelation (Ensembles.Add (M.key * A) r x)
+    -> TotalMapRelation r.
 Proof.
   unfold TotalMapRelation; intros.
   edestruct H; eauto; left; eassumption.
@@ -576,12 +535,10 @@ Proof.
   eapply H; left; eassumption.
 Qed.
 
-Theorem every_finite_map_has_an_associated_fmap
-        (Oeq_eq : forall x y, O.eq x y -> x = y) :
-  forall A B (R : A -> B -> Prop) (r : Ensemble (M.key * A)),
-    FunctionalRelation R ->
-    InjectiveRelation R ->
-    TotalMapRelation R r ->
+Theorem every_finite_map_has_an_associated_fmap : forall r,
+    FunctionalRelation ->
+    InjectiveRelation ->
+    TotalMapRelation r ->
     Finite _ r ->
     Functional r
       -> exists m : M.t B, Map_AbsR R r m.
@@ -606,5 +563,21 @@ Proof.
     subst.
     contradiction.
 Qed.
+
+End FunMaps_AbsR.
+
+Hint Resolve Map_AbsR_Proper : maps.
+Hint Resolve Empty_Map_AbsR : maps.
+Hint Resolve Lookup_Map_AbsR : maps.
+Hint Resolve Same_Map_AbsR : maps.
+Hint Resolve Member_Map_AbsR : maps.
+Hint Resolve Member_In_Map_AbsR : maps.
+Hint Resolve Remove_Map_AbsR : maps.
+Hint Resolve Update_Map_AbsR : maps.
+Hint Resolve Single_Map_AbsR : maps.
+Hint Resolve Map_Map_AbsR : maps.
+Hint Resolve Filter_Map_AbsR : maps.
+Hint Resolve All_Map_AbsR : maps.
+Hint Resolve Any_Map_AbsR : maps.
 
 End FunMaps.

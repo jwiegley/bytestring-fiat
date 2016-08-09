@@ -27,29 +27,23 @@ Class HasProd `{Monad m} := {
   monad_prod : forall {A} (X : m (Comp (m A))), Comp (m A)
 }.
 
-Definition comp_prod `{Monad m} {A} (X : m (Comp (m A))) : Comp (m A).
-Admitted.
+(* Definition comp_prod `{Monad m} {A} (X : m (Comp (m A))) : Comp (m A). *)
 
-Instance mComp_Monad_Distributes `{Monad m} : @Monad_Distributes Comp _ m _ := {
-  prod := @comp_prod _ _
-}.
+(* Instance mComp_Monad_Distributes `{Monad m} : @Monad_Distributes Comp _ m _ := { *)
+(*   prod := @comp_prod _ _ *)
+(* }. *)
 
 Import MonadLaws.
 
-Global Program Instance mComp_Monad_DistributesLaws `{Monad m} :
-  @Monad_DistributesLaws Comp _ m _ mComp_Monad_Distributes.
-Obligation 1.
-Admitted.
-Obligation 2.
-Admitted.
-Obligation 3.
-Admitted.
-Obligation 4.
-Admitted.
-Obligation 5.
-Admitted.
+(* Global Program Instance mComp_Monad_DistributesLaws `{Monad m} : *)
+(*   @Monad_DistributesLaws Comp _ m _ mComp_Monad_Distributes. *)
+(* Obligation 1. *)
+(* Obligation 2. *)
+(* Obligation 3. *)
+(* Obligation 4. *)
+(* Obligation 5. *)
 
-Instance mComp_Monad `{Monad m} : Monad (CompT m) := Compose_Monad.
+(* Instance mComp_Monad `{Monad m} : Monad (CompT m) := Compose_Monad. *)
 
 Definition liftC {A} `{Monad m} : Comp A -> CompT m A := fmap pure.
 Definition liftM {A} `{Monad m} : m A    -> CompT m A := pure.
@@ -161,7 +155,6 @@ Proof.
     replace (fun _ : () => (v <- ret 15;
                                  ret ((pure[m]) v))%comp)
       with (fun _ : () => (ret (pure[m] 15))%comp).
-Abort.
 
 Eval simpl in projT1 example_refined.
 *)
@@ -181,22 +174,20 @@ Instance mComp_ApplicativeLaws `{ApplicativeLaws m} :
 
 Local Obligation Tactic := idtac.
 
+(*
 Program Instance mComp_Monad_DistributesLaws `{MonadLaws m} :
   @Monad_DistributesLaws Comp _ m _ mComp_Monad_Distributes.
 Obligation 1.
   intros.
   simpl prod.
-Admitted.
 Obligation 2.
   intros.
   simpl prod.
-Admitted.
 Obligation 3.
   intros.
   simpl prod.
-Admitted.
 Obligation 4.
-Admitted.
+*)
 
 (*
 Program Instance mComp_MonadLaws `{MonadLaws m} : MonadLaws (CompT m) :=

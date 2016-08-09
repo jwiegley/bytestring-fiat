@@ -103,6 +103,15 @@ Program Fixpoint nth_safe
 
 Arguments nth_safe {A} n l _.
 
+Lemma has_Some : forall A B (a : option A) (b : B),
+  a <> None -> exists b, a = Some b.
+Proof.
+  intros.
+  destruct a.
+    exists a; reflexivity.
+  congruence.
+Qed.
+
 Require Export
   Coq.Sets.Constructive_sets
   Coq.Sets.Powerset_facts.

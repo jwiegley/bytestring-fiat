@@ -574,6 +574,23 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma Oeq_neq_sym : forall x y, ~ O.eq x y -> ~ O.eq y x.
+Proof.
+  intros.
+  unfold not; intros.
+  apply O.eq_sym in H0.
+  contradiction.
+Qed.
+
+Hint Resolve Oeq_neq_sym.
+
+Lemma Proper_Oeq_negb : forall B f,
+  Proper (O.eq ==> eq ==> eq) f ->
+  Proper (O.eq ==> eq ==> eq) (fun (k : M.key) (e : B) => negb (f k e)).
+Proof. intros ?????????; f_equal; subst; rewrite H0; reflexivity. Qed.
+
+Hint Resolve Proper_Oeq_negb.
+
 Lemma for_all_remove_false : forall elt k (m : M.t elt) P,
   Proper (O.eq ==> eq ==> eq) P
     -> (forall k' e', M.MapsTo k' e' m -> ~ O.eq k' k -> P k' e' = false)
@@ -585,7 +602,7 @@ Proof.
     rewrite H1; reflexivity.
   intros.
   simplify_maps.
-  apply M.Raw.PX.MO.neq_sym in H2.
+  apply Oeq_neq_sym in H2.
   specialize (H0 _ _ H3 H2).
   rewrite H0.
   reflexivity.

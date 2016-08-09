@@ -405,21 +405,6 @@ Proof.
   reflexivity.
 Qed.
 
-Hint Resolve Map_AbsR_Proper : maps.
-Hint Resolve Empty_Map_AbsR : maps.
-Hint Resolve MapsTo_Map_AbsR : maps.
-Hint Resolve Lookup_Map_AbsR : maps.
-Hint Resolve Same_Map_AbsR : maps.
-Hint Resolve Member_Map_AbsR : maps.
-Hint Resolve Member_In_Map_AbsR : maps.
-Hint Resolve Remove_Map_AbsR : maps.
-Hint Resolve Update_Map_AbsR : maps.
-Hint Resolve Single_Map_AbsR : maps.
-Hint Resolve Map_Map_AbsR : maps.
-Hint Resolve Filter_Map_AbsR : maps.
-Hint Resolve All_Map_AbsR : maps.
-Hint Resolve Any_Map_AbsR : maps.
-
 Ltac AbsR_prep :=
   repeat
     match goal with
