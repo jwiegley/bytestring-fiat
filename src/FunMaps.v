@@ -212,31 +212,6 @@ Definition SurjectiveMapRelation r :=
 Definition of_map (x : M.t B) : Ensemble (M.key * A) :=
   fun p => exists b : B, R (snd p) b /\ M.MapsTo (fst p) b x.
 
-Definition of_map_Same : forall r,
-  Finite _ r -> exists m, Same r (of_map m).
-Proof.
-  unfold of_map; intros.
-  induction H.
-    exists (M.empty _).
-    split; intros.
-      inversion H.
-    inversion H.
-    destruct H0.
-    inversion H1.
-  destruct IHFinite.
-  destruct x; simpl in *.
-  eexists (M.add k _ x0).
-  split; intros.
-    inversion H2; subst; clear H2.
-      apply H1 in H3; clear H1.
-      inversion H3; subst; clear H3.
-      simpl in *.
-      destruct H1.
-      exists x.
-      intuition.
-      simplify_maps; simpl.
-Abort.
-
 Lemma of_map_Same : forall r m, Map_AbsR R r m -> Same r (of_map m).
 Proof.
   unfold of_map; intros.

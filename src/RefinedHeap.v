@@ -268,6 +268,9 @@ Proof.
   assumption.
 Qed.
 
+(* [M.Equal] maps are not necessary identical -- for example, there is no
+   ordering requirement -- but for the purposes of proof, they are at least
+   extensionally equal. *)
 Axiom Extensionality_FMap : forall (elt : Type) (A B : M.t elt),
   M.Equal (elt:=elt) A B -> A = B.
 
