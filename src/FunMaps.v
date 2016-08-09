@@ -15,6 +15,8 @@ Require Import
   Coq.Classes.Equivalence
   Here.Same_set.
 
+Generalizable All Variables.
+
 Notation "f [R  rel ] f'" := (Related rel f f')
   (right associativity, at level 55) : rel_scope.
 
@@ -185,6 +187,68 @@ Section FunMaps_AbsR.
 Variables A B : Type.
 Variable R : (A -> B -> Prop).
 
+Definition FunctionalRelation :=
+  forall x y z, R x y -> R x z -> y = z.
+
+Definition InjectiveRelation :=
+  forall x y z, R y x -> R z x -> y = z.
+
+Lemma InjectiveImpl : forall r r',
+  InjectiveRelation
+    -> Map_AbsR R r r'
+    -> forall k x, Lookup (A:=M.key) k x r -> exists y, R x y.
+Proof.
+  intros.
+  reduction.
+  eauto.
+Qed.
+
+Definition TotalMapRelation r :=
+  forall k x, Lookup (A:=M.key) k x r -> exists y, R x y.
+
+Definition SurjectiveMapRelation r :=
+  forall k y, exists x, Lookup (A:=M.key) k x r -> R x y.
+
+Definition of_map (x : M.t B) : Ensemble (M.key * A) :=
+  fun p => exists b : B, R (snd p) b /\ M.MapsTo (fst p) b x.
+
+Definition of_map_Same : forall r,
+  Finite _ r -> exists m, Same r (of_map m).
+Proof.
+  unfold of_map; intros.
+  induction H.
+    exists (M.empty _).
+    split; intros.
+      inversion H.
+    inversion H.
+    destruct H0.
+    inversion H1.
+  destruct IHFinite.
+  destruct x; simpl in *.
+  eexists (M.add k _ x0).
+  split; intros.
+    inversion H2; subst; clear H2.
+      apply H1 in H3; clear H1.
+      inversion H3; subst; clear H3.
+      simpl in *.
+      destruct H1.
+      exists x.
+      intuition.
+      simplify_maps; simpl.
+Abort.
+
+Lemma of_map_Same : forall r m, Map_AbsR R r m -> Same r (of_map m).
+Proof.
+  unfold of_map; intros.
+  split; intros.
+    apply H in H0.
+    destruct H0.
+    exists x; intuition.
+  apply H.
+  destruct H0.
+  exists x; intuition.
+Qed.
+
 Hypothesis Oeq_eq : forall x y, O.eq x y -> x = y.
 
 Global Program Instance Empty_Map_AbsR : Empty [R Map_AbsR R] (M.empty _).
@@ -263,7 +327,9 @@ Obligation 1.
 Qed.
 
 Global Program Instance Insert_Map_AbsR : forall k e e' r m,
-  forall H : ~ Member k r, R e e' -> Map_AbsR R r m
+  FunctionalRelation -> InjectiveRelation
+    -> Map_AbsR R r m
+    -> forall (H : ~ Member k r), R e e'
     -> Insert k e r (not_ex_all_not _ _ H) [R Map_AbsR R] M.add k e' m.
 Obligation 1.
   relational; equalities.
@@ -271,35 +337,27 @@ Obligation 1.
       related.
       simplify_maps.
       firstorder.
-    reduction.
-    related.
+    reduction; related.
     simplify_maps.
-    firstorder.
-  - reduction.
-    simplify_maps.
+    intuition.
+  - reduction; simplify_maps.
       left; intuition.
-      admit.
-    right.
-    split; eauto.
+      eapply H0; eauto.
+    right; split; eauto.
     equalities.
   - simplify_maps.
-      related.
-      teardown.
+      related; teardown.
       intuition.
-    reduction.
-    related.
-    teardown.
-    right.
-    split; trivial.
+    reduction; related; teardown.
+    right; split; trivial.
     equalities.
   - repeat teardown; subst.
     simplify_maps.
       left; intuition.
-      admit.
+      eapply H2; eauto.
     simplify_maps.
-    right.
-    split; eauto.
-Admitted.
+    right; split; eauto.
+Qed.
 
 Global Program Instance Remove_Map_AbsR :
   (@Remove _ _) [R O.eq ==> Map_AbsR R ==> Map_AbsR R] (@M.remove _).
@@ -327,49 +385,42 @@ Obligation 1.
 Qed.
 
 Global Program Instance Update_Map_AbsR :
-  (@Update _ _) [R O.eq ==> R ==> Map_AbsR R ==> Map_AbsR R] (@M.add _).
+  FunctionalRelation -> InjectiveRelation
+    -> (@Update _ _) [R O.eq ==> R ==> Map_AbsR R ==> Map_AbsR R] (@M.add _).
 Obligation 1.
   relational; equalities.
   - repeat teardown; subst.
-      related.
-      simplify_maps.
+      related; simplify_maps.
       firstorder.
-    reduction.
-    related.
+    reduction; related.
     simplify_maps.
-    firstorder.
-  - reduction.
-    simplify_maps.
+    intuition.
+  - reduction; simplify_maps.
       left; intuition.
-      admit.
-    right.
-    split; eauto.
+      eapply H0; eauto.
+    right; split; eauto.
     equalities.
   - simplify_maps.
-      related.
-      teardown.
+      related; teardown.
       intuition.
-    reduction.
-    related.
-    teardown.
-    right.
-    split; trivial.
+    reduction; related; teardown.
+    right; split; trivial.
     equalities.
   - repeat teardown; subst.
     simplify_maps.
       left; intuition.
-      admit.
+      eapply H; eauto.
     simplify_maps.
-    right.
-    split; eauto.
-Admitted.
+    right; split; eauto.
+Qed.
 
 Corollary Single_is_Update : forall (x : M.key) (y : A),
   Same (Single x y) (Update x y Empty).
 Proof. split; intros; repeat teardown. Qed.
 
 Global Program Instance Single_Map_AbsR :
-  (@Single _ _) [R O.eq ==> R ==> Map_AbsR R] singleton.
+  FunctionalRelation -> InjectiveRelation
+    -> (@Single _ _) [R O.eq ==> R ==> Map_AbsR R] singleton.
 Obligation 1.
   intros ??????.
   rewrite Single_is_Update.
@@ -381,53 +432,47 @@ Qed.
 (* Move *)
 
 Global Program Instance Map_Map_AbsR :
+  FunctionalRelation -> InjectiveRelation ->
   Proper (O.eq ==> eq ==> eq) f ->
   Proper (O.eq ==> eq ==> eq) f'
     -> f [R O.eq ==> R ==> R] f'
     -> (@Map _ _ _ f) [R Map_AbsR R ==> Map_AbsR R] (@M.mapi _ _ f').
 Obligation 1.
   relational.
-  - repeat teardown.
-    reduction.
+  - repeat teardown; reduction.
     exists (f' addr cblk).
     split.
       apply F.mapi_mapsto_iff; eauto; intros.
-      rewrite H2.
-      reflexivity.
-    apply H1; auto.
-  - teardown.
-    reduction.
-    apply F.mapi_mapsto_iff in H3.
+      rewrite H2; trivial.
+    apply H3; trivial.
+  - teardown; reduction.
+    apply F.mapi_mapsto_iff in H5.
       reduction.
       exists blk0.
       split; trivial.
-      eapply (H1 addr) in HD; eauto.
-      admit.
+      eapply (H3 addr) in HD; eauto.
     intros.
-    rewrite H6.
-    reflexivity.
-  - apply F.mapi_mapsto_iff in H3.
+    rewrite H8; reflexivity.
+  - apply F.mapi_mapsto_iff in H5.
       reduction.
       exists (f addr blk).
       split; trivial.
         teardown.
         exists blk.
         intuition.
-      apply H1; auto.
+      apply H3; auto.
     intros.
-    rewrite H5.
-    reflexivity.
+    rewrite H7; reflexivity.
   - apply F.mapi_mapsto_iff; eauto; intros.
-      rewrite H4.
-      reflexivity.
+      rewrite H6; reflexivity.
     reduction.
     exists cblk0.
     split; trivial.
-    eapply (H1 addr) in HB; eauto.
-    admit.
-Admitted.
+    eapply (H3 addr) in HB; eauto.
+Qed.
 
 Global Program Instance Filter_Map_AbsR :
+  FunctionalRelation -> InjectiveRelation ->
   Proper (O.eq ==> eq ==> eq) f ->
   Proper (O.eq ==> eq ==> eq) f'
     -> f [R O.eq ==> R ==> boolR] f'
@@ -438,25 +483,27 @@ Obligation 1.
     related.
     simplify_maps; auto.
     intuition.
-    eapply H1; eauto.
+    eapply H3; eauto.
   - reduction.
     simplify_maps; auto.
     reduction.
     intuition.
-      admit.
-    eapply H1; eauto.
+      pose proof (H0 _ _ _ H6 HD); subst.
+      assumption.
+    eapply H3; eauto.
   - simplify_maps; auto.
     reduction.
     related.
     teardown.
     intuition.
-    eapply H1; eauto.
+    eapply H3; eauto.
   - simplify_maps; auto.
     reduction.
     intuition.
-      admit.
-    eapply H1; eauto.
-Admitted.
+      pose proof (H _ _ _ H6 HB); subst.
+      assumption.
+    eapply H3; eauto.
+Qed.
 
 (* Define *)
 (* Modify *)
@@ -532,43 +579,45 @@ Lemma Map_AbsR_impl :
     (forall a b c, R a b -> R a c -> b = c)
       -> Map_AbsR R a b -> Map_AbsR R a c -> M.Equal b c.
 Proof.
-  relational.
-  intros.
+  relational; intros.
   apply F.Equal_mapsto_iff; split; intros;
   reduction; reduction;
-  pose proof (H _ _ _ HD HB); subst;
-  assumption.
+  pose proof (H _ _ _ HD HB);
+  subst; assumption.
+Qed.
+
+Lemma TotalMapRelation_Add : forall A B (R : A -> B -> Prop) r x,
+  TotalMapRelation R (Ensembles.Add (M.key * A) r x)
+    -> TotalMapRelation R r.
+Proof.
+  unfold TotalMapRelation; intros.
+  edestruct H; eauto; left; eassumption.
 Qed.
 
 Lemma Functional_Add : forall elt r k e,
-  Functional (Ensembles.Add (M.key * elt) r (k, e))
-    -> Functional r.
+  Functional (Ensembles.Add (M.key * elt) r (k, e)) -> Functional r.
 Proof.
   unfold Functional; intros.
-  eapply H.
-    left; exact H0.
-  left; exact H1.
+  eapply H; left; eassumption.
 Qed.
 
 Theorem every_finite_map_has_an_associated_fmap
         (Oeq_eq : forall x y, O.eq x y -> x = y) :
   forall A B (R : A -> B -> Prop) (r : Ensemble (M.key * A)),
-    Finite _ r
-      -> Functional r
-      -> (forall k e, Lookup k e r -> exists e', R e e')
+    FunctionalRelation R ->
+    InjectiveRelation R ->
+    TotalMapRelation R r ->
+    Finite _ r ->
+    Functional r
       -> exists m : M.t B, Map_AbsR R r m.
 Proof.
   intros.
-  induction H.
+  induction H2.
     exists (M.empty _).
     apply Empty_Map_AbsR.
   destruct x; simpl in *.
-  unfold Functional in H0.
-  destruct (IHFinite (Functional_Add H0)), (H1 k a).
-  - right; constructor.
-  - intros.
-    eapply H1.
-    left; exact H4.
+  destruct (IHFinite (TotalMapRelation_Add H1)
+                     (Functional_Add H3)), (H1 k a).
   - right; constructor.
   - clear IHFinite H1.
     exists (M.add k x0 x).
@@ -577,7 +626,7 @@ Proof.
     unfold Member.
     apply all_not_not_ex.
     unfold not; intros.
-    specialize (H0 k a (Union_intror _ _ _ _ (In_singleton _ _))
+    specialize (H3 k a (Union_intror _ _ _ _ (In_singleton _ _))
                      n (Union_introl (M.key * A) A0 _ _ H1)).
     subst.
     contradiction.

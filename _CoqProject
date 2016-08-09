@@ -7,6 +7,8 @@ src/ADTInduction.v
 src/BindDep.v
 src/ByteString.v
 src/ByteStringLib.v
+src/Comp.v
+src/Composition.v
 src/Decidable.v
 src/FMapExt.v
 src/FromADT.v

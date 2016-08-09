@@ -36,7 +36,9 @@ Ltac simplify_maps :=
      let H2 := fresh "H2" in
      destruct H as [H1 H2]|]
   | [ H : M.MapsTo (elt:=?T) ?A ?B (M.mapi ?F ?M) |- _ ] =>
-    rewrite F.mapi_o, <- F.map_o in H
+    apply F.find_mapsto_iff in H;
+    rewrite F.mapi_o, <- F.map_o in H;
+    apply F.find_mapsto_iff in H
   | [ H : M.MapsTo (elt:=?T) ?A ?B (M.empty ?U) |- _ ] =>
     apply F.empty_mapsto_iff in H; contradiction
   | [ H1 : M.MapsTo (elt:=?T) ?A ?B ?M,
