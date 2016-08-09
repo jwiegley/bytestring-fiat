@@ -11,41 +11,34 @@ Require Import
   Here.ADTInduction
   Here.TupleEnsembles
   Here.TupleEnsemblesFinite
-  CoqRel.LogicalRelations.
-
-Require Import Coq.Structures.OrderedTypeEx.
-
-Module Import E := FunMaps N_as_OT.
+  Here.Relations
+  Coq.Structures.OrderedTypeEx.
 
 Generalizable All Variables.
 
-Section RefinedHeap.
+Module Import E := FunMaps N_as_OT.
+
+Section HeapFMap.
 
 Variable Word8 : Type.
 Variable Zero : Word8.
 
 Definition MemoryBlock := MemoryBlock Word8.
-Definition HeapSpec := @HeapSpec Word8.
+Definition HeapSpec    := @HeapSpec Word8.
 
-Section MemoryBlock.
+Section MemoryBlockC.
+
+Global Program Instance MemoryBlock_Proper :
+  Proper (eq ==> @Same _ _ ==> MemoryBlock_Same) (@Build_MemoryBlock Word8).
+Obligation 1. relational; split; simpl; subst; auto. Qed.
+
+Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
+  memSize x = memSize y /\ Same (memData x) (memData y).
 
 Record MemoryBlockC := {
   memCSize : N;
   memCData : M.t Word8
 }.
-
-Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
-  memSize o = memCSize n /\ Map_AbsR eq (memData o) (memCData n).
-
-Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
-  memSize x = memSize y /\ Same (memData x) (memData y).
-
-Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
-  memCSize x = memCSize y /\ M.Equal (memCData x) (memCData y).
-
-Global Program Instance MemoryBlock_Proper :
-  Proper (eq ==> @Same _ _ ==> MemoryBlock_Same) (@Build_MemoryBlock Word8).
-Obligation 1. relational; split; simpl; subst; auto. Qed.
 
 Global Program Instance MemoryBlockC_Proper :
   Proper (eq ==> @M.Equal _ ==> MemoryBlockC_Equal) Build_MemoryBlockC.
@@ -56,34 +49,11 @@ Global Program Instance MemoryBlock_AbsR_AbsR :
   Build_MemoryBlockC.
 Obligation 1. relational; split; simpl; subst; auto. Qed.
 
-Global Program Instance Finite_Proper {A B} :
-  Morphisms.Proper (Same (B:=B) ==> impl) (Finite (A * B)).
-Obligation 1.
-  relational.
-  apply Same_Same_set in H.
-  rewrite H.
-  reflexivity.
-Qed.
+Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
+  memCSize x = memCSize y /\ M.Equal (memCData x) (memCData y).
 
-Global Program Instance Finite_Proper_flip_1 {A B} :
-  Morphisms.Proper (Same (B:=B) ==> flip impl) (Finite (A * B)).
-Obligation 1.
-  relational.
-  apply Same_Same_set in H.
-  unfold flip.
-  rewrite <- H.
-  reflexivity.
-Qed.
-
-Global Program Instance Finite_Proper_flip_2 {A B} :
-  Morphisms.Proper (Same (B:=B) --> flip impl) (Finite (A * B)).
-Obligation 1.
-  relational.
-  apply Same_Same_set in H.
-  unfold flip.
-  rewrite H.
-  reflexivity.
-Qed.
+Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
+  memSize o = memCSize n /\ Map_AbsR eq (memData o) (memCData n).
 
 Global Program Instance MemoryBlock_AbsR_Proper :
   Proper (MemoryBlock_Same ==> MemoryBlockC_Equal ==> iff) MemoryBlock_AbsR.
@@ -131,20 +101,19 @@ Obligation 1.
       trivial.
 Qed.
 
-Corollary Empty_MemoryBlock_AbsR : forall n,
-  MemoryBlock_AbsR {| memSize  := n; memData  := Empty |}
-                   {| memCSize := n; memCData := M.empty Word8 |}.
-Proof. split; trivial; simpl; intros; apply Empty_Map_AbsR. Qed.
-
 Corollary MemoryBlock_AbsR_impl : forall s s' d d',
     s = s' -> Map_AbsR eq d d' ->
     MemoryBlock_AbsR {| memSize  := s;  memData  := d |}
                      {| memCSize := s'; memCData := d' |}.
 Proof. intros; subst; split; intros; trivial. Qed.
 
-Hint Extern 1 => apply MemoryBlock_AbsR_impl.
+Corollary Empty_MemoryBlock_AbsR : forall n,
+  MemoryBlock_AbsR {| memSize  := n; memData  := Empty |}
+                   {| memCSize := n; memCData := M.empty Word8 |}.
+Proof.
+  split; trivial; simpl; intros; apply Empty_Map_AbsR. Qed.
 
-End MemoryBlock.
+End MemoryBlockC.
 
 Require Import
   Fiat.ADT
@@ -212,7 +181,7 @@ Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
   Decidable_witness (P:=within b (memCSize e) pos).
 
 Global Program Instance withinMemBlock_Proper :
-  Morphisms.Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlock.
+  Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlock.
 Obligation 1.
   relational.
   subst.
@@ -223,7 +192,7 @@ Qed.
 Hint Resolve withinMemBlock_Proper.
 
 Global Program Instance withinMemBlockC_Proper :
-  Morphisms.Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlockC.
+  Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlockC.
 Obligation 1.
   relational.
   subst.
@@ -414,14 +383,6 @@ Ltac AbsR_prep :=
     | [ |- _ /\ _ ] => split
     end; try monotonicity; simpl; eauto; eauto with maps.
 
-Corollary eq_impl_eq : forall a b : N, a = b <-> a = b.
-Proof. split; intros; assumption. Qed.
-Hint Resolve eq_impl_eq.
-
-Corollary neq_impl_neq : forall a b : N, a <> b <-> a <> b.
-Proof. split; intros; assumption. Qed.
-Hint Resolve neq_impl_neq.
-
 Theorem heaps_refine_to_maps : forall r : Rep HeapSpec, fromADT _ r ->
   exists m : M.t MemoryBlockC, Map_AbsR MemoryBlock_AbsR r m.
 Proof.
@@ -602,7 +563,7 @@ Proof.
     exists cblk; intuition.
     teardown.
     right; intuition.
-  - repeat teardown; subst; [inv H2|];
+  - teardown; subst; [inv H2|];
     apply find_define;
     unfold IfDec_Then_Else; simpl.
       apply within_reflect in H0.
@@ -752,7 +713,7 @@ Proof.
       destruct (M.find (elt:=MemoryBlockC) d (snd r_n)) eqn:Heqe;
       destruct d0; simpl in *;
       decisions; undecide;
-      repeat teardown;
+      teardown;
       try discriminate.
         inv Heqe.
         reduction.
@@ -1032,4 +993,4 @@ Proof.
   finish_SharpeningADT_WithoutDelegation.
 Admitted.
 
-End RefinedHeap.
+End HeapFMap.

@@ -1,7 +1,8 @@
 Require Export
   Coq.Classes.Morphisms
   Coq.Classes.RelationClasses
-  Relation_Definitions.
+  Coq.Relations.Relation_Definitions
+  Coq.Setoids.Setoid.
 
 Generalizable All Variables.
 
@@ -35,13 +36,13 @@ Arguments related {A B C D}%type (R R')%lsignature _ _.
 
 Module LogicalRelationNotations.
 
-  Notation " R +++> R' " := (@related _ _ _ _ (R%lsignature) (R'%lsignature))
+  Notation " R ++> R' " := (@related _ _ _ _ (R%lsignature) (R'%lsignature))
     (right associativity, at level 55) : lsignature_scope.
 
-  Notation " R ===> R' " := (@related _ _ _ _ (R%lsignature) (R'%lsignature))
+  Notation " R ==> R' " := (@related _ _ _ _ (R%lsignature) (R'%lsignature))
     (right associativity, at level 55) : lsignature_scope.
 
-  Notation " R ---> R' " := (@related _ _ _ _ (Basics.flip (R%lsignature)) (R'%lsignature))
+  Notation " R --> R' " := (@related _ _ _ _ (Basics.flip (R%lsignature)) (R'%lsignature))
     (right associativity, at level 55) : lsignature_scope.
 
   Notation "f [R  rel ] f'" := (LogicalRelation rel f f')
@@ -60,24 +61,10 @@ Program Instance Equality_LogicalRelation : forall A (x : A),
 
 Definition boolR (P : Prop) (b : bool) : Prop := P <-> b = true.
 
-Require Import Coq.Classes.Equivalence.
-
-Open Scope equiv_scope.
-
-Class ForwardTransport `{Equivalence A P} `{Equivalence B Q}
-      (R : A -> B -> Prop) := {
-  forward_transport : forall {a a' : A} {b b' : B},
-    R a b -> R a' b' -> a === a' -> b === b'
-}.
-
-Class BackwardTransport `{Equivalence A P} `{Equivalence B Q}
-      (R : A -> B -> Prop) := {
-  backward_transport : forall {a a' : A} {b b' : B},
-    R a b -> R a' b' -> b === b' -> a === a'
-}.
-
-Class Transportive `{HP : Equivalence A P} `{HQ : Equivalence B Q}
-      `{@ForwardTransport A P HP B Q HQ R}
-      `{@BackwardTransport A P HP B Q HQ R}.
-
-Arguments Transportive {_ _ _} {_ _ _} R {_} _.
+Ltac relational :=
+  repeat match goal with
+  | [ |- Proper _ _ ] => intros ???
+  | [ |- related _ _ _ _ ] => intros ???
+  | [ |- respectful _ _ _ _ ] => intros ???
+  | [ |- iff _ _ ] => split; intro
+  end; subst; auto.

@@ -1,11 +1,10 @@
 -R coq-haskell/src Hask
 -R fiat/src Fiat
--R coqrel CoqRel
 -R src Here
 src/LibExt.v
 src/Decidable.v
 src/Tactics.v
-src/LogicalRelations.v
+src/Relations.v
 src/Nomega.v
 src/Same_set.v
 src/TupleEnsembles.v
@@ -19,6 +18,6 @@ src/FromADT.v
 src/BindDep.v
 src/Heap.v
 src/HeapADT.v
-src/RefinedHeap.v
+src/HeapFMap.v
 src/ByteString.v
 src/ByteStringLib.v
