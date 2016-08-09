@@ -305,18 +305,18 @@ Proof.
   generalize dependent addr.
   ADT induction r; inspect; eauto with sets.
   - unfold fits, within in *.
-    teardown; nomega.
+    repeat teardown; nomega.
   - unfold fits, within in *.
-    teardown; nomega.
+    repeat teardown; nomega.
   - apply N.add_cancel_r in H6.
     apply Nsub_eq in H6.
     + subst.
       clear H7.
       eapply IHfromADT; eauto.
     + unfold fits, within in *.
-      teardown; nomega.
+      repeat teardown; nomega.
     + unfold fits, within in *.
-      teardown; nomega.
+      repeat teardown; nomega.
   - inversion H3.
     inversion H4.
     congruence.

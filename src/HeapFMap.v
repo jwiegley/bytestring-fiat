@@ -28,32 +28,34 @@ Definition HeapSpec    := @HeapSpec Word8.
 
 Section MemoryBlockC.
 
+Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
+  memSize x = memSize y /\ Same (memData x) (memData y).
+
 Global Program Instance MemoryBlock_Proper :
   Proper (eq ==> @Same _ _ ==> MemoryBlock_Same) (@Build_MemoryBlock Word8).
 Obligation 1. relational; split; simpl; subst; auto. Qed.
-
-Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
-  memSize x = memSize y /\ Same (memData x) (memData y).
 
 Record MemoryBlockC := {
   memCSize : N;
   memCData : M.t Word8
 }.
 
+Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
+  memCSize x = memCSize y /\ M.Equal (memCData x) (memCData y).
+
 Global Program Instance MemoryBlockC_Proper :
   Proper (eq ==> @M.Equal _ ==> MemoryBlockC_Equal) Build_MemoryBlockC.
 Obligation 1. relational; split; simpl; subst; auto. Qed.
+
+Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
+  memSize o = memCSize n /\ Map_AbsR eq (memData o) (memCData n).
+
+Open Scope lsignature_scope.
 
 Global Program Instance MemoryBlock_AbsR_AbsR :
   (@Build_MemoryBlock Word8) [R eq ==> Map_AbsR eq ==> MemoryBlock_AbsR]
   Build_MemoryBlockC.
 Obligation 1. relational; split; simpl; subst; auto. Qed.
-
-Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
-  memCSize x = memCSize y /\ M.Equal (memCData x) (memCData y).
-
-Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
-  memSize o = memCSize n /\ Map_AbsR eq (memData o) (memCData n).
 
 Global Program Instance MemoryBlock_AbsR_Proper :
   Proper (MemoryBlock_Same ==> MemoryBlockC_Equal ==> iff) MemoryBlock_AbsR.
@@ -202,6 +204,8 @@ Qed.
 
 Hint Resolve withinMemBlockC_Proper.
 
+Open Scope lsignature_scope.
+
 Global Program Instance withinMemBlock_AbsR :
   withinMemBlock [R eq ==> eq ==> MemoryBlock_AbsR ==> boolR]
   withinMemBlockC.
@@ -319,7 +323,7 @@ Proof.
     apply Filter_Map_AbsR; eauto.
       apply withinMemBlock_Proper; reflexivity.
       apply withinMemBlockC_Proper; reflexivity.
-      apply withinMemBlock_AbsR; eauto.
+      apply withinMemBlock_AbsR_applied; eauto.
       apply (proj1 AbsR).
     Focus 2.
     apply Single_Map_AbsR; eauto.
@@ -381,7 +385,7 @@ Ltac AbsR_prep :=
     | [ |- Heap_AbsR _ _ ] => unfold Heap_AbsR; simpl
     | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
     | [ |- _ /\ _ ] => split
-    end; try monotonicity; simpl; eauto; eauto with maps.
+    end; simpl; eauto; eauto with maps.
 
 Theorem heaps_refine_to_maps : forall r : Rep HeapSpec, fromADT _ r ->
   exists m : M.t MemoryBlockC, Map_AbsR MemoryBlock_AbsR r m.
@@ -410,10 +414,8 @@ Proof.
     rewrite N.peano_rect_succ.
     destruct (N.eq_dec pos (addr + len)); subst.
       simplify_maps.
-      left; intuition.
     simplify_maps.
-    right.
-    split; trivial.
+    right; split; trivial.
       apply not_eq_sym; assumption.
     rewrite N.add_succ_r in H0.
     apply N.lt_succ_r in H0.
@@ -424,8 +426,7 @@ Proof.
   induction len using N.peano_ind; simpl in *; auto;
   rewrite N.peano_rect_succ.
     simplify_maps.
-    right.
-    split; trivial.
+    right; split; trivial.
     unfold not; intros; subst.
     rewrite <- (N.add_0_r addr) in H0 at 2.
     apply N.add_lt_cases in H0.
@@ -434,8 +435,7 @@ Proof.
     contradiction (N.nlt_0_r len).
   rewrite N.add_succ_r in H0.
   simplify_maps.
-  right.
-  split.
+  right; split.
     unfold not; intros; subst.
     apply N.le_succ_l in H0.
     nomega.
@@ -527,7 +527,7 @@ Lemma Define_Map_AbsR : forall x y b len w,
                               (fun i => M.add (b + i)%N w) len).
 Proof.
   intros.
-  relational.
+  relational_maps.
   - teardown.
     destruct H0, H0; [inv H1|];
     exists blk; intuition;
@@ -563,7 +563,7 @@ Proof.
     exists cblk; intuition.
     teardown.
     right; intuition.
-  - teardown; subst; [inv H2|];
+  - repeat teardown; subst; [inv H2|];
     apply find_define;
     unfold IfDec_Then_Else; simpl.
       apply within_reflect in H0.
@@ -591,6 +591,7 @@ Proof.
       finish honing.
 
     AbsR_prep.
+    - apply Empty_Map_AbsR.
   }
 
   refine method allocS.
@@ -718,10 +719,10 @@ Proof.
         inv Heqe.
         reduction.
         admit.
-      destruct H0; simpl in *.
-      apply H0 in H2.
-      do 2 destruct H2.
-      eapply P.for_all_iff with (k:=a) (e:=x1) in H3; eauto.
+      destruct H0, H1; simpl in *.
+      apply H0 in H3.
+      do 2 destruct H3.
+      eapply P.for_all_iff with (k:=a) (e:=x0) in H3; eauto.
         rewrite (proj1 H4).
         unfold within_allocated_mem in H3; undecide.
         unfold overlaps, not; intros.
@@ -805,15 +806,15 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    intros; subst; clear H.
-    pose proof H1 as H4.
-    apply H0 in H1.
-    destruct H1 as [cblk [? ?]].
-    erewrite Peek_in_heap; eauto; simpl.
-    apply H1 in H3.
-    destruct H3 as [mem [? ?]]; subst.
-    apply F.find_mapsto_iff in H3.
-    rewrite H3; reflexivity.
+    - intros; subst; clear H.
+      pose proof H1 as H4.
+      apply H0 in H1.
+      destruct H1 as [cblk [? ?]].
+      erewrite Peek_in_heap; eauto; simpl.
+      apply H1 in H3.
+      destruct H3 as [mem [? ?]]; subst.
+      apply F.find_mapsto_iff in H3.
+      rewrite H3; reflexivity.
   }
 
   refine method pokeS.
@@ -834,14 +835,14 @@ Proof.
 
     pose proof (Poke_in_heap H0).
     AbsR_prep.
-
-    apply Map_Map_AbsR; auto;
-    relational; subst; auto.
-    rewrite (proj1 H4).
-    decisions; auto.
-    apply MemoryBlock_AbsR_impl; auto.
-    apply Update_Map_AbsR; auto.
-    exact (proj2 H4).
+    - apply Map_Map_AbsR; auto;
+      relational; subst; auto.
+      constructor; relational.
+      rewrite (proj1 H4).
+      decisions; auto.
+      apply MemoryBlock_AbsR_impl; auto.
+      apply Update_Map_AbsR; auto.
+      exact (proj2 H4).
   }
 
   refine method memcpyS.
@@ -975,6 +976,7 @@ Proof.
     AbsR_prep.
     - apply Map_Map_AbsR; auto;
       relational; subst; auto.
+      constructor; relational.
       destruct x0, y0, H3; simpl in *; subst.
       eapply MemoryBlock_AbsR_impl; eauto;
       decisions; auto.

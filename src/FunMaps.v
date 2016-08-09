@@ -205,7 +205,7 @@ Ltac relational_maps :=
 Open Scope lsignature_scope.
 
 Global Program Instance Empty_Map_AbsR : Empty [R Map_AbsR R] (M.empty _).
-Obligation 1. relational_maps; teardown; simplify_maps. Qed.
+Obligation 1. relational_maps; repeat teardown; simplify_maps. Qed.
 
 Global Program Instance Lookup_Map_AbsR :
   (@Lookup _ _) [R O.eq ==> R ==> Map_AbsR R ==> iff] (@M.MapsTo _).
@@ -290,7 +290,7 @@ Global Program Instance Insert_Map_AbsR : forall k e e' r m,
 Obligation 1.
   pose proof (not_Member_In H1 H).
   relational_maps.
-  - teardown; subst.
+  - repeat teardown; subst.
       exists e'.
       intuition.
       simplify_maps.
@@ -308,7 +308,7 @@ Obligation 1.
     reduction; related; teardown.
     right; split; trivial.
     equalities.
-  - teardown; subst.
+  - repeat teardown; subst.
     simplify_maps.
       left; intuition.
       eapply H2; eauto.
@@ -347,7 +347,7 @@ Global Program Instance Update_Map_AbsR :
 Obligation 1.
   relational; equalities;
   relational_maps.
-  - teardown; subst.
+  - repeat teardown; subst.
       related; simplify_maps.
     reduction; related.
     simplify_maps.
@@ -363,7 +363,7 @@ Obligation 1.
     reduction; related; teardown.
     right; split; trivial.
     equalities.
-  - teardown; subst.
+  - repeat teardown; subst.
     simplify_maps.
       left; intuition.
       eapply H; eauto.
@@ -373,7 +373,7 @@ Qed.
 
 Corollary Single_is_Update : forall (x : M.key) (y : A),
   Same (Single x y) (Update x y Empty).
-Proof. split; intros; teardown. Qed.
+Proof. split; intros; repeat teardown. Qed.
 
 Global Program Instance Single_Map_AbsR :
   FunctionalRelation -> InjectiveRelation
@@ -591,5 +591,10 @@ Hint Resolve Map_Map_AbsR : maps.
 Hint Resolve Filter_Map_AbsR : maps.
 Hint Resolve All_Map_AbsR : maps.
 Hint Resolve Any_Map_AbsR : maps.
+
+Ltac relational_maps :=
+  repeat (match goal with
+          | [ |- Map_AbsR _ _ _ ]  => split; intros; intuition
+          end; relational).
 
 End FunMaps.
