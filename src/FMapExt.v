@@ -1,4 +1,5 @@
 Require Import
+  Here.Relations
   Coq.FSets.FMapList
   Coq.FSets.FMapFacts
   Coq.Structures.OrderedTypeEx
@@ -99,14 +100,7 @@ Ltac simplify_maps :=
     rewrite F.elements_o in H1;
     rewrite H2 in H1;
     inversion H1
-  end.
-
-Ltac relational' :=
-  repeat match goal with
-  | [ |- Proper _ _ ] => intros ???
-  | [ |- respectful _ _ _ _ ] => intros ???
-  | [ |- iff _ _ ] => split; intro
-  end; try simplify_maps; subst; auto.
+  end; simpl; auto.
 
 Global Program Instance MapsTo_Proper {elt} :
   Proper (O.eq ==> eq ==> M.Equal ==> iff) (@M.MapsTo elt) :=
@@ -116,7 +110,7 @@ Global Program Instance find_Proper {elt} :
   Proper (O.eq ==> eq ==> M.Equal ==> iff)
          (fun k e m => @M.find elt k m = Some e).
 Obligation 1.
-  relational'.
+  relational.
     rewrite <- H, <- H1; assumption.
   rewrite H, H1; assumption.
 Qed.
@@ -126,7 +120,7 @@ Global Program Instance fold_Proper {elt A} : forall f (eqA : relation A),
     -> Proper (O.eq ==> eq ==> eqA ==> eqA) f
     -> P.transpose_neqkey eqA f
     -> Proper (M.Equal (elt:=elt) ==> eqA ==> eqA) (@M.fold elt A f).
-Obligation 1. relational'; eapply P.fold_Equal2; eauto. Qed.
+Obligation 1. relational; eapply P.fold_Equal2; eauto. Qed.
 
 Lemma add_equal_iff : forall elt k (e : elt) m1 m2,
   P.Add k e m1 m2 <-> M.Equal (M.add k e m1) m2.
@@ -140,14 +134,14 @@ Global Program Instance filter_Proper {elt} : forall P,
   Proper (O.eq ==> eq ==> eq) P
     -> Proper (M.Equal (elt:=elt) ==> M.Equal) (@P.filter elt P).
 Obligation 1.
-  relational'.
+  relational.
   unfold P.filter at 1.
   generalize dependent y.
   apply P.fold_rec; intros.
     apply F.Equal_mapsto_iff.
     split; intros.
       inversion H2.
-    simplify_maps; auto.
+    simplify_maps.
     rewrite <- H1 in H3.
     apply P.elements_Empty in H0.
     apply F.find_mapsto_iff in H3.
@@ -160,27 +154,27 @@ Obligation 1.
   destruct (P k e) eqn:Heqe; rewrite H3; clear H3.
     apply F.Equal_mapsto_iff.
     split; intros.
-      simplify_maps; auto.
+      simplify_maps.
         rewrite <- H2.
-        simplify_maps; auto.
+        simplify_maps.
         intuition.
         rewrite <- H4.
-        simplify_maps; auto.
-      simplify_maps; auto.
-      simplify_maps; auto.
+        simplify_maps.
+      simplify_maps.
+      simplify_maps.
       intuition.
       rewrite <- H4.
-      simplify_maps; auto.
-    simplify_maps; auto.
+      simplify_maps.
+    simplify_maps.
     rewrite <- H4 in H2.
-    repeat simplify_maps; auto.
+    repeat simplify_maps.
     right.
     intuition.
-    simplify_maps; auto.
+    simplify_maps.
   apply F.Equal_mapsto_iff.
   split; intros;
-  simplify_maps; auto;
-  simplify_maps; auto;
+  simplify_maps;
+  simplify_maps;
   intuition.
     rewrite <- H4; clear H4.
     apply F.add_neq_mapsto_iff; auto.
@@ -190,7 +184,7 @@ Obligation 1.
     apply F.find_mapsto_iff in H2.
     congruence.
   rewrite <- H4 in H2; clear H4.
-  simplify_maps; auto.
+  simplify_maps.
   rewrite H0 in Heqe.
   congruence.
 Qed.
@@ -252,7 +246,7 @@ Variable P_Proper : Proper (O.eq ==> eq ==> eq) P.
 Global Program Instance for_all_Proper :
   Proper (M.Equal ==> eq) (@P.for_all elt P).
 Obligation 1.
-  relational'.
+  relational.
   revert H.
   unfold P.for_all.
   revert y.
@@ -266,7 +260,7 @@ Obligation 1.
   - destruct (P k e); auto.
     apply H2.
     reflexivity.
-  - relational'.
+  - relational.
     rewrite H4; reflexivity.
   - intros ??????.
     destruct (P k0 e0), (P k' e'); auto.
@@ -287,23 +281,23 @@ Lemma for_all_add_true : forall (m : M.t elt) k e,
 Proof.
   unfold P.for_all.
   remember (fun _ _ _ => _) as f.
+  assert (Proper (O.eq ==> eq ==> eq ==> eq) f).
+    relational.
+    rewrite H; reflexivity.
+  assert (P.transpose_neqkey eq f).
+    rewrite Heqf; intros ??????.
+    destruct (P k e), (P k' e'); auto.
+  assert (Proper (O.eq ==> eq ==> eq --> flip eq) f).
+    unfold flip; relational.
+    rewrite H1; reflexivity.
+  assert (P.transpose_neqkey (flip eq) f).
+    unfold flip; rewrite Heqf; intros ??????.
+    destruct (P k e), (P k' e'); auto.
   split; intros.
-    assert (Proper (O.eq ==> eq ==> eq --> flip eq) f).
-      unfold flip; relational'.
-      rewrite H1; reflexivity.
-    assert (P.transpose_neqkey (flip eq) f).
-      unfold flip; rewrite Heqf; intros ??????.
-      destruct (P k0 e0), (P k' e'); auto.
-    rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m) in H0; eauto.
+    rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m) in H4; eauto.
       rewrite Heqf in *.
       destruct (P k e); firstorder.
     constructor.
-  assert (Proper (O.eq ==> eq ==> eq ==> eq) f).
-    relational'.
-    rewrite H1; reflexivity.
-  assert (P.transpose_neqkey eq f).
-    rewrite Heqf; intros ??????.
-    destruct (P k0 e0), (P k' e'); auto.
   rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m); eauto.
     rewrite Heqf in *.
     destruct (P k e); firstorder.
@@ -317,23 +311,23 @@ Lemma for_all_add_false : forall (m : M.t elt) k e,
 Proof.
   unfold P.for_all.
   remember (fun _ _ _ => _) as f.
+  assert (Proper (O.eq ==> eq ==> eq ==> eq) f).
+    relational.
+    rewrite H; reflexivity.
+  assert (P.transpose_neqkey eq f).
+    rewrite Heqf; intros ??????.
+    destruct (P k e), (P k' e'); auto.
+  assert (Proper (O.eq ==> eq ==> eq --> flip eq) f).
+    unfold flip; relational.
+    rewrite H1; reflexivity.
+  assert (P.transpose_neqkey (flip eq) f).
+    unfold flip; rewrite Heqf; intros ??????.
+    destruct (P k e), (P k' e'); auto.
   split; intros.
-    assert (Proper (O.eq ==> eq ==> eq --> flip eq) f).
-      unfold flip; relational'.
-      rewrite H1; reflexivity.
-    assert (P.transpose_neqkey (flip eq) f).
-      unfold flip; rewrite Heqf; intros ??????.
-      destruct (P k0 e0), (P k' e'); auto.
-    rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m) in H0; eauto.
+    rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m) in H4; eauto.
       rewrite Heqf in *.
       destruct (P k e); firstorder.
     constructor.
-  assert (Proper (O.eq ==> eq ==> eq ==> eq) f).
-    relational'.
-    rewrite H1; reflexivity.
-  assert (P.transpose_neqkey eq f).
-    rewrite Heqf; intros ??????.
-    destruct (P k0 e0), (P k' e'); auto.
   rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m); eauto.
     rewrite Heqf in *.
     destruct (P k e); firstorder.
@@ -446,7 +440,7 @@ Program Instance take_first_Proper {elt} :
             ==> optionP (pairP O.eq eq)
             ==> optionP (pairP O.eq eq)) (take_first (elt:=elt)).
 Obligation 1.
-  relational'.
+  relational.
   destruct x2, y2.
   - destruct p, p0; simpl in *.
     assumption.
@@ -598,7 +592,7 @@ Lemma for_all_remove_false : forall elt k (m : M.t elt) P,
 Proof.
   intros.
   apply P.for_all_iff.
-    relational'.
+    relational.
     rewrite H1; reflexivity.
   intros.
   simplify_maps.
@@ -623,13 +617,13 @@ Proof.
     apply add_equal_iff in H0.
     specialize (H0 k).
     rewrite F.add_eq_o in H0; auto.
-    simplify_maps; auto.
+    simplify_maps.
     apply F.find_mapsto_iff; auto.
   split.
     unfold singleton in H0.
     specialize (H0 k).
     rewrite F.add_eq_o in H0; auto.
-    simplify_maps; auto.
+    simplify_maps.
   intros.
   unfold singleton in H0.
   apply for_all_remove_false; intros; auto.
@@ -640,7 +634,7 @@ Proof.
     simplify_maps.
   remember (fun _ _ _ => _) as f.
   assert (Proper (O.eq ==> eq ==> M.Equal ==> M.Equal) f).
-    relational'.
+    relational.
     rewrite H5.
     destruct (P y y0); trivial.
     rewrite H5, H7.
@@ -659,7 +653,8 @@ Proof.
     rewrite P.fold_Add with (k:=x) (e:=e') (m1:=m1) in H0; eauto;
     [|constructor].
     rewrite Heqf in *; clear Heqf H5 H6 H7.
-    rewrite <- H1 in *; clear H1 k'.
+    rewrite <- H1 in H0.
+    rewrite <- H1.
     destruct (P x e').
       rewrite F.add_eq_o in H0; auto.
       discriminate.
@@ -680,8 +675,7 @@ Proof.
     apply F.remove_mapsto_iff in H0.
     destruct H0.
     simplify_maps.
-      contradiction.
-    assumption.
+    contradiction.
   apply F.not_find_in_iff in H.
   apply F.find_mapsto_iff in H0.
   destruct (O.eq_dec k k0).
@@ -692,7 +686,6 @@ Proof.
   simplify_maps.
   split; trivial.
   simplify_maps.
-  right; intuition.
 Qed.
 
 Lemma filter_add_true : forall elt k (e : elt) m m' P,
@@ -704,20 +697,21 @@ Lemma filter_add_true : forall elt k (e : elt) m m' P,
 Proof.
   intros.
   rewrite <- H1; clear H1.
-  unfold P.filter.
-  symmetry.
-  rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m); eauto.
-  - rewrite H2; reflexivity.
-  - relational'.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+      rewrite <- H3.
+      simplify_maps; intuition.
+      simplify_maps.
+    simplify_maps.
+    simplify_maps; intuition.
+    simplify_maps.
+  simplify_maps.
+  simplify_maps.
     rewrite H1.
-    destruct (P y y0); trivial.
-    rewrite H1, H4.
-    reflexivity.
-  - intros ??????.
-    destruct (P k0 e0), (P k' e'); try reflexivity.
-    apply add_associative; intros.
-    contradiction.
-  - constructor.
+    simplify_maps.
+  simplify_maps.
+  right; intuition.
+  simplify_maps.
 Qed.
 
 Lemma filter_add_false : forall elt k (e : elt) m m' P,
@@ -729,20 +723,20 @@ Lemma filter_add_false : forall elt k (e : elt) m m' P,
 Proof.
   intros.
   rewrite <- H1; clear H1.
-  unfold P.filter.
-  symmetry.
-  rewrite P.fold_Add with (k:=k) (e:=e) (m1:=m); eauto.
-  - rewrite H2; reflexivity.
-  - relational'.
-    rewrite H1.
-    destruct (P y y0); trivial.
-    rewrite H1, H4.
-    reflexivity.
-  - intros ??????.
-    destruct (P k0 e0), (P k' e'); try reflexivity.
-    apply add_associative; intros.
-    contradiction.
-  - constructor.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+    simplify_maps; intuition.
+    simplify_maps.
+    right; intuition.
+    rewrite <- H1 in H3.
+    contradiction H0.
+    apply in_mapsto_iff.
+    exists e0; assumption.
+  simplify_maps.
+  simplify_maps.
+    rewrite H1 in H2.
+    congruence.
+  simplify_maps.
 Qed.
 
 Lemma filter_not_in : forall elt k (m : M.t elt) P,
@@ -788,12 +782,11 @@ Proof.
         destruct p.
         apply Equal_add_remove in H2.
           specialize (H1 _ H2).
-          simplify_maps; auto.
+          simplify_maps.
         apply filter_not_in.
         assumption.
       rewrite <- H2.
       simplify_maps.
-      left; intuition.
     apply filter_add_false in H2; auto.
     destruct a; intuition.
     destruct p; intuition.
@@ -809,9 +802,7 @@ Proof.
   destruct (find_if P m).
     destruct p.
     simplify_maps.
-      unfold optionP, pairP.
-      intuition.
-    simplify_maps.
+    inversion H4.
   apply P.elements_Empty in H0.
   discriminate.
 Qed.

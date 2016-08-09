@@ -1,9 +1,7 @@
 Require Export Coq.Sets.Ensembles.
 
 Require Import
-  Coq.Classes.Morphisms
-  Coq.Classes.RelationClasses
-  Coq.Setoids.Setoid
+  Here.Relations
   Here.Same_set.
 
 Generalizable All Variables.
@@ -93,17 +91,11 @@ Qed.
 
 Global Program Instance Lookup_Proper :
   Proper (eq ==> eq ==> Same ==> Basics.impl) Lookup.
-Obligation 1.
-  intros ??????????; subst.
-  apply H1; assumption.
-Qed.
+Obligation 1. relational; unfold Basics.impl; apply H1. Qed.
 
 Global Program Instance Lookup_Proper_flip :
   Proper (eq ==> eq ==> Same --> Basics.impl) Lookup.
-Obligation 1.
-  intros ??????????; subst.
-  apply H1; assumption.
-Qed.
+Obligation 1. relational; unfold Basics.impl; apply H1. Qed.
 
 Definition Member (a : A) (r : Ensemble (A * B)) := exists b, Lookup a b r.
 
@@ -113,8 +105,6 @@ Definition Insert (a : A) (b : B) (r : Ensemble (A * B))
 
 Definition Remove (a : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
   Setminus _ r (fun p => fst p = a).
-
-Require Import Coq.Program.Tactics.
 
 Program Definition Update (a : A) (b : B) (r : Ensemble (A * B)) :
   Ensemble (A * B) := Insert a b (Remove a r) _.

@@ -1,12 +1,37 @@
 Require Export
   Here.TupleEnsembles
+  Here.Relations
   Coq.Sets.Finite_sets
   Coq.Sets.Finite_sets_facts.
 
-Require Import
-  Coq.Program.Tactics.
-
 Generalizable All Variables.
+
+Global Program Instance Finite_Proper {A B} :
+  Proper (Same (B:=B) ==> Basics.impl) (Finite (A * B)).
+Obligation 1.
+  relational.
+  apply Same_Same_set in H.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Global Program Instance Finite_Proper_flip_1 {A B} :
+  Proper (Same (B:=B) ==> Basics.flip Basics.impl) (Finite (A * B)).
+Obligation 1.
+  relational.
+  apply Same_Same_set in H.
+  rewrite <- H.
+  reflexivity.
+Qed.
+
+Global Program Instance Finite_Proper_flip_2 {A B} :
+  Proper (Same (B:=B) --> Basics.flip Basics.impl) (Finite (A * B)).
+Obligation 1.
+  relational.
+  apply Same_Same_set in H.
+  rewrite H.
+  reflexivity.
+Qed.
 
 Section TupleEnsembleFinite.
 

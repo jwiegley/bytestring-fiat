@@ -196,6 +196,14 @@ Proof.
   omega.
 Qed.
 
+Corollary Neq_impl_eq : forall a b : N, a = b <-> a = b.
+Proof. split; intros; assumption. Qed.
+Hint Resolve Neq_impl_eq.
+
+Corollary Nneq_impl_neq : forall a b : N, a <> b <-> a <> b.
+Proof. split; intros; assumption. Qed.
+Hint Resolve Nneq_impl_neq.
+
 Theorem Nle_impossible : forall n m, 0 < m -> n + m <= n -> False.
 Proof.
   intros.
