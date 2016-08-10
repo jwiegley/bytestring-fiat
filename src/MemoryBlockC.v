@@ -177,4 +177,24 @@ Qed.
 
 Hint Resolve MemoryBlock_AbsR_TotalMapRelation.
 
+Lemma TotalMapRelation_r_eq : forall elt (m : M.t elt), TotalMapRelation_r eq m.
+Proof. intros ?????; exists y; reflexivity. Qed.
+
+Hint Resolve TotalMapRelation_r_eq.
+
+Lemma of_mem_MemoryBlock_AbsR : forall x,
+  MemoryBlock_AbsR {| memSize := memCSize x
+                    ; memData := of_map eq (memCData x) |} x.
+Proof. split; intros; auto; apply of_map_Map_AbsR; auto. Qed.
+
+Hint Resolve of_mem_MemoryBlock_AbsR.
+
+Ltac swap_sizes :=
+  match goal with
+  | [ H : MemoryBlock_AbsR ?blk ?cblk |- context [memSize ?blk] ] =>
+    rewrite (proj1 H)
+  | [ H : MemoryBlock_AbsR ?blk ?cblk |- context [memCSize ?cblk] ] =>
+    rewrite <- (proj1 H)
+  end.
+
 End MemoryBlockC.

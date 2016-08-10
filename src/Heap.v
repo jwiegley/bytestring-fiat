@@ -40,16 +40,12 @@ Ltac tsubst :=
   subst.
 
 Ltac inspect :=
-  repeat (
-    teardown; tsubst; simpl in *; decisions;
-    try match goal with
-      | [ H1 : ~ overlaps ?X ?Y ?X ?Z,
-          H2 : 0 < ?Y,
-          H3 : 0 < ?Z |- _ ] => pose proof (overlaps_irr X H2 H3); contradiction
-      | [ H : ~ overlaps ?X ?Y ?A ?B |- ~ overlaps ?A ?B ?X ?Y ] =>
-        let H0 := fresh "H0" in
-        unfold not; intro H0; apply overlaps_sym in H0; contradiction
-    end).
+  repeat (repeat teardown;
+          tsubst;
+          simpl in *;
+          decisions;
+          eauto with sets;
+          try congruence).
 
 Definition emptyS   := "empty".
 Definition allocS   := "alloc".
@@ -237,8 +233,7 @@ Proof.
   intros.
   generalize dependent blk.
   generalize dependent addr.
-  ADT induction r; [inversion H0|..];
-  complete IHfromADT.
+  ADT induction r; [inversion H0|..]; complete IHfromADT.
 Qed.
 
 Theorem allocations_correct_offsets : forall r : Rep HeapSpec, fromADT _ r ->
@@ -249,9 +244,8 @@ Proof.
   generalize dependent off.
   generalize dependent blk.
   generalize dependent addr.
-  ADT induction r; [inversion H0|..]; inspect;
-  complete IHfromADT.
-  - apply (IHfromADT x) in H2; trivial; nomega.
+  ADT induction r; [inversion H0|..]; complete IHfromADT.
+  eapply IHfromADT in H2; eauto; nomega.
 Qed.
 
 Ltac match_sizes H IHfromADT :=
@@ -306,23 +300,17 @@ Proof.
   generalize dependent blk1.
   generalize dependent blk2.
   generalize dependent addr.
-  ADT induction r; inspect; eauto with sets.
-  - unfold fits, within in *.
-    repeat teardown; nomega.
-  - unfold fits, within in *.
-    repeat teardown; nomega.
-  - apply N.add_cancel_r in H6.
-    apply Nsub_eq in H6.
+  ADT induction r; inspect.
+  - nomega.
+  - nomega.
+  - apply N.add_cancel_r in H12.
+    apply Nsub_eq in H12.
     + subst.
-      clear H7.
+      clear H6.
       eapply IHfromADT; eauto.
-    + unfold fits, within in *.
-      repeat teardown; nomega.
-    + unfold fits, within in *.
-      repeat teardown; nomega.
-  - inversion H3.
-    inversion H4.
-    congruence.
+    + nomega.
+    + nomega.
+  - inv H3; inv H4; congruence.
 Qed.
 
 Ltac lookup_uid H :=
@@ -337,13 +325,8 @@ Corollary allocations_unique_r : forall r : Rep HeapSpec, fromADT _ r ->
 Proof.
   unfold not; intros; subst; ADT induction r;
   contradiction H1;
-  exists blk;
-  assumption.
+  exists blk; assumption.
 Qed.
-
-Corollary not_overlaps_trans : forall a b x y z,
-  z < y -> ~ overlaps a b x y -> ~ overlaps a b x z.
-Proof. unfold overlaps; intros; nomega. Qed.
 
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 blk1, Lookup addr1 blk1 r ->
@@ -358,17 +341,9 @@ Proof.
   generalize dependent addr2.
   generalize dependent blk1.
   generalize dependent addr1.
-  ADT induction r; [inversion H0|..];
-  complete IHfromADT;
-  try lookup_uid H;
-  first [ eapply All_Remove_Lookup_inv with (a':=addr1) in H0'; eauto
-        | eapply All_Remove_Lookup_inv with (a':=addr2) in H0'; eauto ];
-  try (apply not_overlaps_sym; assumption).
-  - undecide; eapply not_overlaps_trans; eauto.
-  - apply not_overlaps_sym.
-    undecide; eapply not_overlaps_trans; eauto.
-  - eapply allocations_unique_r in H0; eauto.
-  - eapply allocations_unique_r in H0; eauto.
+  ADT induction r; [inversion H0|..]; complete IHfromADT;
+  try lookup_uid H; eapply All_Remove_Lookup_inv in H0'; eauto;
+  try nomega; eapply allocations_unique_r in H0; eauto.
 Qed.
 
 Corollary find_partitions_a_singleton : forall r : Rep HeapSpec, fromADT _ r ->
@@ -381,19 +356,11 @@ Proof.
   intros.
   pose proof (allocations_no_overlap H _ H0).
   pose proof (allocations_unique H _ _ H0).
-  split; intros; inspect; try solve [ intuition ].
-    destruct (N.eq_dec base a); subst.
-      specialize (H3 _ H5); subst; auto.
-    specialize (H2 _ _ H5 n).
-    clear -H1 H2 H4.
-    contradiction H2; clear H2.
-    unfold overlaps, within in *; nomega.
-  destruct (N.eq_dec base a); subst.
-    specialize (H3 _ H5); subst; auto.
-  specialize (H2 _ _ H5 n).
-  clear -H1 H2 H4.
-  contradiction H2; clear H2.
-  unfold overlaps, within in *; nomega.
+  split; intros; inspect;
+  destruct (N.eq_dec base a); subst; auto.
+  - specialize (H2 _ _ H5 n); nomega.
+  - specialize (H3 _ H5); nomega.
+  - specialize (H2 _ _ H5 n); nomega.
 Qed.
 
 Corollary allocations_disjoint : forall r : Rep HeapSpec, fromADT _ r ->
@@ -402,82 +369,45 @@ Corollary allocations_disjoint : forall r : Rep HeapSpec, fromADT _ r ->
     -> forall addr' blk', Lookup addr' blk' r
          -> addr <> addr'
          -> ~ within addr' (memSize blk') pos.
-Proof.
-  intros.
-  pose proof (allocations_no_overlap H _ H0 _ H2 H3).
-  unfold within, overlaps in *; nomega.
-Qed.
+Proof. intros; pose proof (allocations_no_overlap H _ H0 _ H2 H3); nomega. Qed.
 
 Theorem heap_is_finite : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
-Proof.
-  intros; ADT induction r; inspect; auto with sets.
-  apply Modify_preserves_Finite; auto.
-  apply N.eq_dec.
-Qed.
+Proof. intros; ADT induction r; inspect; finite_preservation; nomega. Qed.
 
 Lemma added : forall b e,
   b <= e ->
   Same_set _ (fun x : N => b <= x < N.succ e)
              (Add _ (fun x : N => b <= x < e) e).
 Proof.
-  split; intros; intros ??.
-    unfold Ensembles.In in *.
-    destruct H0.
+  unfold Same_set, Included, Add, Ensembles.In.
+  split; intros.
     destruct (N.eq_dec x e); subst.
       right; constructor.
-    left.
-    unfold Ensembles.In in *.
-    apply N.lt_gt_cases in n.
-    destruct n.
-      nomega.
-    apply N.lt_succ_r in H1.
-    nomega.
-  inversion H0; clear H0; subst;
-  unfold Ensembles.In in *;
-  destruct H1; subst;
-  split; trivial.
-    apply N.lt_lt_succ_r.
-    assumption.
-  apply N.lt_succ_diag_r.
+    left; unfold Ensembles.In in *; nomega.
+  inv H0; unfold Ensembles.In in *;
+  destruct H1; nomega.
 Qed.
 
 Lemma not_added : forall b e,
   ~ b <= e ->
   Same_set _ (fun x : N => b <= x < N.succ e)
              (fun x : N => b <= x < e).
-Proof.
-  split; intros; intros ??.
-    unfold Ensembles.In in *.
-    destruct H0.
-    destruct (N.eq_dec x e); subst.
-      nomega.
-    split; trivial.
-    apply N.lt_gt_cases in n.
-    destruct n; trivial.
-    apply N.lt_succ_r in H1.
-    nomega.
-  inversion H0; clear H0; subst.
-  unfold Ensembles.In in *.
-  split; trivial.
-  apply N.lt_lt_succ_r.
-  assumption.
-Qed.
+Proof. unfold Same_set, Included, Add, Ensembles.In; nomega. Qed.
 
 Lemma N_Finite : forall b e, Finite N (fun x : N => b <= x < e).
 Proof.
   intros.
   induction e using N.peano_ind; intros.
     eapply Finite_downward_closed; eauto with sets.
-    unfold Included, Ensembles.In; intros.
-    destruct H.
-    contradiction (N.nlt_0_r x).
+    unfold Included, Ensembles.In; nomega.
   destruct (N.le_decidable b e).
     rewrite added; trivial.
     constructor; trivial.
-    unfold Ensembles.In.
-    nomega.
+    unfold Ensembles.In; nomega.
   rewrite not_added; trivial.
 Qed.
+
+Hint Extern 5 (Finite N (within _ _)) => apply N_Finite.
 
 Theorem all_blocks_are_finite : forall r : Rep HeapSpec, fromADT _ r ->
   All (fun _ blk => Finite _ (memData blk)) r.
@@ -485,20 +415,9 @@ Proof.
   unfold All; intros.
   generalize dependent b.
   generalize dependent a.
-  ADT induction r; inspect; eauto with sets.
-  - apply Union_preserves_Finite.
-      apply Filter_preserves_Finite.
-      eapply IHfromADT; eauto.
-    apply Map_set_preserves_Finite.
-    apply Filter_preserves_Finite.
-    eapply IHfromADT; eauto.
-  - apply Define_preserves_Finite; eauto.
-      apply within_dec.
-    apply Bool.andb_true_iff in Heqe; destruct Heqe.
-    apply within_reflect in H0.
-    apply within_reflect in H2.
-    unfold within in *.
-    apply N_Finite.
+  ADT induction r; inspect;
+  finite_preservation;
+  eauto; nomega.
 Qed.
 
 End Heap.

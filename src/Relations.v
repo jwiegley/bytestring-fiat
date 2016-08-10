@@ -63,6 +63,7 @@ Definition boolR (P : Prop) (b : bool) : Prop := P <-> b = true.
 
 Ltac relational :=
   repeat match goal with
+  | [ |- LogicalRelation _ _ _ ] => constructor
   | [ |- Proper _ _ ] => intros ???
   | [ |- related _ _ _ _ ] => intros ???
   | [ |- respectful _ _ _ _ ] => intros ???

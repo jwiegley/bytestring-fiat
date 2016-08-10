@@ -306,3 +306,21 @@ Hint Resolve Single_is_Finite : sets.
 Hint Resolve Surjection_preserves_Finite : sets.
 Hint Resolve Surjective_Add_Subtract : sets.
 Hint Resolve Update_preserves_Finite : sets.
+
+Ltac finite_preservation :=
+  repeat (
+  match goal with
+  | [ |- Finite _ Empty            ] => apply Empty_preserves_Finite
+  | [ |- Finite _ (Single _ _)     ] => apply Single_is_Finite
+  | [ |- Finite _ (Insert _ _ _ _) ] => apply Insert_preserves_Finite
+  | [ |- Finite _ (Remove _ _)     ] => apply Remove_preserves_Finite
+  | [ |- Finite _ (Update _ _ _)   ] => apply Update_preserves_Finite
+  | [ |- Finite _ (Move _ _ _)     ] => apply Move_preserves_Finite
+  | [ |- Finite _ (Map _ _)        ] => apply Map_preserves_Finite
+  | [ |- Finite _ (Map_set _ _)    ] => apply Map_set_preserves_Finite
+  | [ |- Finite _ (Relate _ _)     ] => apply Relate_preserves_Finite
+  | [ |- Finite _ (Filter _ _)     ] => apply Filter_preserves_Finite
+  | [ |- Finite _ (Define _ _ _)   ] => apply Define_preserves_Finite
+  | [ |- Finite _ (Modify _ _ _)   ] => apply Modify_preserves_Finite
+  | [ |- Finite _ (Union _ _ _)    ] => apply Union_preserves_Finite
+  end; auto).

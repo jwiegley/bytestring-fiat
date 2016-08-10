@@ -774,4 +774,40 @@ Proof.
   contradiction (Empty_add _ k _ (M.empty elt) H1 H0).
 Qed.
 
+Lemma find_if_inv : forall elt p (m : M.t elt) P,
+  Proper (E.eq ==> eq ==> eq) P
+    -> find_if P m = Some p
+    -> M.MapsTo (fst p) (snd p) m.
+Proof.
+  unfold find_if, take_first; intros.
+  destruct p; simpl.
+  revert H0.
+  apply P.fold_rec; intros;
+  intuition; try discriminate;
+  destruct a, (P k0 e0);
+  intuition; try discriminate;
+  try destruct p;
+  inversion H4; subst; clear H4;
+  apply add_equal_iff in H2;
+  try rewrite <- H2; clear H2;
+  try simplify_maps;
+  try (right; intuition;
+       apply F.not_find_in_iff in H1;
+       rewrite <- H2 in H5;
+       apply F.find_mapsto_iff in H5;
+       congruence).
+Qed.
+
+Ltac for_this :=
+  match goal with
+  | [ H1 : P.for_all ?P ?r = true,
+      H2 : M.MapsTo (elt:=_) ?addr ?cblk ?r |- _ ] =>
+    apply (proj1 (P.for_all_iff _ _)) with (k:=addr) (e:=cblk) in H1;
+    auto; [|exact H2]
+  | [ H1 : is_true (P.for_all ?P ?r),
+      H2 : M.MapsTo (elt:=_) ?addr ?cblk ?r |- _ ] =>
+    apply (proj1 (P.for_all_iff _ _)) with (k:=addr) (e:=cblk) in H1;
+    auto; [|exact H2]
+  end.
+
 End FMapExt.

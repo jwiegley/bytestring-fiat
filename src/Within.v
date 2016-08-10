@@ -19,6 +19,7 @@ Include X.
 
 Definition within_allocated_mem (n : N) :=
   fun (addr : M.key) (blk : MemoryBlockC) => addr + memCSize blk <=? n.
+Arguments within_allocated_mem n addr blk /.
 
 Program Instance within_allocated_mem_Proper :
   Proper (eq ==> eq ==> eq ==> eq) within_allocated_mem.
@@ -31,18 +32,11 @@ Lemma within_allocated_mem_add : forall n x k e,
   within_allocated_mem n k e = true
     -> 0 < x
     -> within_allocated_mem (n + x) k e = true.
-Proof.
-  unfold within_allocated_mem; intros.
-  undecide.
-  apply Nle_add_plus; trivial.
-Qed.
+Proof. nomega. Qed.
 
 Lemma within_allocated_mem_at_end : forall n x d,
    within_allocated_mem (n + x) n {| memCSize := x; memCData := d |} = true.
-Proof.
-  unfold within_allocated_mem; simpl; intros.
-  apply N.leb_refl.
-Qed.
+Proof. nomega. Qed.
 
 Corollary Proper_within : forall pos,
    Proper (eq ==> eq ==> eq)
@@ -51,17 +45,17 @@ Proof. intros; relational; subst; reflexivity. Qed.
 
 Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
   within b (memSize e) pos.
+Arguments withinMemBlock pos b e /.
 
 Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
   Decidable_witness (P:=within b (memCSize e) pos).
+Arguments withinMemBlockC pos b e /.
 
 Global Program Instance withinMemBlock_Proper :
   Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlock.
 Obligation 1.
-  relational.
-  subst.
-  rewrite H.
-  reflexivity.
+  relational; subst.
+  rewrite H; reflexivity.
 Qed.
 
 Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlock _)) =>
@@ -70,10 +64,8 @@ Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlock _)) =>
 Global Program Instance withinMemBlockC_Proper :
   Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlockC.
 Obligation 1.
-  relational.
-  subst.
-  rewrite H.
-  reflexivity.
+  relational; subst.
+  rewrite H; reflexivity.
 Qed.
 
 Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlockC _)) =>
@@ -84,18 +76,7 @@ Open Scope lsignature_scope.
 Global Program Instance withinMemBlock_AbsR :
   withinMemBlock [R eq ==> eq ==> MemoryBlock_AbsR ==> boolR]
   withinMemBlockC.
-Obligation 1.
-  relational; subst;
-  unfold withinMemBlock, withinMemBlockC;
-  split; intros.
-    apply within_reflect in H.
-    rewrite <- (proj1 H1).
-    assumption.
-  simpl in H.
-  apply within_reflect.
-  rewrite (proj1 H1).
-  assumption.
-Qed.
+Obligation 1. relational; subst; simpl; split; swap_sizes; nomega. Qed.
 
 Global Program Instance withinMemBlock_AbsR_applied (pos : N) :
   withinMemBlock pos [R eq ==> MemoryBlock_AbsR ==> boolR]
@@ -108,13 +89,7 @@ Lemma withinMemAbsR : forall base blk cblk pos,
   withinMemBlock pos base blk
     -> MemoryBlock_AbsR blk cblk
     -> withinMemBlockC pos base cblk = true.
-Proof.
-  intros.
-  unfold withinMemBlock, withinMemBlockC in *; simpl in *.
-  apply within_reflect in H.
-  destruct H0 as [H0 _]; rewrite <- H0.
-  assumption.
-Qed.
+Proof. simpl; intros; swap_sizes; nomega. Qed.
 
 Hint Resolve within_allocated_mem_Proper.
 Hint Resolve withinMemBlock_Proper.

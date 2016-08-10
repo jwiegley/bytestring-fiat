@@ -124,6 +124,9 @@ Qed.
 Definition TotalMapRelation r :=
   forall k x, Lookup (A:=M.key) k x r -> exists y, R x y.
 
+Definition TotalMapRelation_r r :=
+  forall k y, M.MapsTo k y r -> exists x, R x y.
+
 Definition SurjectiveMapRelation r :=
   forall k y, exists x, Lookup (A:=M.key) k x r -> R x y.
 
@@ -140,6 +143,36 @@ Proof.
   apply H.
   destruct H0.
   exists x; intuition.
+Qed.
+
+Lemma of_map_MapsTo : forall addr blk m,
+  Lookup addr blk (of_map m)
+    -> exists cblk, M.MapsTo addr cblk m /\ R blk cblk.
+Proof. firstorder. Qed.
+
+Lemma of_map_Lookup : forall addr cblk m,
+   TotalMapRelation_r m
+    -> M.MapsTo addr cblk m
+    -> exists blk, Lookup addr blk (of_map m) /\ R blk cblk.
+Proof.
+  unfold of_map, Lookup, Ensembles.In; intros.
+  destruct (H _ _ H0); firstorder.
+Qed.
+
+Lemma of_map_Map_AbsR : forall m,
+  TotalMapRelation_r m
+    -> FunctionalRelation
+    -> Map_AbsR R (of_map m) m.
+Proof.
+  split; intros; split; intros.
+  - apply of_map_MapsTo; assumption.
+  - firstorder.
+  - apply of_map_Lookup in H1; firstorder.
+  - destruct H1, H1.
+    unfold of_map, Lookup, Ensembles.In in H1.
+    destruct H1, H1; simpl in *.
+    specialize (H0 _ _ _ H1 H2).
+    congruence.
 Qed.
 
 Corollary Map_AbsR_Lookup_R (or : Ensemble (M.key * A)) (nr : M.t B) :
@@ -591,5 +624,36 @@ Ltac relational_maps :=
   repeat (match goal with
           | [ |- Map_AbsR _ _ _ ]  => split; intros; intuition
           end; relational).
+
+Ltac related_maps :=
+  repeat (
+  match goal with
+  | [ |- Map_AbsR ?R Empty (M.empty _) ] =>
+    apply Empty_Map_AbsR
+  | [ |- Map_AbsR ?R (Lookup _ _ _) (M.MapsTo _ _ _) ] =>
+    apply Lookup_Map_AbsR
+  | [ |- Map_AbsR ?R (Same _ _) (M.Equal _ _) ] =>
+    apply Same_Map_AbsR
+  | [ |- Map_AbsR ?R (Member _ _) (M.mem _ _) ] =>
+    apply Member_Map_AbsR
+  | [ |- Map_AbsR ?R (Member _ _) (M.In _ _) ] =>
+    apply Member_In_Map_AbsR
+  | [ |- Map_AbsR ?R (Insert _ _ _ _) (M.add _ _ _) ] =>
+    apply Insert_Map_AbsR
+  | [ |- Map_AbsR ?R (Remove _ _) (M.remove _ _) ] =>
+    apply Remove_Map_AbsR
+  | [ |- Map_AbsR ?R (Update _ _ _) (M.add _ _ _) ] =>
+    apply Update_Map_AbsR
+  | [ |- Map_AbsR ?R (Single _ _) (singleton _ _) ] =>
+    apply Single_Map_AbsR
+  | [ |- Map_AbsR ?R (Map _ _) (M.mapi _ _) ] =>
+    apply Map_Map_AbsR
+  | [ |- Map_AbsR ?R (Filter _ _) (P.filter _ _) ] =>
+    apply Filter_Map_AbsR
+  | [ |- Map_AbsR ?R (All _ _) (P.for_all _ _) ] =>
+    apply All_Map_AbsR
+  | [ |- Map_AbsR ?R (Any _ _) (P.exists_ _) ] =>
+    apply Any_Map_AbsR
+  end; auto).
 
 End FunMaps.
