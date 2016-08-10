@@ -23,16 +23,12 @@ Generalizable All Variables.
 
 Module HeapFMap (Mem : Memory).
 
-Module Import H := Heap Mem.
-Module Import A := HeapADT Mem.
-Module Import O := MemoryBlockC Mem.
-
-Module Import M := FMapAVL.Make(N_as_OT).
-Module Import U := FunMaps N_as_DT M.
+Module M := FMapAVL.Make(N_as_OT).
+Module Import O := MemoryBlockC Mem M.
+Import A.
+Import A.H.
+Import U.
 Module Import D := Define_AbsR M.
-
-Module P := WProperties_fun N_as_DT M.
-Module F := P.F.
 
 Require Import
   Fiat.ADT
@@ -476,8 +472,8 @@ Proof.
     refine pick val
       (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
        Then Ifopt M.find (d - fst p) (memCData (snd p)) as v
-            Then v Else Zero
-       Else Zero).
+            Then v Else Mem.Zero
+       Else Mem.Zero).
 
     simplify with monad laws; simpl.
     refine pick val r_n.
@@ -645,7 +641,7 @@ Proof.
                  Then {| memCSize := memCSize cblk
                        ; memCData :=
                            let base := d - addr in
-                           N.peano_rect (fun _ => M.t Word8)
+                           N.peano_rect (fun _ => M.t Mem.Word8)
                                         (memCData cblk)
                                         (fun i => M.add (base + i)%N d1) d0  |}
                  Else cblk) (snd r_n)).

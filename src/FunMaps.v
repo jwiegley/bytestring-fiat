@@ -1,7 +1,6 @@
 Require Import
   Here.Relations
   Here.Decidable
-  Here.Nomega
   Here.FMapExt
   Here.TupleEnsembles
   Here.TupleEnsemblesFinite
@@ -16,9 +15,10 @@ Require Import
 
 Generalizable All Variables.
 
-Module FunMaps (E:DecidableType) (M:WSfun E).
+Module FunMaps (E : DecidableType) (M : WSfun E).
 
-Module Import X := FMapExt E M.
+Module X := FMapExt E M.
+Include X.
 
 Definition Map_AbsR `(R : A -> B -> Prop)
            (or : Ensemble (M.key * A)) (nr : M.t B) : Prop :=

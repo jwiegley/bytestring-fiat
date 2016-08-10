@@ -5,7 +5,7 @@ Require Import
   Coq.Structures.DecidableTypeEx
   Coq.Sorting.Permutation.
 
-Module FMapExt (E:DecidableType) (M:WSfun E).
+Module FMapExt (E : DecidableType) (M : WSfun E).
 
 Module P := WProperties_fun E M.
 Module F := P.F.

@@ -12,7 +12,7 @@ Generalizable All Variables.
 Module Define_AbsR (M : WSfun N_as_DT).
 
 Module F := WFacts_fun N_as_DT M.
-Module Import X := FMapExt N_as_DT M.
+
 Module Import U := FunMaps N_as_DT M.
 
 Lemma find_define : forall Word8 addr len pos v w m,

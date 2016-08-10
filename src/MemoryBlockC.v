@@ -4,19 +4,20 @@ Require Import
   Here.FunMaps
   Here.Relations
   Here.Heap
+  Here.HeapADT
   Coq.FSets.FMapAVL
   Coq.FSets.FMapFacts
-  Coq.Structures.DecidableTypeEx
-  Coq.Structures.OrderedTypeEx.
+  Coq.Structures.DecidableTypeEx.
 
-Module MemoryBlockC (Mem : Memory).
+Module MemoryBlockC (Mem : Memory) (M : WSfun N_as_DT).
 
-Module Import H := Heap Mem.
-Module Import M := FMapAVL.Make(N_as_OT).
-Module Import U := FunMaps N_as_DT M.
+Module Import A := HeapADT Mem.
+Import H.
 
 Module P := WProperties_fun N_as_DT M.
 Module F := P.F.
+
+Module Import U := FunMaps N_as_DT M.
 
 Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
   memSize x = memSize y /\ Same (memData x) (memData y).
