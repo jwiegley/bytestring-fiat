@@ -9,7 +9,7 @@ Require Import
 
 Module HeapADT (Mem : Memory).
 
-Module Import H := Heap Mem.
+Module Import Heap := Heap Mem.
 
 Lemma empty_fromADT r :
   refine (callCons HeapSpec emptyS) (ret r) -> fromADT HeapSpec r.

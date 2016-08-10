@@ -10,9 +10,9 @@ Require Import
 
 Module Within (Mem : Memory) (M : WSfun N_as_DT).
 
-Module Import O := MemoryBlockC Mem M.
-Import A.
-Import A.H.
+Module Import Block := MemoryBlockC Mem M.
+Import Adt.
+Import Adt.Heap.
 
 Module X := FMapExt N_as_DT M.
 Include X.

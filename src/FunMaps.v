@@ -17,8 +17,7 @@ Generalizable All Variables.
 
 Module FunMaps (E : DecidableType) (M : WSfun E).
 
-Module X := FMapExt E M.
-Include X.
+Module Import FMapExt := FMapExt E M.
 
 Definition Map_AbsR `(R : A -> B -> Prop)
            (or : Ensemble (M.key * A)) (nr : M.t B) : Prop :=
@@ -29,7 +28,7 @@ Definition Map_AbsR `(R : A -> B -> Prop)
        <-> exists blk, Lookup addr blk or /\ R blk cblk).
 
 Ltac reduction :=
-  try repeat teardown; subst; X.normalize;
+  try repeat teardown; subst; normalize;
   repeat match goal with
   | [ R : ?A -> ?B -> Prop,
       H1 : Map_AbsR ?R ?X ?Y,
@@ -62,7 +61,7 @@ Ltac related :=
   end.
 
 Ltac equalities :=
-  X.normalize;
+  normalize;
   repeat match goal with
   | [ H : ?X <> ?X |- _ ]            => contradiction H; reflexivity
   | [ |- ?X <> ?Y ]                  => unfold not; intros; subst

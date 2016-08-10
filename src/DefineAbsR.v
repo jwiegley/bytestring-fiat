@@ -13,7 +13,8 @@ Module Define_AbsR (M : WSfun N_as_DT).
 
 Module F := WFacts_fun N_as_DT M.
 
-Module Import U := FunMaps N_as_DT M.
+Module Import FunMaps := FunMaps N_as_DT M.
+Import FMapExt.
 
 Lemma find_define : forall Word8 addr len pos v w m,
   (IfDec within addr len pos

@@ -10,13 +10,13 @@ Require Import
 
 Module MemoryBlockC (Mem : Memory) (M : WSfun N_as_DT).
 
-Module Import A := HeapADT Mem.
-Import H.
+Module Import Adt := HeapADT Mem.
+Import Heap.
 
 Module P := WProperties_fun N_as_DT M.
 Module F := P.F.
 
-Module Import U := FunMaps N_as_DT M.
+Module Import FunMaps := FunMaps N_as_DT M.
 
 Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
   memSize x = memSize y /\ Same (memData x) (memData y).

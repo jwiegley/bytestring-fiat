@@ -24,12 +24,14 @@ Generalizable All Variables.
 Module HeapFMap (Mem : Memory).
 
 Module M := FMapAVL.Make(N_as_OT).
-Module Import W := Within Mem M.
-Module Import D := Define_AbsR M.
-Import O.                       (* Within -> MemoryBlockC *)
-Import O.A.                     (* Within -> MemoryBlockC -> HeapADT *)
-Import O.A.H.                   (* Within -> MemoryBlockC -> HeapADT -> Heap *)
-Import U.                       (* DefineAbsR -> FunMaps *)
+
+Module Import Within := Within Mem M.
+Module Import Define := Define_AbsR M.
+
+Import Block.                  (* Within -> MemoryBlockC *)
+Import Block.Adt.              (* Within -> MemoryBlockC -> HeapADT *)
+Import Block.Adt.Heap.         (* Within -> MemoryBlockC -> HeapADT -> Heap *)
+Import FunMaps.                (* DefineAbsR -> FunMaps *)
 
 Require Import
   Fiat.ADT
