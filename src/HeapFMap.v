@@ -1,29 +1,17 @@
 Require Import
-  Here.LibExt
-  Here.ByteString
-  Here.Heap
-  Here.HeapADT
+  Here.Relations
+  Here.TupleEnsembles
   Here.Nomega
   Here.BindDep
-  Here.FunMaps
-  Here.FMapExt
-  Here.Same_set
   Here.ADTInduction
-  Here.TupleEnsembles
-  Here.TupleEnsemblesFinite
-  Here.Relations
   Here.Tactics
+  Here.Heap
   Here.Within
   Here.DefineAbsR
-  Coq.FSets.FMapAVL
-  Coq.Structures.DecidableTypeEx
-  Coq.Structures.OrderedTypeEx.
+  Coq.FSets.FMapFacts
+  Coq.Structures.DecidableTypeEx.
 
-Generalizable All Variables.
-
-Module HeapFMap (Mem : Memory).
-
-Module M := FMapAVL.Make(N_as_OT).
+Module HeapFMap (Mem : Memory) (M : WSfun N_as_DT).
 
 Module Import Within := Within Mem M.
 Module Import Define := Define_AbsR M.
@@ -33,11 +21,7 @@ Import Block.Adt.              (* Within -> MemoryBlockC -> HeapADT *)
 Import Block.Adt.Heap.         (* Within -> MemoryBlockC -> HeapADT -> Heap *)
 Import FunMaps.                (* DefineAbsR -> FunMaps *)
 
-Require Import
-  Fiat.ADT
-  Fiat.ADTNotation
-  Fiat.ADTRefinement
-  Fiat.ADTRefinement.BuildADTRefinements.
+Require Import Fiat.ADT Fiat.ADTNotation.
 
 Definition Heap_AbsR
            (or : { r : Rep HeapSpec | fromADT HeapSpec r})
@@ -54,6 +38,23 @@ Proof.
   - apply allocations_unique; auto.
 Qed.
 
+Hint Extern 4 (Proper (eq ==> eq ==> eq) (within_allocated_mem _)) =>
+  apply within_allocated_mem_Proper; auto.
+
+Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlock _)) =>
+  apply withinMemBlock_Proper; reflexivity.
+
+Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlockC _)) =>
+  apply withinMemBlockC_Proper; reflexivity.
+
+Hint Extern 5 =>
+  match goal with
+    [ H : M.MapsTo _ _ (M.empty _) |- _ ] =>
+      apply F.empty_mapsto_iff in H; contradiction
+  end.
+
+Hint Extern 4 (Map_AbsR _ Empty (M.empty _)) => apply Empty_Map_AbsR.
+
 Lemma Heap_AbsR_outside_mem
       {r_o r_n} (AbsR : Heap_AbsR r_o r_n)
       (d : {len : N | 0 < len}) :
@@ -64,15 +65,10 @@ Proof.
   apply AbsR in H; destruct H as [cblk [? ?]].
   rewrite (proj1 H0).
   destruct AbsR as [_ ?].
-  eapply P.for_all_iff with (k:=addr) (e:=cblk) in H1; eauto.
-    unfold within_allocated_mem in H1; simpl in H1.
-    unfold not; intros.
-    clear -H1 H2.
-    unfold overlaps, within in *.
-    undecide.
-    nomega.
-  apply within_allocated_mem_Proper.
-  reflexivity.
+  eapply P.for_all_iff with (k:=addr) (e:=cblk) in H1; eauto; auto.
+  unfold within_allocated_mem in H1; simpl in H1.
+  unfold not, overlaps, within in *.
+  nomega.
 Qed.
 
 Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
@@ -86,19 +82,18 @@ Proof.
   pose proof (find_partitions_a_singleton (proj2_sig r_o) _ H0 H1).
   eapply Same_Map_AbsR with (R:=MemoryBlock_AbsR) in H2.
     Focus 2.
-    apply Filter_Map_AbsR; eauto.
+    apply Filter_Map_AbsR; auto.
       apply withinMemBlock_Proper; reflexivity.
       apply withinMemBlockC_Proper; reflexivity.
       apply withinMemBlock_AbsR_applied; eauto.
       apply (proj1 AbsR).
     Focus 2.
     apply Single_Map_AbsR; eauto.
-  apply find_if_filter_is_singleton in H2.
-    unfold optionP, pairP in H2.
-    destruct (find_if (withinMemBlockC pos) (snd r_n)).
-      destruct p, H2; subst; trivial.
-    contradiction.
-  apply withinMemBlockC_Proper; reflexivity.
+  apply find_if_filter_is_singleton in H2; auto.
+  unfold optionP, pairP in H2.
+  destruct (find_if (withinMemBlockC pos) (snd r_n)).
+    destruct p, H2; subst; trivial.
+  tauto.
 Qed.
 
 Theorem Poke_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos val :
@@ -113,14 +108,15 @@ Proof.
   destruct AbsR as [_ H].
   unfold P.for_all.
   apply P.fold_rec_bis; auto; intros.
-  apply F.mapi_mapsto_iff in H0; do 2 destruct H0;
+  apply F.mapi_mapsto_iff in H0.
+  destruct H0, H0.
   simpl; intros; subst; auto.
   unfold within_allocated_mem, IfDec_Then_Else; simpl.
   eapply P.for_all_iff in H; eauto.
     unfold within_allocated_mem in H.
-    destruct ((k <=? pos) && (pos <? k + memCSize x))%bool; simpl;
-    rewrite H; assumption.
-  apply within_allocated_mem_Proper; reflexivity.
+    decisions; simpl in *; auto;
+    congruence; auto.
+  intros; subst; reflexivity.
 Qed.
 
 Ltac AbsR_prep :=
@@ -131,6 +127,8 @@ Ltac AbsR_prep :=
     | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
     | [ |- _ /\ _ ] => split
     end; simpl; eauto; eauto with maps.
+
+Require Import Fiat.ADTRefinement Fiat.ADTRefinement.BuildADTRefinements.
 
 Lemma HeapImpl : FullySharpened HeapSpec.
 Proof.
@@ -149,7 +147,7 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - apply Empty_Map_AbsR.
+    - apply P.for_all_iff; auto.
   }
 
   refine method allocS.
@@ -173,9 +171,7 @@ Proof.
     AbsR_prep.
     - apply Update_Map_AbsR; auto.
       apply MemoryBlock_AbsR_impl; auto.
-      apply Empty_Map_AbsR.
-    - apply for_all_add_iff.
-      + apply within_allocated_mem_Proper; auto.
+    - apply for_all_add_iff; auto.
       + unfold not; intros.
         apply (proj1 (in_mapsto_iff _ _ _)) in H2.
         destruct H2.
@@ -184,26 +180,23 @@ Proof.
         do 2 destruct H3.
         eapply P.for_all_iff
           with (f:=within_allocated_mem (fst r_n)) in H2; auto.
-        * unfold within_allocated_mem in H2.
-          undecide.
-          pose proof (allocations_have_size (proj2_sig r_o) _ _ H3).
-          rewrite (proj1 H4) in H5.
-          reduction.
-          clear -H2 H5.
-          eapply Nle_impossible; eauto.
-        * apply within_allocated_mem_Proper; auto.
+        unfold within_allocated_mem in H2.
+        undecide.
+        pose proof (allocations_have_size (proj2_sig r_o) _ _ H3).
+        rewrite (proj1 H4) in H5.
+        reduction.
+        clear -H2 H5.
+        eapply Nle_impossible; eauto.
       + split.
         {
           apply for_all_impl
            with (P':=within_allocated_mem (fst r_n + ` d)) in H1; auto.
-          * apply within_allocated_mem_Proper; auto.
-          * apply within_allocated_mem_Proper; auto.
-          * intros.
-            clear -H2.
-            unfold within_allocated_mem in *.
-            undecide.
-            destruct d; simpl.
-            apply Nle_add_plus; eauto.
+          intros.
+          clear -H2.
+          unfold within_allocated_mem in *.
+          undecide.
+          destruct d; simpl.
+          apply Nle_add_plus; eauto.
         }
         destruct d; simpl.
         unfold within_allocated_mem; simpl.
@@ -223,7 +216,6 @@ Proof.
     AbsR_prep.
     - apply Remove_Map_AbsR; auto.
     - apply for_all_remove; auto.
-      apply within_allocated_mem_Proper; auto.
   }
 
   refine method reallocS.
@@ -280,13 +272,12 @@ Proof.
       destruct H0, H1; simpl in *.
       apply H0 in H3.
       do 2 destruct H3.
-      eapply P.for_all_iff with (k:=a) (e:=x0) in H3; eauto.
-        rewrite (proj1 H4).
-        unfold within_allocated_mem in H3; undecide.
-        unfold overlaps, not; intros.
-        clear -H3 H5.
-        nomega.
-      apply within_allocated_mem_Proper; auto.
+      eapply P.for_all_iff with (k:=a) (e:=x0) in H3; eauto; auto.
+      rewrite (proj1 H4).
+      unfold within_allocated_mem in H3; undecide.
+      unfold overlaps, not; intros.
+      clear -H3 H5.
+      nomega.
 
     simplify with monad laws.
     refine pick val
@@ -338,7 +329,6 @@ Proof.
           apply Remove_Map_AbsR; auto.
       + apply Update_Map_AbsR; auto.
         apply MemoryBlock_AbsR_impl; auto.
-        apply Empty_Map_AbsR.
     - destruct (M.find (elt:=MemoryBlockC) d (snd r_n)) eqn:Heqe; simpl.
       + decisions; simpl; auto.
         * admit.
@@ -539,15 +529,11 @@ Proof.
       eapply MemoryBlock_AbsR_impl; eauto;
       decisions; auto.
       apply Define_Map_AbsR; auto.
-    - eapply P.for_all_iff.
-      + apply within_allocated_mem_Proper; auto.
-      + intros.
-        do 2 simplify_maps; subst.
-        apply P.for_all_iff with (k:=k) (e:=cblk) in H1; auto.
-        decisions; auto.
-        * apply within_allocated_mem_Proper; auto.
-        * intros; subst; reflexivity.
-        * intros; subst; reflexivity.
+    - eapply P.for_all_iff; auto.
+      intros.
+      do 2 simplify_maps; intros; subst; auto.
+      apply P.for_all_iff with (k:=k) (e:=cblk) in H1; auto.
+      decisions; auto.
   }
 
   finish_SharpeningADT_WithoutDelegation.
