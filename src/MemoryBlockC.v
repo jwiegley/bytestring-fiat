@@ -5,7 +5,6 @@ Require Import
   Here.Relations
   Here.Heap
   Here.HeapADT
-  Coq.FSets.FMapAVL
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
@@ -148,5 +147,34 @@ Hint Resolve MemoryBlock_AbsR_FunctionalRelation.
 Hint Resolve MemoryBlock_AbsR_InjectiveRelation.
 Hint Resolve eq_FunctionalRelation.
 Hint Resolve eq_InjectiveRelation.
+
+Require Import
+  Fiat.ADT
+  Fiat.ADTNotation
+  Fiat.ADTRefinement
+  Fiat.ADTRefinement.BuildADTRefinements
+  Here.ADTInduction.
+
+Lemma MemoryBlock_AbsR_TotalMapRelation :
+  forall r : Rep HeapSpec, fromADT _ r
+    -> TotalMapRelation MemoryBlock_AbsR r.
+Proof.
+  intros; intros ???.
+  pose proof (all_blocks_are_finite H _ _ H0).
+  pose proof (all_block_maps_are_unique H _ _ H0).
+  simpl in *.
+  elimtype ((exists size : N, memSize x = size) /\
+            (exists data : M.t Mem.Word8, Map_AbsR eq (memData x) data)).
+    do 2 destruct 1.
+    eexists {| memCSize := x0; memCData := x1 |}.
+    constructor; auto.
+  split; eauto.
+  apply every_finite_map_has_an_associated_fmap; auto.
+  intros ???.
+  exists x0.
+  reflexivity.
+Qed.
+
+Hint Resolve MemoryBlock_AbsR_TotalMapRelation.
 
 End MemoryBlockC.

@@ -13,9 +13,9 @@ Require Import
   Here.TupleEnsemblesFinite
   Here.Relations
   Here.Tactics
-  Here.MemoryBlockC
+  Here.Within
   Here.DefineAbsR
-  Coq.FSets.FMapFacts
+  Coq.FSets.FMapAVL
   Coq.Structures.DecidableTypeEx
   Coq.Structures.OrderedTypeEx.
 
@@ -24,137 +24,18 @@ Generalizable All Variables.
 Module HeapFMap (Mem : Memory).
 
 Module M := FMapAVL.Make(N_as_OT).
-Module Import O := MemoryBlockC Mem M.
-Import A.
-Import A.H.
-Import U.
+Module Import W := Within Mem M.
 Module Import D := Define_AbsR M.
+Import O.                       (* Within -> MemoryBlockC *)
+Import O.A.                     (* Within -> MemoryBlockC -> HeapADT *)
+Import O.A.H.                   (* Within -> MemoryBlockC -> HeapADT -> Heap *)
+Import U.                       (* DefineAbsR -> FunMaps *)
 
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
-
-Lemma MemoryBlock_AbsR_TotalMapRelation :
-  forall r : Rep HeapSpec, fromADT _ r
-    -> TotalMapRelation MemoryBlock_AbsR r.
-Proof.
-  intros; intros ???.
-  pose proof (all_blocks_are_finite H _ _ H0).
-  pose proof (all_block_maps_are_unique H _ _ H0).
-  simpl in *.
-  elimtype ((exists size : N, memSize x = size) /\
-            (exists data : M.t Mem.Word8, Map_AbsR eq (memData x) data)).
-    do 2 destruct 1.
-    eexists {| memCSize := x0; memCData := x1 |}.
-    constructor; auto.
-  split; eauto.
-  apply every_finite_map_has_an_associated_fmap; auto.
-  intros ???.
-  exists x0.
-  reflexivity.
-Qed.
-
-Hint Resolve MemoryBlock_AbsR_TotalMapRelation.
-
-Section Within.
-
-Definition within_allocated_mem (n : N) :=
-  fun (addr : M.key) (blk : MemoryBlockC) => addr + memCSize blk <=? n.
-
-Program Instance within_allocated_mem_Proper :
-  Proper (eq ==> eq ==> eq ==> eq) within_allocated_mem.
-Obligation 1. relational; subst; reflexivity. Qed.
-
-Lemma within_allocated_mem_add : forall n x k e,
-  within_allocated_mem n k e
-    -> 0 < x
-    -> within_allocated_mem (n + x) k e.
-Proof.
-  unfold within_allocated_mem; intros.
-  undecide.
-  apply Nle_add_plus; trivial.
-Qed.
-
-Lemma within_allocated_mem_at_end : forall n x d,
-   within_allocated_mem (n + x) n {| memCSize := x; memCData := d |}.
-Proof.
-  unfold within_allocated_mem; simpl; intros.
-  apply N.leb_refl.
-Qed.
-
-Corollary Proper_within : forall pos,
-   Proper (eq ==> eq ==> eq)
-          (fun b e => Decidable_witness (P:=within b (memCSize e) pos)).
-Proof. intros; relational; subst; reflexivity. Qed.
-
-Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
-  within b (memSize e) pos.
-
-Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
-  Decidable_witness (P:=within b (memCSize e) pos).
-
-Global Program Instance withinMemBlock_Proper :
-  Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlock.
-Obligation 1.
-  relational.
-  subst.
-  rewrite H.
-  reflexivity.
-Qed.
-
-Global Program Instance withinMemBlockC_Proper :
-  Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlockC.
-Obligation 1.
-  relational.
-  subst.
-  rewrite H.
-  reflexivity.
-Qed.
-
-Open Scope lsignature_scope.
-
-Global Program Instance withinMemBlock_AbsR :
-  withinMemBlock [R eq ==> eq ==> MemoryBlock_AbsR ==> boolR]
-  withinMemBlockC.
-Obligation 1.
-  relational; subst;
-  unfold withinMemBlock, withinMemBlockC;
-  split; intros.
-    apply within_reflect in H.
-    rewrite <- (proj1 H1).
-    assumption.
-  simpl in H.
-  apply within_reflect.
-  rewrite (proj1 H1).
-  assumption.
-Qed.
-
-Global Program Instance withinMemBlock_AbsR_applied (pos : N) :
-  withinMemBlock pos [R eq ==> MemoryBlock_AbsR ==> boolR]
-  withinMemBlockC pos.
-Obligation 1. apply withinMemBlock_AbsR; reflexivity. Qed.
-
-Notation "f \oo g" := (fun x y => f (g x y)) (at level 90).
-
-Lemma withinMemAbsR : forall base blk cblk pos,
-  withinMemBlock pos base blk
-    -> MemoryBlock_AbsR blk cblk
-    -> withinMemBlockC pos base cblk = true.
-Proof.
-  intros.
-  unfold withinMemBlock, withinMemBlockC in *; simpl in *.
-  apply within_reflect in H.
-  destruct H0 as [H0 _]; rewrite <- H0.
-  assumption.
-Qed.
-
-End Within.
-
-Hint Resolve within_allocated_mem_Proper.
-Hint Resolve withinMemBlock_Proper.
-Hint Resolve withinMemBlockC_Proper.
 
 Definition Heap_AbsR
            (or : { r : Rep HeapSpec | fromADT HeapSpec r})

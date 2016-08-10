@@ -1,9 +1,7 @@
 Require Import
   Here.Relations
-  Coq.FSets.FMapList
   Coq.FSets.FMapFacts
-  Coq.Structures.DecidableTypeEx
-  Coq.Sorting.Permutation.
+  Coq.Structures.DecidableTypeEx.
 
 Module FMapExt (E : DecidableType) (M : WSfun E).
 

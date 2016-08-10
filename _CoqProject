@@ -20,6 +20,7 @@ src/Heap.v
 src/HeapADT.v
 src/DefineAbsR.v
 src/MemoryBlockC.v
+src/Within.v
 src/HeapFMap.v
 src/ByteString.v
 src/ByteStringLib.v

@@ -5,13 +5,13 @@ Require Import
   Here.TupleEnsembles
   Here.TupleEnsemblesFinite
   Here.Same_set
-  Coq.FSets.FMapList
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
 Require Import
   Here.Relations
-  Here.Same_set.
+  Here.Same_set
+  Coq.Structures.DecidableTypeEx.
 
 Generalizable All Variables.
 
