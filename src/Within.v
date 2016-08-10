@@ -24,6 +24,9 @@ Program Instance within_allocated_mem_Proper :
   Proper (eq ==> eq ==> eq ==> eq) within_allocated_mem.
 Obligation 1. relational; subst; reflexivity. Qed.
 
+Hint Extern 4 (Proper (eq ==> eq ==> eq) (within_allocated_mem _)) =>
+  apply within_allocated_mem_Proper; auto.
+
 Lemma within_allocated_mem_add : forall n x k e,
   within_allocated_mem n k e = true
     -> 0 < x
@@ -61,6 +64,9 @@ Obligation 1.
   reflexivity.
 Qed.
 
+Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlock _)) =>
+  apply withinMemBlock_Proper; reflexivity.
+
 Global Program Instance withinMemBlockC_Proper :
   Proper (N.eq ==> eq ==> eq ==> eq) withinMemBlockC.
 Obligation 1.
@@ -69,6 +75,9 @@ Obligation 1.
   rewrite H.
   reflexivity.
 Qed.
+
+Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlockC _)) =>
+  apply withinMemBlockC_Proper; reflexivity.
 
 Open Scope lsignature_scope.
 

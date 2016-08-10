@@ -376,7 +376,7 @@ Obligation 1.
   rewrite Single_is_Update.
   unfold singleton.
   apply Update_Map_AbsR; auto.
-  apply Empty_Map_AbsR; auto.
+  apply Empty_Map_AbsR.
 Qed.
 
 (* Move *)
@@ -570,6 +570,8 @@ Proof.
 Qed.
 
 End FunMaps_AbsR.
+
+Hint Extern 4 (Map_AbsR _ Empty (M.empty _)) => apply Empty_Map_AbsR : maps.
 
 Hint Resolve Map_AbsR_Proper : maps.
 Hint Resolve Empty_Map_AbsR : maps.

@@ -19,7 +19,7 @@ Module Import Define := Define_AbsR M.
 Import Block.                  (* Within -> MemoryBlockC *)
 Import Block.Adt.              (* Within -> MemoryBlockC -> HeapADT *)
 Import Block.Adt.Heap.         (* Within -> MemoryBlockC -> HeapADT -> Heap *)
-Import FunMaps.                (* DefineAbsR -> FunMaps *)
+Include FunMaps.               (* DefineAbsR -> FunMaps *)
 
 Require Import Fiat.ADT Fiat.ADTNotation.
 
@@ -37,23 +37,6 @@ Proof.
   - apply heap_is_finite; auto.
   - apply allocations_unique; auto.
 Qed.
-
-Hint Extern 4 (Proper (eq ==> eq ==> eq) (within_allocated_mem _)) =>
-  apply within_allocated_mem_Proper; auto.
-
-Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlock _)) =>
-  apply withinMemBlock_Proper; reflexivity.
-
-Hint Extern 4 (Proper (eq ==> eq ==> eq) (withinMemBlockC _)) =>
-  apply withinMemBlockC_Proper; reflexivity.
-
-Hint Extern 5 =>
-  match goal with
-    [ H : M.MapsTo _ _ (M.empty _) |- _ ] =>
-      apply F.empty_mapsto_iff in H; contradiction
-  end.
-
-Hint Extern 4 (Map_AbsR _ Empty (M.empty _)) => apply Empty_Map_AbsR.
 
 Lemma Heap_AbsR_outside_mem
       {r_o r_n} (AbsR : Heap_AbsR r_o r_n)
@@ -170,7 +153,7 @@ Proof.
 
     AbsR_prep.
     - apply Update_Map_AbsR; auto.
-      apply MemoryBlock_AbsR_impl; auto.
+      apply MemoryBlock_AbsR_impl; auto with maps.
     - apply for_all_add_iff; auto.
       + unfold not; intros.
         apply (proj1 (in_mapsto_iff _ _ _)) in H2.
@@ -328,7 +311,7 @@ Proof.
             admit.
           apply Remove_Map_AbsR; auto.
       + apply Update_Map_AbsR; auto.
-        apply MemoryBlock_AbsR_impl; auto.
+        apply MemoryBlock_AbsR_impl; auto with maps.
     - destruct (M.find (elt:=MemoryBlockC) d (snd r_n)) eqn:Heqe; simpl.
       + decisions; simpl; auto.
         * admit.

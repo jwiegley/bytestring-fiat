@@ -67,6 +67,12 @@ Ltac simplify_maps :=
     apply F.map_mapsto_iff
   end; simpl; auto.
 
+Hint Extern 5 =>
+  match goal with
+    [ H : M.MapsTo _ _ (M.empty _) |- _ ] =>
+      apply F.empty_mapsto_iff in H; contradiction
+  end.
+
 Global Program Instance MapsTo_Proper {elt} :
   Proper (E.eq ==> eq ==> M.Equal ==> iff) (@M.MapsTo elt) :=
   (@F.MapsTo_m_Proper elt).
@@ -760,7 +766,6 @@ Proof.
   apply find_if_filter in H0; trivial.
   destruct (find_if P m).
     destruct p.
-    simplify_maps.
     simplify_maps.
   assert (~ M.In k (M.empty elt)).
     unfold not; intros.
