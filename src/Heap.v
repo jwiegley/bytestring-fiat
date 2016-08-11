@@ -63,16 +63,19 @@ Definition memcpyS  := "memcpy".
 Definition memsetS  := "memset".
 
 Definition HeapSpec := Def ADT {
-  (* a mapping of addr tokens to a length, and another mapping from
-     offsets within a certain block to individual bytes *)
+  (* Map of memory addresses to blocks, which contain another mapping from
+     offsets to initialized bytes. *)
   rep := Ensemble (N * MemoryBlock),
 
   Def Constructor0 emptyS : rep := ret Empty,,
 
-  (* Allocation returns the address for the newly allocated block. Note that
-     conditions such as out-of-memory are not handled here; the final
-     implementation must decide how to handle this operationally, such as
-     throwing an exception. *)
+  (* Allocation returns the address for the newly allocated block.
+     NOTE: conditions such as out-of-memory are not handled here; the final
+     implementation must decide how to handle this operationally, such as by
+     throwing an exception. It remains a further research question how to
+     specify error handling at this level, when certain errors -- such as
+     exhausting memory -- do not belong here, since a mathematical machine has
+     no such limits. *)
   Def Method1 allocS (r : rep) (len : N | 0 < len) : rep * N :=
     addr <- { addr : N
             | All (fun addr' blk' =>
@@ -86,7 +89,8 @@ Definition HeapSpec := Def ADT {
 
   (* Realloc is not required to reuse the same block. If the address does not
      identify an allociated region, a new memory block is returned without any
-     bytes moved. *)
+     bytes moved. If a block did exist previously, as many bytes as possible
+     are copied to the new block. *)
   Def Method2 reallocS (r : rep) (addr : N) (len : N | 0 < len) : rep * N :=
     present <- { blk : option MemoryBlock
                | Ifopt blk as blk'
@@ -105,7 +109,7 @@ Definition HeapSpec := Def ADT {
                          ; memData := Empty |} r,
       naddr),
 
-  (* Peeking an unallocated address allows any value to be returned. *)
+  (* Peeking an unallocated address allows anydefault value to be returned. *)
   Def Method1 peekS (r : rep) (addr : N) : rep * Mem.Word8 :=
     p <- { p : Mem.Word8
          | forall base blk',
@@ -121,7 +125,7 @@ Definition HeapSpec := Def ADT {
                -> p = v };
     ret (r, p),
 
-  (* Poking an unallocated address is a no-op and returns false. *)
+  (* Poking an unallocated address is a no-op. *)
   Def Method2 pokeS (r : rep) (addr : N) (w : Mem.Word8) : rep * unit :=
     ret (Map (fun base blk =>
                 IfDec within base (memSize blk) addr
@@ -131,7 +135,7 @@ Definition HeapSpec := Def ADT {
 
   (* Data may only be copied from one allocated block to another (or within
      the same block), and the region must fit within both source and
-     destination. Otherwise, the operation is a no-op and returns false. *)
+     destination. Otherwise, the operation is a no-op. *)
   Def Method3 memcpyS (r : rep) (addr1 : N) (addr2 : N) (len : N) :
     rep * unit :=
     ms <- { ms : option (N * MemoryBlock)
@@ -157,8 +161,7 @@ Definition HeapSpec := Def ADT {
          | _, _ => r
          end, tt),
 
-  (* Any attempt to memset bytes outside of an allocated block is a no-op that
-     returns false. *)
+  (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
   Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Mem.Word8) :
     rep * unit :=
     ret (Map (fun base blk =>
@@ -303,12 +306,6 @@ Proof.
   - inv H3; inv H4; congruence.
 Qed.
 
-Ltac lookup_uid H :=
-  match goal with
-  | [ H1 : Lookup ?A ?X ?R, H2 : Lookup ?A ?Y ?R |- _ ] =>
-    pose proof (allocations_unique H _ _ H1 _ H2); subst
-  end; inspect; auto.
-
 Corollary allocations_unique_r : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 blk, Lookup addr1 blk r ->
   forall addr2, ~ Member addr2 r -> addr1 <> addr2.
@@ -317,6 +314,12 @@ Proof.
   contradiction H1;
   exists blk; assumption.
 Qed.
+
+Ltac lookup_uid H :=
+  match goal with
+  | [ H1 : Lookup ?A ?X ?R, H2 : Lookup ?A ?Y ?R |- _ ] =>
+    pose proof (allocations_unique H _ _ H1 _ H2); subst
+  end; inspect; auto.
 
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 blk1, Lookup addr1 blk1 r ->
@@ -365,9 +368,8 @@ Theorem heap_is_finite : forall r : Rep HeapSpec, fromADT _ r -> Finite _ r.
 Proof. intros; ADT induction r; inspect; finite_preservation; nomega. Qed.
 
 Lemma added : forall b e,
-  b <= e ->
-  Same_set _ (fun x : N => b <= x < N.succ e)
-             (Add _ (fun x : N => b <= x < e) e).
+  b <= e -> Same_set _ (fun x : N => b <= x < N.succ e)
+                       (Add _ (fun x : N => b <= x < e) e).
 Proof.
   unfold Same_set, Included, Add, Ensembles.In.
   split; intros.
@@ -379,9 +381,8 @@ Proof.
 Qed.
 
 Lemma not_added : forall b e,
-  ~ b <= e ->
-  Same_set _ (fun x : N => b <= x < N.succ e)
-             (fun x : N => b <= x < e).
+  ~ b <= e -> Same_set _ (fun x : N => b <= x < N.succ e)
+                         (fun x : N => b <= x < e).
 Proof. unfold Same_set, Included, Add, Ensembles.In; nomega. Qed.
 
 Lemma N_Finite : forall b e, Finite N (fun x : N => b <= x < e).
