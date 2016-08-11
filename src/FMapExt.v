@@ -177,6 +177,20 @@ Proof.
   rewrite H0; reflexivity.
 Qed.
 
+(* Adding to an FMap overwrites the previous entry. *)
+Lemma remove_add : forall elt k (e : elt) m,
+  M.Equal (M.add k e (M.remove k m)) (M.add k e m).
+Proof.
+  intros.
+  induction m using P.map_induction_bis.
+  - rewrite <- H; assumption.
+  - apply F.Equal_mapsto_iff; split; intros;
+    repeat simplify_maps.
+  - apply F.Equal_mapsto_iff; split; intros;
+    repeat simplify_maps;
+    right; intuition; simplify_maps.
+Qed.
+
 Lemma Equal_add_remove : forall elt k (e : elt) m' m'',
   ~ M.In k m' -> M.Equal (M.add k e m') m'' -> M.Equal m' (M.remove k m'').
 Proof.

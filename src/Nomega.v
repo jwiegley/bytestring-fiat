@@ -2,7 +2,8 @@ Require Export
   Coq.Arith.Arith
   Coq.omega.Omega
   Coq.NArith.NArith
-  Here.Decidable.
+  Here.Decidable
+  Here.Relations.
 
 Open Scope N_scope.
 
@@ -362,6 +363,33 @@ Proof. nomega. Qed.
 Lemma within_dec : forall a l x,
   {within a l x} + {~ within a l x}.
 Proof. nomega. Qed.
+
+Local Open Scope lsignature_scope.
+
+Lemma within_AbsR :
+  within [R N.eq ==> N.eq ==> N.eq ==> boolR] within_bool.
+Proof.
+  intros.
+  relational; unfold Basics.compose, negb; split; intros.
+    rewrite H, H0, H1 in H2.
+    decisions; auto; nomega.
+  rewrite <- H, <- H0, <- H1 in H2.
+  decisions; auto; nomega.
+Qed.
+
+Lemma not_within_AbsR : forall b l,
+  (Basics.compose not (within b l))
+    [R N.eq ==> boolR] (Basics.compose negb (within_bool b l)).
+Proof.
+  intros.
+  relational; unfold Basics.compose, negb; split; intros.
+    rewrite H in H0.
+    decisions; auto; nomega.
+  rewrite <- H in H0.
+  decisions; auto.
+    discriminate.
+  nomega.
+Qed.
 
 (*** fits ***)
 

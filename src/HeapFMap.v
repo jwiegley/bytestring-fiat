@@ -29,22 +29,27 @@ Definition Heap_AbsR
   Map_AbsR MemoryBlock_AbsR (` or) (snd nr) /\
   P.for_all (within_allocated_mem (fst nr)) (snd nr).
 
-Hint Extern 5 =>
-  match goal with
-    [ H : fromADT HeapSpec ?R
-    |- Finite_sets.Finite (M.key * MemoryBlock) ?R ] =>
-    exact (heap_is_finite H)
-  end.
-
-Hint Extern 5 =>
-  match goal with
-    [ H : fromADT HeapSpec ?R |- Functional ?R ] =>
-    exact (allocations_unique H)
-  end.
-
 Theorem heaps_refine_to_maps : forall r : Rep HeapSpec, fromADT _ r ->
   exists m : M.t MemoryBlockC, Map_AbsR MemoryBlock_AbsR r m.
-Proof. intros; apply every_finite_map_has_an_associated_fmap; auto. Qed.
+Proof.
+  intros; apply every_finite_map_has_an_associated_fmap; auto.
+  - apply heap_is_finite; auto.
+  - apply allocations_unique; auto.
+Qed.
+
+Ltac apply_for_all :=
+  match goal with
+  | [ H1 : is_true (P.for_all ?P ?m),
+      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
+    let H3 := fresh "H3" in
+    assert (H3 : Proper (eq ==> eq ==> eq) P) by auto;
+    pose proof (proj1 (@P.for_all_iff _ P H3 m) H1 k e H2)
+  | [ H1 : P.for_all ?P ?m = true,
+      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
+    let H3 := fresh "H3" in
+    assert (H3 : Proper (eq ==> eq ==> eq) P) by auto;
+    pose proof (proj1 (@P.for_all_iff _ P H3 m) H1 k e H2)
+  end.
 
 Lemma Heap_AbsR_outside_mem
       {r_o r_n} (AbsR : Heap_AbsR r_o r_n)
@@ -53,13 +58,8 @@ Lemma Heap_AbsR_outside_mem
          ~ overlaps addr' (memSize blk') (fst r_n) (` d)) (` r_o).
 Proof.
   intros addr blk H.
-  destruct AbsR as [H1 ?].
-  apply H1 in H; destruct H as [? [? ?]].
-  swap_sizes.
-  apply (proj1 (P.for_all_iff _ _)) with (k:=addr) (e:=x) in H0;
-  [|exact H].
-  unfold within_allocated_mem in H0; simpl in H0.
-  unfold not, overlaps, within in *; nomega.
+  apply AbsR in H; destruct H as [? [? ?]]; swap_sizes.
+  destruct AbsR as [_ ?]; apply_for_all; nomega.
 Qed.
 
 Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :
@@ -110,17 +110,6 @@ Proof.
   intros; subst; reflexivity.
 Qed.
 
-Ltac AbsR_prep :=
-  repeat
-    match goal with
-    | [ H : Heap_AbsR _ _ |- _ ] => unfold Heap_AbsR in H; simpl in H
-    | [ |- Heap_AbsR _ _ ] => unfold Heap_AbsR; simpl
-    | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
-    | [ |- _ /\ _ ] => split
-    end; simpl; eauto; eauto with maps.
-
-Require Import Fiat.ADTRefinement Fiat.ADTRefinement.BuildADTRefinements.
-
 Ltac related_maps' :=
   repeat (
     related_maps; auto with maps;
@@ -130,296 +119,16 @@ Ltac related_maps' :=
       apply MemoryBlock_AbsR_impl; auto with maps
     end).
 
-Ltac apply_for_all :=
-  match goal with
-  | [ H1 : is_true (P.for_all ?P ?m),
-      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
-    let H3 := fresh "H3" in
-    assert (H3 : Proper (eq ==> eq ==> eq) P) by auto;
-    pose proof (proj1 (@P.for_all_iff _ P H3 m) H1 k e H2)
-  | [ H1 : P.for_all ?P ?m = true,
-      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
-    let H3 := fresh "H3" in
-    assert (H3 : Proper (eq ==> eq ==> eq) P) by auto;
-    pose proof (proj1 (@P.for_all_iff _ P H3 m) H1 k e H2)
-  end.
+Ltac AbsR_prep :=
+  repeat
+    match goal with
+    | [ H : Heap_AbsR _ _ |- _ ] => unfold Heap_AbsR in H; simpl in H
+    | [ |- Heap_AbsR _ _ ] => unfold Heap_AbsR; simpl
+    | [ H : _ /\ _ |- _ ] => destruct H; simpl in H
+    | [ |- _ /\ _ ] => split
+    end; simpl; eauto; eauto with maps; related_maps'.
 
-Lemma Lookup_of_map : forall addr cblk r_o r_n,
-  Map_AbsR MemoryBlock_AbsR r_o r_n
-    -> M.MapsTo addr cblk r_n
-    -> Lookup addr {| memSize := memCSize cblk
-                    ; memData := of_map eq (memCData cblk) |} r_o.
-Proof.
-  intros.
-  apply H in H0.
-  destruct H0, H0, H1.
-  apply of_map_Same in H2.
-  apply H.
-  exists cblk.
-  intuition.
-  apply H.
-  exists x.
-  intuition.
-  split; intros; trivial.
-  rewrite H2.
-  apply of_map_Map_AbsR; auto.
-Qed.
-
-(* Adding to an FMap overwrites the previous entry. *)
-Lemma remove_add : forall elt k (e : elt) m,
-  M.Equal (M.add k e (M.remove k m)) (M.add k e m).
-Proof.
-  intros.
-  induction m using P.map_induction_bis.
-  - rewrite <- H; assumption.
-  - apply F.Equal_mapsto_iff; split; intros;
-    repeat simplify_maps.
-  - apply F.Equal_mapsto_iff; split; intros;
-    repeat simplify_maps;
-    right; intuition; simplify_maps.
-Qed.
-
-Lemma Map_set_fold_AbsR : forall r m f,
-  (forall x y, f x = f y -> x = y)
-    -> r [R Map_AbsR eq] m
-    -> Map_set (fun p => (f (fst p), snd p)) r
-         [R Map_AbsR eq]
-         M.fold (fun k : M.key => M.add (f k)) m (M.empty Mem.Word8).
-Proof.
-  intros.
-  relational; split; intros; split; intros H1.
-  - repeat teardown; inv H1.
-    apply H0 in H2;
-    destruct H2 as [cblk [? ?]]; subst.
-    exists cblk; intuition.
-    revert H1.
-    apply P.fold_rec_bis; auto; intros.
-      rewrite <- H1 in H3; intuition.
-    repeat simplify_maps.
-    right; intuition.
-  - reduction.
-    revert H1.
-    apply P.fold_rec_bis; auto; intros.
-    simplify_maps.
-    exists (k, x); simpl.
-    apply H0 in H1; destruct H1.
-    intuition; subst; assumption.
-  - revert H1.
-    apply P.fold_rec_bis; auto; intros.
-    simplify_maps.
-    exists cblk; simpl.
-    intuition.
-    pose proof (Lookup_Map_set (B:=Mem.Word8) (a:=f k) (b:=cblk)
-                               (fun p => (f (fst p), snd p))).
-    apply H4.
-    exists (k, cblk); simpl.
-    apply H0 in H1; destruct H1.
-    intuition; subst; assumption.
-  - repeat teardown; subst; inv H1.
-    apply H0 in H3.
-    destruct H3 as [blk [? ?]]; subst.
-    revert H1.
-    apply P.fold_rec_bis; auto; intros.
-      rewrite <- H1 in H3; intuition.
-    repeat simplify_maps.
-    right; intuition.
-Qed.
-
-Definition keep_keys (P : M.key -> bool) : M.t Mem.Word8 -> M.t Mem.Word8 :=
-  P.filter (const ∘ P).
-
-Definition shift_keys (orig_base : N) (new_base : N) (m : M.t Mem.Word8) :
-  M.t Mem.Word8 :=
-  M.fold (fun k => M.add (k - orig_base + new_base)) m (M.empty _).
-
-(*
-Lemma keep_keys_fold : forall soff doff len s d,
-  M.Equal (M.fold (fun k e m =>
-                     if within_bool soff len k
-                     then M.add (k - soff + doff) e m
-                     else m) s d)
-          (M.fold (fun k => M.add (k - soff + doff))
-                  (keep_keys (within_bool soff len) s) d).
-
-Lemma keep_shift_fold : forall soff doff s d,
-  P.for_all (fun k _ => soff <=? k) s ->
-  M.Equal (M.fold (fun k => M.add (k - soff + doff)) s d)
-          (P.update d (shift_keys soff doff s)).
-Proof.
-  unfold P.update, shift_keys; intros.
-  revert H.
-  apply P.fold_rec; intros.
-    rewrite P.fold_Empty; auto.
-      reflexivity.
-    rewrite P.fold_Empty; auto.
-    apply M.empty_1.
-
-  apply add_equal_iff in H1.
-  rewrite <- H1 in H3.
-  apply for_all_add_true in H3;
-  destruct H3; auto; relational.
-  intuition.
-
-  assert (P.transpose_neqkey M.Equal (@M.add Mem.Word8)).
-    intros ??????.
-    apply add_associative; tauto.
-
-  assert (Proper (eq ==> eq ==> M.Equal ==> M.Equal) (@M.add Mem.Word8)).
-    relational.
-    rewrite <- H8.
-    reflexivity.
-
-  remember (fun _ => M.add _) as f.
-  assert (P.transpose_neqkey M.Equal f).
-    intros ??????.
-    rewrite Heqf.
-    apply add_associative; intros.
-    apply N.add_cancel_r in H8.
-    apply Nsub_eq in H8.
-        contradiction.
-      admit.
-    admit.
-
-  assert (Proper (eq ==> eq ==> M.Equal ==> M.Equal) f).
-    relational.
-    rewrite <- H10.
-    reflexivity.
-
-  pose proof (@fold_Proper Mem.Word8 _ (@M.add Mem.Word8) M.Equal
-                           (F.EqualSetoid _) H6 H2).
-  pose proof (@fold_Proper Mem.Word8 _ f M.Equal (F.EqualSetoid _) H8 H7).
-
-  rewrite <- H1.
-  apply add_equal_iff in H1.
-
-  erewrite P.fold_add; eauto.
-  rewrite H5, Heqf.
-  erewrite P.fold_add; eauto.
-    reflexivity.
-  unfold not; intros; destruct H11.
-  contradiction H0.
-  exists x.
-  revert H11.
-  apply P.fold_rec_bis; intros; auto.
-    rewrite <- H11.
-    intuition.
-  repeat simplify_maps.
-    left; intuition.
-    apply N.add_cancel_r in H15.
-    apply (proj1 (P.for_all_iff _ _)) with (k1:=k0) (e0:=x) in H3;
-    [|exact H11].
-    apply Nsub_eq in H15; auto; nomega.
-  right; intuition; subst; tauto.
-*)
-
-Lemma KeepKeys_Map_AbsR :
-  KeepKeys [R (N.eq ==> boolR) ==> Map_AbsR eq ==> Map_AbsR eq] keep_keys.
-Proof.
-  unfold KeepKeys, keep_keys, compose, const.
-  constructor.
-  intros ???.
-  apply Filter_Map_AbsR; auto; relational.
-  apply H; reflexivity.
-Qed.
-
-Hint Resolve KeepKeys_Map_AbsR : maps.
-
-Lemma ShiftKeys_Map_AbsR : forall b d r m,
-  r [R Map_AbsR eq] m ->
-  All (fun k _ => b <= k) r ->
-  (* P.for_all (fun k _ => b <=? k) m -> *)
-  ShiftKeys b d r [R Map_AbsR eq] shift_keys b d m.
-Proof.
-  unfold ShiftKeys, shift_keys, compose, const; intros.
-  eapply (All_Map_AbsR (A:=Mem.Word8) (B:=Mem.Word8) (R:=eq)
-                       (f:=fun k _ => b <= k) (f':=fun k _ => b <=? k)) in H0.
-    Focus 2. relational.
-    Focus 2. relational. split; nomega.
-    Focus 2. apply logical_prf.
-  relational; split; intros; split; intros H1.
-  - repeat teardown; inv H1.
-    apply H in H2;
-    destruct H2 as [cblk [? ?]]; subst.
-    pose proof H0.
-    apply (proj1 (P.for_all_iff _ _)) with (k:=n) (e:=cblk) in H2; [|exact H1].
-    exists cblk; intuition.
-    revert H1.
-    revert H0.
-    apply P.fold_rec_bis; auto; intros.
-      rewrite <- H0 in H3, H4; intuition.
-    repeat simplify_maps.
-    apply for_all_add_true in H4;
-    destruct H4; auto; relational.
-    right; intuition.
-    apply N.add_cancel_r in H6.
-    apply Nsub_eq in H6; auto; nomega.
-  - reduction.
-    revert H1.
-    revert H0.
-    apply P.fold_rec_bis; auto; intros.
-      rewrite <- H0 in H2; intuition.
-    apply for_all_add_true in H3;
-    destruct H3; auto; relational.
-    simplify_maps.
-    exists (k, x); simpl.
-    apply H in H0; destruct H0.
-    intuition; subst; assumption.
-  - revert H1.
-    revert H0.
-    apply P.fold_rec_bis; auto; intros.
-      rewrite <- H0 in H2; intuition.
-    apply for_all_add_true in H3;
-    destruct H3; auto; relational.
-    simplify_maps.
-    exists cblk; simpl.
-    intuition.
-    pose proof (Lookup_Map_set (B:=Mem.Word8) (a:=k - b + d) (b:=cblk)
-                               (fun p => (fst p - b + d, snd p))).
-    apply H2.
-    exists (k, cblk); simpl.
-    apply H in H0; destruct H0.
-    intuition; subst; assumption.
-  - repeat teardown; subst; inv H1.
-    apply H in H3.
-    destruct H3 as [blk [? ?]]; subst.
-    revert H1.
-    revert H0.
-    apply P.fold_rec_bis; auto; intros.
-      rewrite <- H0 in H2, H3; intuition.
-    apply for_all_add_true in H3;
-    destruct H3; auto; relational.
-    repeat simplify_maps.
-    right; intuition.
-    apply (proj1 (P.for_all_iff _ _)) with (k0:=n) (e0:=blk) in H3; [|exact H9].
-    apply N.add_cancel_r in H4.
-    apply Nsub_eq in H4; auto; nomega.
-Qed.
-
-Lemma within_AbsR :
-  within [R N.eq ==> N.eq ==> N.eq ==> boolR] within_bool.
-Proof.
-  intros.
-  relational; unfold compose, negb; split; intros.
-    rewrite H, H0, H1 in H2.
-    decisions; auto; nomega.
-  rewrite <- H, <- H0, <- H1 in H2.
-  decisions; auto; nomega.
-Qed.
-
-Lemma not_within_AbsR : forall b l,
-  (not ∘ within b l) [R N.eq ==> boolR] (negb ∘ within_bool b l).
-Proof.
-  intros.
-  relational; unfold compose, negb; split; intros.
-    rewrite H in H0.
-    decisions; auto; nomega.
-  rewrite <- H in H0.
-  decisions; auto.
-    discriminate.
-  nomega.
-Qed.
-
-Hint Resolve ShiftKeys_Map_AbsR : maps.
+Require Import Fiat.ADTRefinement Fiat.ADTRefinement.BuildADTRefinements.
 
 Lemma HeapImpl : FullySharpened HeapSpec.
 Proof.
@@ -460,7 +169,6 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - related_maps'.
     - apply for_all_add_iff; auto.
       + unfold not; intros.
         apply (proj1 (in_mapsto_iff _ _ _)) in H2.
@@ -488,7 +196,6 @@ Proof.
       finish honing.
 
     AbsR_prep.
-    - related_maps'.
     - apply for_all_remove; auto.
   }
 
@@ -568,12 +275,10 @@ Proof.
     destruct (M.find d (snd r_n)) eqn:Heqe; simpl;
     decisions; simpl.
     - rewrite <- remove_add.
-      related_maps'.
-      apply Filter_Map_AbsR; auto; relational.
+      related_maps'; relational.
         split; nomega.
       apply of_map_Map_AbsR; auto.
-    - related_maps'.
-      apply Filter_Map_AbsR; auto; relational.
+    - related_maps'; relational.
         split; nomega.
       apply of_map_Map_AbsR; auto.
     - related_maps'.
@@ -655,9 +360,8 @@ Proof.
       finish honing.
 
     pose proof (Poke_in_heap H0).
-    AbsR_prep.
-    - related_maps; relational.
-      swap_sizes; decisions; auto.
+    AbsR_prep; relational; clear H.
+    - swap_sizes; decisions; auto.
       related_maps'; exact (proj2 H4).
   }
 
@@ -805,10 +509,8 @@ Proof.
       simplify with monad laws.
       finish honing.
 
-    AbsR_prep.
-    - related_maps';
-      relational; subst; auto;
-      swap_sizes;
+    AbsR_prep; relational; clear H.
+    - swap_sizes;
       decisions; auto;
       related_maps';
       apply Define_Map_AbsR; auto;
