@@ -65,6 +65,10 @@ Ltac simplify_maps :=
   | [ |- M.MapsTo (elt:=?T) ?A ?B (M.mapi ?F ?M) ] =>
     rewrite F.mapi_o, <- F.map_o;
     apply F.map_mapsto_iff
+
+  | [ |- ~ M.In ?d (M.remove ?d ?r) ] =>
+    let H := fresh "H" in
+    unfold not; intro H; destruct H; simplify_maps
   end; simpl; auto.
 
 Hint Extern 5 =>
@@ -208,6 +212,23 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem add_associative {elt}
+        (k : M.key) (e : elt)
+        (k0 : M.key) (e0 : elt)
+        (z : M.t elt) :
+  (E.eq k k0 -> e = e0)
+    -> M.Equal (M.add k e (M.add k0 e0 z)) (M.add k0 e0 (M.add k e z)).
+Proof.
+  intros H addr.
+  rewrite !F.add_o.
+  destruct (E.eq_dec k addr);
+  destruct (E.eq_dec k0 addr); eauto.
+  apply E.eq_sym in e2.
+  pose proof (E.eq_trans e1 e2).
+  rewrite (H H0).
+  reflexivity.
+Qed.
+
 Section for_all.
 
 Variable elt : Type.
@@ -345,6 +366,82 @@ Proof.
   eapply P.for_all_iff in H; eauto.
 Qed.
 
+Lemma for_all_filter : forall P Q (m : M.t elt),
+  Proper (E.eq ==> eq ==> eq) P ->
+  Proper (E.eq ==> eq ==> eq) Q ->
+  P.for_all (fun k e => negb (Q k e) || P k e) m = true
+    -> P.for_all P (P.filter Q m) = true.
+Proof.
+  unfold P.for_all, P.filter; intros.
+  remember (fun _ _ _ => _) as f.
+  remember (fun _ _ _ => if P0 _ _ then _ else _) as g.
+  remember (fun _ _ _ => if Q _ _ then _ else _) as h.
+
+  assert (Proper (E.eq ==> eq ==> eq ==> eq) g).
+    relational.
+    rewrite H2.
+    reflexivity.
+  assert (P.transpose_neqkey eq g).
+    intros ??????.
+    rewrite Heqg.
+    destruct (P0 k e), (P0 k' e'); auto.
+
+  assert (Proper (E.eq ==> eq ==> M.Equal ==> M.Equal) h).
+    relational.
+    rewrite H4.
+    destruct (Q y y0); trivial.
+    rewrite H4, H6; reflexivity.
+  assert (P.transpose_neqkey M.Equal h).
+    intros ??????.
+    rewrite Heqh.
+    destruct (Q k e), (Q k' e'); try reflexivity.
+    apply add_associative; intros.
+    contradiction.
+
+  pose proof (@fold_Proper _ _ g eq _ H2 H3).
+  pose proof (@fold_Proper _ _ h M.Equal _ H4 H5).
+
+  revert H1.
+  apply P.fold_rec_bis; intros.
+  - rewrite <- H1; intuition.
+  - rewrite P.fold_Empty; auto.
+    rewrite P.fold_Empty; auto;
+    apply M.empty_1.
+  - rewrite P.fold_add; auto.
+    rewrite Heqg in *.
+    rewrite Heqh in *.
+    rewrite Heqf in *.
+    destruct (Q k e) eqn:Heqe; simpl in *.
+      rewrite P.fold_add; auto.
+        destruct (P0 k e) eqn:Heqe2; simpl in *.
+          rewrite (H9 H10); reflexivity.
+        assumption.
+      unfold not ;intros.
+      destruct H11.
+      contradiction H8.
+      exists x.
+      {
+        destruct (P0 k e) eqn:Heqe2; simpl in *;
+        revert H11;
+        apply P.fold_rec_bis; auto; intros.
+        - rewrite <- H11; intuition.
+        - destruct (Q k0 e0) eqn:Heqe3; simpl in *.
+            repeat simplify_maps.
+          repeat simplify_maps.
+          right; intuition.
+          contradiction H12.
+          exists x.
+          rewrite H13.
+          assumption.
+        - rewrite <- H11; intuition.
+        - destruct (Q k0 e0) eqn:Heqe3; simpl in *.
+            repeat simplify_maps.
+          repeat simplify_maps.
+          right; intuition.
+      }
+    intuition.
+Qed.
+
 End for_all.
 
 Import ListNotations.
@@ -470,14 +567,31 @@ Qed.
 
 Lemma filter_for_all : forall elt (m : M.t elt) P,
   Proper (E.eq ==> eq ==> eq) P
-    -> M.Equal (P.filter P m) m -> P.for_all P m = true.
+    -> M.Equal (P.filter P m) m <-> P.for_all P m = true.
 Proof.
-  unfold P.for_all; intros.
-  unfold P.for_all.
+  unfold P.for_all; split; intros.
+    apply P.fold_rec; auto; intros.
+    rewrite <- H0 in H1.
+    apply P.filter_iff in H1; trivial.
+    rewrite (proj2 H1); assumption.
+  revert H0.
   apply P.fold_rec; auto; intros.
-  rewrite <- H0 in H1.
-  apply P.filter_iff in H1; trivial.
-  rewrite (proj2 H1); assumption.
+    apply F.Equal_mapsto_iff; split; intros; simplify_maps.
+  destruct (P k e) eqn:Heqe; try discriminate.
+  apply add_equal_iff in H2.
+  rewrite <- H2 in *; clear H2.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+  intuition.
+  simplify_maps.
+    simplify_maps.
+    rewrite H3.
+    rewrite H3 in Heqe.
+    intuition.
+  simplify_maps.
+  rewrite <- H5 in H8.
+  simplify_maps.
+  intuition.
 Qed.
 
 Lemma filter_idempotent : forall elt (m : M.t elt) P,
@@ -508,23 +622,6 @@ Proof.
   apply filter_for_all; eauto.
   unfold P.for_all.
   apply filter_idempotent; assumption.
-Qed.
-
-Theorem add_associative {elt}
-        (k : M.key) (e : elt)
-        (k0 : M.key) (e0 : elt)
-        (z : M.t elt) :
-  (E.eq k k0 -> e = e0)
-    -> M.Equal (M.add k e (M.add k0 e0 z)) (M.add k0 e0 (M.add k e z)).
-Proof.
-  intros H addr.
-  rewrite !F.add_o.
-  destruct (E.eq_dec k addr);
-  destruct (E.eq_dec k0 addr); eauto.
-  apply E.eq_sym in e2.
-  pose proof (E.eq_trans e1 e2).
-  rewrite (H H0).
-  reflexivity.
 Qed.
 
 Lemma Oeq_neq_sym : forall x y, ~ E.eq x y -> ~ E.eq y x.
@@ -777,25 +874,25 @@ Qed.
 Lemma find_if_inv : forall elt p (m : M.t elt) P,
   Proper (E.eq ==> eq ==> eq) P
     -> find_if P m = Some p
-    -> M.MapsTo (fst p) (snd p) m.
+    -> M.MapsTo (fst p) (snd p) m /\ P (fst p) (snd p) = true.
 Proof.
   unfold find_if, take_first; intros.
   destruct p; simpl.
   revert H0.
-  apply P.fold_rec; intros;
-  intuition; try discriminate;
-  destruct a, (P k0 e0);
-  intuition; try discriminate;
-  try destruct p;
-  inversion H4; subst; clear H4;
-  apply add_equal_iff in H2;
-  try rewrite <- H2; clear H2;
-  try simplify_maps;
-  try (right; intuition;
-       apply F.not_find_in_iff in H1;
-       rewrite <- H2 in H5;
-       apply F.find_mapsto_iff in H5;
-       congruence).
+  apply P.fold_rec; intros.
+    discriminate.
+  apply add_equal_iff in H2.
+  rewrite <- H2; clear H2.
+  destruct a, (P k0 e0) eqn:Heqe;
+  try destruct p; simpl in *;
+  try inversion H4; subst; clear H4;
+  intuition;
+  simplify_maps;
+  right; intuition;
+  apply F.not_find_in_iff in H1;
+  rewrite <- H2 in H3;
+  apply F.find_mapsto_iff in H3;
+  congruence.
 Qed.
 
 Ltac for_this :=

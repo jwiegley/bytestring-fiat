@@ -261,18 +261,20 @@ Proof.
 Qed.
 
 Lemma Lookup_Map_set : forall a b f r,
-  Lookup a b r -> Lookup (fst (f (a, b))) (snd (f (a, b))) (Map_set f r).
+  (exists p', f p' = (a, b) /\ Lookup (fst p') (snd p') r)
+    -> Lookup a b (Map_set f r).
 Proof.
   unfold Map_set, Lookup, Ensembles.In; simpl.
   intuition.
-  exists (a, b); simpl.
-  rewrite <- surjective_pairing.
+  destruct H.
+  rewrite <- surjective_pairing in H.
+  exists x; simpl.
   intuition.
 Qed.
 
 Lemma Lookup_Map_set_inv : forall a b f r,
   Lookup a b (Map_set f r)
-    -> exists p, f p = (a, b) /\ Lookup (fst p) (snd p) r.
+    -> exists p', f p' = (a, b) /\ Lookup (fst p') (snd p') r.
 Proof.
   intros.
   inversion H; clear H.

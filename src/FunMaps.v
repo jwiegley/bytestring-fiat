@@ -546,6 +546,52 @@ Obligation 1.
   intros ??????; subst; equalities.
 Qed.
 
+Global Program Instance Union_Map_AbsR : forall X X' Y Y',
+  InjectiveRelation ->
+  FunctionalRelation ->
+  Map_AbsR R X Y ->
+  Map_AbsR R X' Y' ->
+  All (fun k _ => ~ Member k X') X ->
+  Union _ X X' [R Map_AbsR R] (@P.update _ Y Y').
+Obligation 1.
+  relational; split; intros; split; intros.
+  - repeat teardown.
+      apply H1 in H4; destruct H4 as [cblk [? ?]];
+      exists cblk; intuition;
+      apply P.update_mapsto_iff.
+      right; firstorder.
+    apply H2 in H4; destruct H4 as [cblk [? ?]];
+    exists cblk; intuition;
+    apply P.update_mapsto_iff.
+    left; assumption.
+  - reduction.
+    apply P.update_mapsto_iff in H4; destruct H4.
+      apply H2 in H4; destruct H4 as [blk' [? ?]];
+      pose proof (H _ _ _ H5 H6); subst.
+      right; assumption.
+    destruct H4.
+    apply H1 in H4; destruct H4 as [blk' [? ?]];
+    pose proof (H _ _ _ H7 H5); subst.
+    left; assumption.
+  - apply P.update_mapsto_iff in H4; destruct H4.
+      apply H2 in H4; destruct H4 as [blk [? ?]];
+      exists blk; intuition;
+      apply Lookup_Union; intuition.
+    destruct H4.
+    apply H1 in H4; destruct H4 as [blk [? ?]];
+    exists blk; intuition;
+    apply Lookup_Union; intuition.
+  - repeat teardown.
+      apply H1 in H4; destruct H4 as [cblk' [? ?]];
+      apply P.update_mapsto_iff;
+      pose proof (H0 _ _ _ H5 H6); subst.
+      right; firstorder.
+    apply H2 in H4; destruct H4 as [cblk' [? ?]];
+    apply P.update_mapsto_iff;
+    pose proof (H0 _ _ _ H5 H6); subst.
+    left; assumption.
+Qed.
+
 Lemma Map_AbsR_impl :
   FunctionalRelation ->
     forall a b c,

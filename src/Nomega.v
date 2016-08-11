@@ -183,6 +183,9 @@ Qed.
 Definition within (addr : N) (len : N) (a : N) : Prop :=
   addr <= a < addr + len.
 
+Definition within_bool (addr : N) (len : N) (a : N) : bool :=
+  ((addr <=? a) && (a <? addr + len))%bool.
+
 Definition fits (addr1 len1 addr2 len2 : N) : Prop :=
   within addr1 len1 addr2 /\ within addr1 len1 (addr2 + len2).
 
@@ -287,13 +290,16 @@ Ltac norm_N_step :=
   | [ H : ?n < ?m |- ?n < ?m + ?o ] => apply (N.lt_lt_add_r _ _ _ H)
   | [ H : 0 < ?m  |- ?n < ?n + ?m ] => apply (N.lt_add_pos_r _ _ H)
 
+  | [ H1 : ?n <= ?m, H2 : ?m <= ?n |- _ ] =>
+    pose proof (N.le_antisymm _ _ H1 H2); subst; clear H1 H2
+
   | [ H : _ = _ |- _ ] => subst
   end.
 
 Ltac norm_N := repeat progress (norm_N_step; auto).
 
 Ltac pre_nomega :=
-  unfold within, fits, overlaps in *;
+  unfold within, within_bool, fits, overlaps in *;
   nsimp; intros; norm_N; nsimp;
   repeat
     match goal with

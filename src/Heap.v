@@ -39,12 +39,18 @@ Ltac tsubst :=
     end;
   subst.
 
+Definition KeepKeys (P : N -> Prop) :
+  Ensemble (N * Mem.Word8) -> Ensemble (N * Mem.Word8) :=
+  Filter (fun k _ => P k).
+
+Definition ShiftKeys (orig_base : N) (new_base : N) :
+  Ensemble (N * Mem.Word8) -> Ensemble (N * Mem.Word8) :=
+  Map_set (fun p => (fst p - orig_base + new_base, snd p)).
+
 Ltac inspect :=
-  repeat (repeat teardown;
-          tsubst;
-          simpl in *;
-          decisions;
-          eauto with sets;
+  repeat (unfold KeepKeys, ShiftKeys in *;
+          repeat teardown; tsubst; simpl in *;
+          decisions; eauto with sets;
           try congruence).
 
 Definition emptyS   := "empty".
@@ -92,19 +98,9 @@ Definition HeapSpec := Def ADT {
                      (Remove addr r) };
     ret (
       Ifopt present as blk
-      Then IfDec naddr = addr
-           Then Modify addr
-                  (fun blk =>
-                     {| memSize := ` len
-                      ; memData := IfDec memSize blk < ` len
-                                   Then memData blk
-                                   Else Filter (fun pos _ => pos < ` len)
-                                               (memData blk) |}) r
-           Else Update naddr (IfDec memSize blk < ` len
-                              Then blk
-                              Else (* No copy is done because it does not fit *)
-                                   {| memSize := ` len
-                                    ; memData := Empty |}) (Remove addr r)
+      Then Update naddr {| memSize := ` len
+                         ; memData := Filter (fun pos _ => pos < ` len)
+                                             (memData blk) |} (Remove addr r)
       Else Update naddr {| memSize := ` len
                          ; memData := Empty |} r,
       naddr),
@@ -154,15 +150,10 @@ Definition HeapSpec := Def ADT {
                   let soff := addr1 - saddr in
                   let doff := addr2 - daddr in
                   (* [s] is the source region to copy from *)
-                  let s := Filter (fun pos _ => within soff len pos)
-                                  (memData sblk) in
+                  let s := KeepKeys (within soff len) (memData sblk) in
                   (* [d] has a hole where the region will be copied to *)
-                  let d := Filter (fun pos _ => ~ within doff len pos)
-                                  (memData dblk) in
-                  (* [s'] is s, shifted to the correct offset *)
-                  let s' := Map_set (fun p : N * Mem.Word8 =>
-                                       (fst p - soff + doff, snd p)) s in
-                  Union _ d s' |} r
+                  let d := KeepKeys (not ∘ within doff len) (memData dblk) in
+                  Union _ d (ShiftKeys soff doff s) |} r
          | _, _ => r
          end, tt),
 
@@ -238,14 +229,13 @@ Qed.
 
 Theorem allocations_correct_offsets : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr blk, Lookup addr blk r ->
-    forall off, Member off (memData blk) -> off < memSize blk.
+    All (fun off _ => off < memSize blk) (memData blk).
 Proof.
   intros.
-  generalize dependent off.
   generalize dependent blk.
   generalize dependent addr.
-  ADT induction r; [inversion H0|..]; complete IHfromADT.
-  eapply IHfromADT in H2; eauto; nomega.
+  ADT induction r; [inversion H0|..]; intros ???;
+  complete IHfromADT.
 Qed.
 
 Ltac match_sizes H IHfromADT :=
@@ -301,8 +291,8 @@ Proof.
   generalize dependent blk2.
   generalize dependent addr.
   ADT induction r; inspect.
-  - nomega.
-  - nomega.
+  - unfold compose in *; nomega.
+  - unfold compose in *; nomega.
   - apply N.add_cancel_r in H12.
     apply Nsub_eq in H12.
     + subst.
