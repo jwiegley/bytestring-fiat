@@ -232,6 +232,7 @@ Definition shift_keys (orig_base : N) (new_base : N) (m : M.t Mem.Word8) :
   M.t Mem.Word8 :=
   M.fold (fun k => M.add (k - orig_base + new_base)) m (M.empty _).
 
+(*
 Lemma keep_keys_fold : forall soff doff len s d,
   M.Equal (M.fold (fun k e m =>
                      if within_bool soff len k
@@ -239,9 +240,6 @@ Lemma keep_keys_fold : forall soff doff len s d,
                      else m) s d)
           (M.fold (fun k => M.add (k - soff + doff))
                   (keep_keys (within_bool soff len) s) d).
-Proof.
-  unfold keep_keys, compose, const, P.filter; intros.
-Admitted.
 
 Lemma keep_shift_fold : forall soff doff s d,
   P.for_all (fun k _ => soff <=? k) s ->
@@ -312,7 +310,7 @@ Proof.
     [|exact H11].
     apply Nsub_eq in H15; auto; nomega.
   right; intuition; subst; tauto.
-Admitted.
+*)
 
 Lemma KeepKeys_Map_AbsR :
   KeepKeys [R (N.eq ==> boolR) ==> Map_AbsR eq ==> Map_AbsR eq] keep_keys.
@@ -328,12 +326,74 @@ Hint Resolve KeepKeys_Map_AbsR : maps.
 
 Lemma ShiftKeys_Map_AbsR : forall b d r m,
   r [R Map_AbsR eq] m ->
-  All (B:=Mem.Word8) (fun k _ => b <= k) r ->
+  All (fun k _ => b <= k) r ->
+  (* P.for_all (fun k _ => b <=? k) m -> *)
   ShiftKeys b d r [R Map_AbsR eq] shift_keys b d m.
 Proof.
   unfold ShiftKeys, shift_keys, compose, const; intros.
-  apply Map_set_fold_AbsR with (f:=fun k => k - b + d); auto.
-Admitted.
+  eapply (All_Map_AbsR (A:=Mem.Word8) (B:=Mem.Word8) (R:=eq)
+                       (f:=fun k _ => b <= k) (f':=fun k _ => b <=? k)) in H0.
+    Focus 2. relational.
+    Focus 2. relational. split; nomega.
+    Focus 2. apply logical_prf.
+  relational; split; intros; split; intros H1.
+  - repeat teardown; inv H1.
+    apply H in H2;
+    destruct H2 as [cblk [? ?]]; subst.
+    pose proof H0.
+    apply (proj1 (P.for_all_iff _ _)) with (k:=n) (e:=cblk) in H2; [|exact H1].
+    exists cblk; intuition.
+    revert H1.
+    revert H0.
+    apply P.fold_rec_bis; auto; intros.
+      rewrite <- H0 in H3, H4; intuition.
+    repeat simplify_maps.
+    apply for_all_add_true in H4;
+    destruct H4; auto; relational.
+    right; intuition.
+    apply N.add_cancel_r in H6.
+    apply Nsub_eq in H6; auto; nomega.
+  - reduction.
+    revert H1.
+    revert H0.
+    apply P.fold_rec_bis; auto; intros.
+      rewrite <- H0 in H2; intuition.
+    apply for_all_add_true in H3;
+    destruct H3; auto; relational.
+    simplify_maps.
+    exists (k, x); simpl.
+    apply H in H0; destruct H0.
+    intuition; subst; assumption.
+  - revert H1.
+    revert H0.
+    apply P.fold_rec_bis; auto; intros.
+      rewrite <- H0 in H2; intuition.
+    apply for_all_add_true in H3;
+    destruct H3; auto; relational.
+    simplify_maps.
+    exists cblk; simpl.
+    intuition.
+    pose proof (Lookup_Map_set (B:=Mem.Word8) (a:=k - b + d) (b:=cblk)
+                               (fun p => (fst p - b + d, snd p))).
+    apply H2.
+    exists (k, cblk); simpl.
+    apply H in H0; destruct H0.
+    intuition; subst; assumption.
+  - repeat teardown; subst; inv H1.
+    apply H in H3.
+    destruct H3 as [blk [? ?]]; subst.
+    revert H1.
+    revert H0.
+    apply P.fold_rec_bis; auto; intros.
+      rewrite <- H0 in H2, H3; intuition.
+    apply for_all_add_true in H3;
+    destruct H3; auto; relational.
+    repeat simplify_maps.
+    right; intuition.
+    apply (proj1 (P.for_all_iff _ _)) with (k0:=n) (e0:=blk) in H3; [|exact H9].
+    apply N.add_cancel_r in H4.
+    apply Nsub_eq in H4; auto; nomega.
+Qed.
 
 Lemma within_AbsR :
   within [R N.eq ==> N.eq ==> N.eq ==> boolR] within_bool.
@@ -662,12 +722,24 @@ Proof.
                  ; memCData :=
                      let soff := d - saddr in
                      let doff := d0 - daddr in
-                     M.fold (fun k e m =>
-                               if within_bool soff d1 k
-                               then M.add (k - soff + doff) e m
-                               else m) (memCData src)
-                            (keep_keys (negb ∘ within_bool doff d1)
-                                       (memCData dst)) |}
+                     let s := keep_keys (within_bool soff d1) (memCData src) in
+                     let d := keep_keys (negb ∘ within_bool doff d1)
+                                        (memCData dst) in
+                     P.update d (shift_keys soff doff s)
+
+                     (* jww (2016-08-11): This version is more efficient in a
+                        strictly evaluated environment, but I'm having
+                        difficulty proving correspondence of the folds. *)
+
+                     (* let soff := d - saddr in *)
+                     (* let doff := d0 - daddr in *)
+                     (* M.fold (fun k e m => *)
+                     (*           if within_bool soff d1 k *)
+                     (*           then M.add (k - soff + doff) e m *)
+                     (*           else m) (memCData src) *)
+                     (*        (keep_keys (negb ∘ within_bool doff d1) *)
+                     (*                   (memCData dst)) *)
+                 |}
                 (snd r_n))
            else r_n
          | _ => r_n
@@ -687,31 +759,21 @@ Proof.
     try destruct p0; simpl in *;
     decisions; simpl; auto;
     related_maps'; try nomega.
-    - rewrite keep_keys_fold, keep_shift_fold.
-      + apply Union_Map_AbsR; auto.
-        * apply KeepKeys_Map_AbsR.
-            apply not_within_AbsR.
+    - apply Union_Map_AbsR; auto.
+      * apply KeepKeys_Map_AbsR.
+          apply not_within_AbsR.
+        apply of_map_Map_AbsR; auto.
+      * apply ShiftKeys_Map_AbsR.
+          constructor; apply KeepKeys_Map_AbsR.
+            apply within_AbsR; try reflexivity.
           apply of_map_Map_AbsR; auto.
-        * apply ShiftKeys_Map_AbsR.
-            constructor; apply KeepKeys_Map_AbsR.
-              apply within_AbsR; try reflexivity.
-            apply of_map_Map_AbsR; auto.
-          unfold KeepKeys; intros ???.
-          repeat teardown.
-          apply of_map_MapsTo in H6.
-          repeat teardown; subst; nomega.
-        * unfold not, compose, KeepKeys, ShiftKeys; intros ????.
-          repeat teardown; inv H6.
-          apply not_within_reflect in H5; nomega.
-      + unfold keep_keys, compose, const.
-        apply for_all_filter; relational.
-        unfold Within.P.for_all.
-        apply P.fold_rec_bis; auto; intros.
-        unfold negb.
-        decisions; auto.
-        apply orb_false_elim in Heqe3.
-        destruct Heqe3.
-        nomega.
+        unfold KeepKeys; intros ???.
+        repeat teardown.
+        apply of_map_MapsTo in H6.
+        repeat teardown; subst; nomega.
+      * unfold not, compose, KeepKeys, ShiftKeys; intros ????.
+        repeat teardown; inv H6.
+        apply not_within_reflect in H5; nomega.
     - rewrite <- remove_add.
       apply for_all_add_true; auto.
         simplify_maps.
