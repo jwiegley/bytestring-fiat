@@ -61,6 +61,54 @@ Program Instance Equality_LogicalRelation : forall A (x : A),
 
 Definition boolR (P : Prop) (b : bool) : Prop := P <-> b = true.
 
+Definition optionP {A} (P : relation A) : relation (option A) :=
+  fun x y => match x, y with
+             | Some x', Some y' => P x' y'
+             | None, None => True
+             | _, _ => False
+             end.
+
+Program Instance optionP_Equivalence {A} (P : relation A) :
+  Equivalence P -> Equivalence (optionP P).
+Obligation 1.
+  intro x.
+  destruct x; simpl; trivial.
+  reflexivity.
+Qed.
+Obligation 2.
+  intros x y Heq.
+  destruct x, y; simpl in *; trivial.
+  intuition.
+Qed.
+Obligation 3.
+  intros x y z Heq1 Heq2.
+  destruct x, y, z; simpl in *; auto;
+  firstorder.
+Qed.
+
+Definition pairP {A B} (P : relation A) (Q : relation B) : relation (A * B) :=
+  fun p p' => match p, p' with
+              | (x, y), (x', y') => P x x' /\ Q y y'
+              end.
+
+Program Instance pairP_Equivalence {A B} (P : relation A) (Q : relation B) :
+  Equivalence P -> Equivalence Q -> Equivalence (pairP P Q).
+Obligation 1.
+  intro x.
+  destruct x; simpl.
+  intuition.
+Qed.
+Obligation 2.
+  intros x y Heq.
+  destruct x, y; simpl in *.
+  intuition.
+Qed.
+Obligation 3.
+  intros x y z Heq1 Heq2.
+  destruct x, y, z; simpl in *.
+  firstorder.
+Qed.
+
 Ltac relational :=
   repeat match goal with
   | [ |- LogicalRelation _ _ _ ] => constructor
