@@ -1,0 +1,28 @@
+* ICFP paper
+** TODO Create outline draft of the paper for ICFP
+* Haskell refinement
+** TODO Refine ByteStrings in terms of heaps (generically)
+** TODO Implement a ByteString using our canonical heap and FMapList
+** TODO Ensure that basic code runs in Haskell
+** TODO Get "fold" working, in order to test Ben's FixComp logic
+** TODO Build an axiomatic model of the Haskell FFI memory allocator
+** TODO Create QuickCheck tests for assumptions of the Haskell FFI model
+** TODO Reflect the FFI axioms automatically as QuickCheck tests in Haskell
+** TODO Refine an FFI-based heap
+** TODO Implement a ByteString using the FFI heap
+** TODO Ensure that basic code still runs in Haskell
+** TODO Begin comparing selected functions for runtime equivalence
+... with the current version of the bytestring library
+* ByteString library
+** DELEGATED Add support for multi-arity ADT methods (needed for "append")
+** TODO Determine if there is a way to formalize effects in a specification
+** TODO Extend original Heap spec to include error effects
+For example, alerting the user that "peek" has no meaning if the address
+specified does not map to an allocated, initialized value.
+
+* Colophon
+#+STARTUP: content fninline hidestars
+#+OPTIONS: ^:{}
+#+SEQ_TODO: STARTED TODO APPT WAITING(@) DELEGATED(@) DEFERRED(@) SOMEDAY(@) PROJECT | DONE(@) CANCELED(@) NOTE
+#+TAGS: P1(1) P2(2) P3(3) Call(c) Errand(e) Home(h) Net(n)
+#+DRAWERS: PROPERTIES LOGBOOK OUTPUT SCRIPT SOURCE DATA
