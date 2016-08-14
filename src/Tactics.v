@@ -1,7 +1,7 @@
 Require Export
   Coq.Sets.Constructive_sets
   Coq.Sets.Powerset_facts
-  Here.LibExt.
+  ByteString.LibExt.
 
 Require Import Fiat.ADT.
 
@@ -64,13 +64,12 @@ Require Import
   Coq.Sets.Ensembles
   Fiat.ADT
   Fiat.ADTNotation
-  Hask.Ltac
   FunctionalExtensionality.
 
 Axiom prop_ext : forall (P Q : Prop), (P <-> Q) -> P = Q.
 
 Ltac shatter :=
-  unfold comp, id in *;
+  unfold id in *;
   repeat
     match goal with
     | [ H : and _ _            |- _                 ] => destruct H

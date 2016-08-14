@@ -1,9 +1,9 @@
 Require Export Coq.Sets.Ensembles.
 
 Require Import
-  Here.LibExt
-  Here.Relations
-  Here.Same_set.
+  ByteString.LibExt
+  ByteString.Relations
+  ByteString.Same_set.
 
 Generalizable All Variables.
 

@@ -1,6 +1,5 @@
--R coq-haskell/src Hask
 -R fiat/src Fiat
--R src Here
+-R src ByteString
 src/LibExt.v
 src/Decidable.v
 src/Tactics.v
@@ -11,8 +10,6 @@ src/TupleEnsembles.v
 src/TupleEnsemblesFinite.v
 src/FMapExt.v
 src/FunMaps.v
-src/Comp.v
-src/Composition.v
 src/ADTInduction.v
 src/FromADT.v
 src/BindDep.v

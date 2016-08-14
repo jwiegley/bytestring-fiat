@@ -6,10 +6,10 @@ Require Import
   Coq.NArith.NArith.
 
 Require Import
-  Here.Nomega
-  Here.FunMaps
-  Here.ByteString
-  Here.Heap.
+  ByteString.Nomega
+  ByteString.FunMaps
+  ByteString.ByteString
+  ByteString.Heap.
 
 Require Import
   Fiat.ADTRefinement

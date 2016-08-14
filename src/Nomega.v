@@ -2,8 +2,8 @@ Require Export
   Coq.Arith.Arith
   Coq.omega.Omega
   Coq.NArith.NArith
-  Here.Decidable
-  Here.Relations.
+  ByteString.Decidable
+  ByteString.Relations.
 
 Open Scope N_scope.
 

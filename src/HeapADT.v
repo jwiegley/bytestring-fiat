@@ -3,9 +3,9 @@ Require Import
   Coq.NArith.NArith
   Fiat.ADT
   Fiat.ADTNotation
-  Here.ADTInduction
-  Here.FromADT
-  Here.Heap.
+  ByteString.ADTInduction
+  ByteString.FromADT
+  ByteString.Heap.
 
 Module HeapADT (Mem : Memory).
 

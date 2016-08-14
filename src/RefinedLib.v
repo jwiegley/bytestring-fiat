@@ -5,10 +5,10 @@ Require Import Coq.Arith.Arith.
 Require Import Coq.Lists.List.
 
 Require Import
-  Here.ByteString
-  Here.ByteStringLib
-  Here.Refined
-  Here.Same_set.
+  ByteString.ByteString
+  ByteString.ByteStringLib
+  ByteString.Refined
+  ByteString.Same_set.
 
 Import LeastFixedPointFun.
 

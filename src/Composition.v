@@ -1,7 +1,7 @@
 Require Import
   Hask.Control.Applicative
   Hask.Control.Monad
-  Here.Comp.
+  ByteString.Comp.
 
 Require Import
   Fiat.ADT

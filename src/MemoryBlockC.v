@@ -1,11 +1,11 @@
 Require Import
-  Here.Nomega
-  Here.TupleEnsembles
-  Here.FunMaps
-  Here.Relations
-  Here.Heap
-  Here.HeapADT
-  Here.FMapExt
+  ByteString.Nomega
+  ByteString.TupleEnsembles
+  ByteString.FunMaps
+  ByteString.Relations
+  ByteString.Heap
+  ByteString.HeapADT
+  ByteString.FMapExt
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
@@ -154,7 +154,7 @@ Require Import
   Fiat.ADTNotation
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements
-  Here.ADTInduction.
+  ByteString.ADTInduction.
 
 Lemma MemoryBlock_AbsR_TotalMapRelation :
   forall r : Rep HeapSpec, fromADT _ r

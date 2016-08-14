@@ -25,7 +25,7 @@ Program Instance Comp_Monad : Monad Comp := {
 
 Module CompLaws.
 
-Require Import Here.Tactics.
+Require Import ByteString.Tactics.
 Import MonadLaws.
 
 Local Obligation Tactic := simpl; intros; simplify_comp.
