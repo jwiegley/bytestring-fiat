@@ -20,7 +20,7 @@ Module FunMaps (E : DecidableType) (M : WSfun E).
 Module Import FMapExt := FMapExt E M.
 
 Definition Map_AbsR `(R : A -> B -> Prop)
-           (or : Ensemble (M.key * A)) (nr : M.t B) : Prop :=
+           (or : EMap M.key A) (nr : M.t B) : Prop :=
   forall addr,
     (forall blk, Lookup addr blk or
        <-> exists cblk, M.MapsTo addr cblk nr /\ R blk cblk) /\
@@ -130,7 +130,7 @@ Definition TotalMapRelation_r r :=
 Definition SurjectiveMapRelation r :=
   forall k y, exists x, Lookup (A:=M.key) k x r -> R x y.
 
-Definition of_map (x : M.t B) : Ensemble (M.key * A) :=
+Definition of_map (x : M.t B) : EMap M.key A :=
   fun p => exists b : B, R (snd p) b /\ M.MapsTo (fst p) b x.
 
 Lemma of_map_Same : forall r m, Map_AbsR R r m -> Same r (of_map m).
@@ -175,7 +175,7 @@ Proof.
     congruence.
 Qed.
 
-Corollary Map_AbsR_Lookup_R (or : Ensemble (M.key * A)) (nr : M.t B) :
+Corollary Map_AbsR_Lookup_R (or : EMap M.key A) (nr : M.t B) :
   Map_AbsR R or nr ->
   forall addr blk cblk,
     Lookup addr blk or -> R blk cblk -> M.MapsTo addr cblk nr.
@@ -183,7 +183,7 @@ Proof. intros; eapply H; eauto. Qed.
 
 Hint Resolve Map_AbsR_Lookup_R.
 
-Corollary Map_AbsR_find_R (or : Ensemble (M.key * A)) (nr : M.t B) :
+Corollary Map_AbsR_find_R (or : EMap M.key A) (nr : M.t B) :
   Map_AbsR R or nr ->
   forall addr blk cblk,
     M.MapsTo addr cblk nr -> R blk cblk -> Lookup addr blk or.

@@ -11,17 +11,19 @@ Section TupleEnsemble.
 
 Variables A B : Type.
 
-Definition Empty : Ensemble (A * B) := Empty_set _.
+Definition EMap := Ensemble (A * B).
 
-Definition Single (a : A) (b : B) : Ensemble (A * B) := Singleton _ (a, b).
+Definition Empty : EMap := Empty_set _.
 
-Definition Lookup (a : A) (b : B) (r : Ensemble (A * B)) := In _ r (a, b).
+Definition Single (a : A) (b : B) : EMap := Singleton _ (a, b).
 
-Definition Functional (r : Ensemble (A * B)) :=
+Definition Lookup (a : A) (b : B) (r : EMap) := In _ r (a, b).
+
+Definition Functional (r : EMap) :=
   forall addr blk1, Lookup addr blk1 r ->
   forall blk2, Lookup addr blk2 r -> blk1 = blk2.
 
-Definition Same (x y : Ensemble (A * B)) : Prop :=
+Definition Same (x y : EMap) : Prop :=
   forall a b, Lookup a b x <-> Lookup a b y.
 
 Global Program Instance Same_Equivalence : Equivalence Same.
@@ -57,24 +59,24 @@ Global Program Instance Lookup_Proper_flip :
   Proper (eq ==> eq ==> Same --> Basics.impl) Lookup.
 Obligation 1. relational; unfold Basics.impl; apply H1. Qed.
 
-Definition Member (a : A) (r : Ensemble (A * B)) := exists b, Lookup a b r.
+Definition Member (a : A) (r : EMap) := exists b, Lookup a b r.
 
-Definition Insert (a : A) (b : B) (r : Ensemble (A * B))
-           (H : forall b' : B, ~ Lookup a b' r) : Ensemble (A * B) :=
+Definition Insert (a : A) (b : B) (r : EMap)
+           (H : forall b' : B, ~ Lookup a b' r) : EMap :=
   Add _ r (a, b).
 
-Definition Remove (a : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
+Definition Remove (a : A) (r : EMap) : EMap :=
   Setminus _ r (fun p => fst p = a).
 
-Program Definition Update (a : A) (b : B) (r : Ensemble (A * B)) :
-  Ensemble (A * B) := Insert a b (Remove a r) _.
+Program Definition Update (a : A) (b : B) (r : EMap) :
+  EMap := Insert a b (Remove a r) _.
 Obligation 1. firstorder. Qed.
 
-Definition Map {C} (f : A -> B -> C) (r : Ensemble (A * B)) :
+Definition Map {C} (f : A -> B -> C) (r : EMap) :
   Ensemble (A * C) :=
   fun p => exists b : B, Lookup (fst p) b r /\ snd p = f (fst p) b.
 
-Definition Relate {C D} (f : A -> B -> C -> D -> Prop) (r : Ensemble (A * B)) :
+Definition Relate {C D} (f : A -> B -> C -> D -> Prop) (r : EMap) :
   Ensemble (C * D) :=
   fun p => exists k' e', Lookup k' e' r /\ f k' e' (fst p) (snd p).
 
@@ -122,28 +124,28 @@ Proof.
   reflexivity.
 Qed.
 
-Definition Move (a a' : A) (r : Ensemble (A * B)) : Ensemble (A * B) :=
+Definition Move (a a' : A) (r : EMap) : EMap :=
   Relate (fun k e k' e' =>
             e = e' /\ ((k' = a' /\ k = a) \/ (k' <> a /\ k = k'))) r.
 
-Definition Filter (P : A -> B -> Prop) (r : Ensemble (A * B)) :
-  Ensemble (A * B) :=
+Definition Filter (P : A -> B -> Prop) (r : EMap) :
+  EMap :=
   fun p => Lookup (fst p) (snd p) r /\ P (fst p) (snd p).
 
-Definition Define (P : A -> Prop) (b : B) (r : Ensemble (A * B)) :
-  Ensemble (A * B) :=
+Definition Define (P : A -> Prop) (b : B) (r : EMap) :
+  EMap :=
   Ensembles.Union
     _ (fun p => P (fst p) /\ In _ (Singleton _ b) (snd p))
       (Filter (fun k _ => ~ P k) r).
 
-Definition Modify (a : A) (f : B -> B) (r : Ensemble (A * B)) :
-  Ensemble (A * B) :=
+Definition Modify (a : A) (f : B -> B) (r : EMap) :
+  EMap :=
   Relate (fun k e k' e' => k = k' /\ IF k' = a then e' = f e else e' = e) r.
 
-Definition All (P : A -> B -> Prop) (r : Ensemble (A * B)) : Prop :=
+Definition All (P : A -> B -> Prop) (r : EMap) : Prop :=
   forall a b, Lookup a b r -> P a b.
 
-Definition Any (P : A -> B -> Prop) (r : Ensemble (A * B)) : Prop :=
+Definition Any (P : A -> B -> Prop) (r : EMap) : Prop :=
   exists a b, Lookup a b r /\ P a b.
 
 Lemma Lookup_Empty : forall a b, ~ Lookup a b Empty.
@@ -419,11 +421,11 @@ Ltac t H :=
   simpl in *; subst;
   firstorder.
 
-Lemma Relate_left_identity : forall A B (r : Ensemble (A * B)),
+Lemma Relate_left_identity : forall A B (r : EMap A B),
   Same r (Relate (fun k x k' x' => k = k' /\ x = x') r).
 Proof. t H. Qed.
 
-Lemma Relate_right_identity : forall A B (r : Ensemble (A * B)),
+Lemma Relate_right_identity : forall A B (r : EMap A B),
   Same (Relate (fun k x k' x' => k = k' /\ x = x') r) r.
 Proof. t H. Qed.
 

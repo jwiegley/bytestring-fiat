@@ -23,7 +23,7 @@ Module Heap (Mem : Memory).
 
 Record MemoryBlock := {
   memSize : N;
-  memData : Ensemble (N * Mem.Word8)
+  memData : EMap N Mem.Word8
 }.
 
 Ltac tsubst :=
@@ -40,11 +40,11 @@ Ltac tsubst :=
   subst.
 
 Definition KeepKeys (P : N -> Prop) :
-  Ensemble (N * Mem.Word8) -> Ensemble (N * Mem.Word8) :=
+  EMap N Mem.Word8 -> EMap N Mem.Word8 :=
   Filter (fun k _ => P k).
 
 Definition ShiftKeys (orig_base : N) (new_base : N) :
-  Ensemble (N * Mem.Word8) -> Ensemble (N * Mem.Word8) :=
+  EMap N Mem.Word8 -> EMap N Mem.Word8 :=
   Map_set (fun p => (fst p - orig_base + new_base, snd p)).
 
 Ltac inspect :=
@@ -65,7 +65,7 @@ Definition memsetS  := "memset".
 Definition HeapSpec := Def ADT {
   (* Map of memory addresses to blocks, which contain another mapping from
      offsets to initialized bytes. *)
-  rep := Ensemble (N * MemoryBlock),
+  rep := EMap N MemoryBlock,
 
   Def Constructor0 emptyS : rep := ret Empty,,
 
