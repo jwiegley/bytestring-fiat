@@ -435,15 +435,7 @@ Lemma Relate_composition :
     Same (Relate (fun k e k' e' =>
                   exists k'' e'', g k e k'' e'' /\ f k'' e'' k' e') r)
          (Relate f (Relate g r)).
-Proof.
-  t H.
-    exists x1.
-    exists x2.
-    t H.
-  exists x1.
-  exists x2.
-  t H.
-Qed.
+Proof. t H; exists x1; exists x2; t H. Qed.
 
 Ltac teardown :=
   match goal with
