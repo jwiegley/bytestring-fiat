@@ -1,12 +1,3 @@
-[submodule "coq-haskell"]
-	path = coq-haskell
-	url = https://github.com/jwiegley/coq-haskell.git
 [submodule "fiat"]
 	path = fiat
 	url = https://github.com/JasonGross/coq-scripts.git
-[submodule "bytestring"]
-	path = bytestring
-	url = https://github.com/haskell/bytestring.git
-[submodule "coqrel"]
-	path = coqrel
-	url = https://github.com/CertiKOS/coqrel.git
