@@ -32,62 +32,135 @@ Notation "`( a | H ) <- c ; k" :=
     (at level 81, right associativity,
      format "'[v' `( a | H )  <-  c ; '/' k ']'") : comp_scope.
 
-Lemma refine_reveal_dep : forall A (c : Comp A) B (k : A -> Comp B),
-  refine (x <- c; k x) (`(x | H) <- c; k x).
+Lemma Bind_dep_inv :
+  forall (A B : Type) (ca : Comp A)
+         (f : forall v : A, refine ca (ret v) -> Comp B) (v : B),
+    (`(x | H) <- ca; f x H) ↝ v -> exists a' : A,
+      { H : ca ↝ a' & f a' (refine_In H) ↝ v }.
 Proof.
   intros.
-  intros x?.
-  destruct H.
+  destruct H, H.
+  exists x.
   exists x0.
-  destruct H.
+  exact i.
+Qed.
+
+Global Program Instance refine_bind_dep :
+  Proper (forall_relation (fun ca : Comp A =>
+            ((forall_relation (fun v : A => pointwise_relation _ (@refine B)))
+               ==> (@refine B))%signature)) (@Bind_dep A B).
+Obligation 1.
+  intros ??????.
+  apply Bind_dep_inv in H0.
+  destruct H0.
+  exists x0.
+  destruct H0.
+  exists x1.
+  eapply H in c; eauto.
+Qed.
+
+Global Program Instance refine_bind_dep_flip :
+  Proper (forall_relation (fun ca : Comp A =>
+            ((forall_relation
+                (fun v : A =>
+                   pointwise_relation _ (Basics.flip (@refine B))))
+               ==> Basics.flip (@refine B))%signature)) (@Bind_dep A B).
+Obligation 1.
+  intros ??????.
+  apply Bind_dep_inv in H0.
+  destruct H0.
+  exists x0.
+  destruct H0.
+  exists x1.
+  eapply H in c; eauto.
+Qed.
+
+Global Program Instance refineEquiv_bind_dep :
+  Proper (forall_relation (fun ca : Comp A =>
+            ((forall_relation
+                (fun v : A =>
+                   pointwise_relation _ (@refineEquiv B)))
+               ==> (@refineEquiv B))%signature)) (@Bind_dep A B).
+Obligation 1.
+  intros ????.
+  split; intros; intros ??;
+  apply Bind_dep_inv in H0;
+  destruct H0;
+  exists x0;
+  destruct H0;
+  exists x1;
+  eapply H in c; eauto.
+Qed.
+
+Lemma refine_reveal_dep : forall A (c : Comp A) B (k : A -> Comp B),
+  refineEquiv (x <- c; k x) (`(x | H) <- c; k x).
+Proof.
+  split; intros;
+  intros x?;
+  destruct H;
+  exists x0;
+  destruct H;
   split; trivial.
 Qed.
 
 Lemma refine_bind_dep_ret :
   forall A a B (k : forall x : A, refine (ret a) (ret x) -> Comp B),
-  refine (`(x | H) <- ret a; k x H)
-         (k a (refine_In (ReturnComputes a))).
+  refineEquiv (`(x | H) <- ret a; k x H)
+              (k a (refine_In (In_singleton _ a))).
 Proof.
-  intros.
-  intros x?.
   Local Transparent Bind_dep.
-  unfold Bind_dep.
-  exists a.
-  exists (ReturnComputes a).
-  exact H.
+  split; intros;
+  intros x ?.
+  unfold Bind_dep;
+    exists a.
+    exists (In_singleton _ a).
+    exact H.
+  apply Bind_dep_inv in H.
+  destruct H, H.
+  destruct x1.
+  exact c.
 Qed.
 
 Lemma refine_bind_dep_bind_ret :
   forall A (c : Comp A) B (f : forall x : A, refine c (ret x) -> B)
          C (k : B -> Comp C),
-    refine
+    refineEquiv
       (r_o' <- `(x|H) <- c;
                ret (f x H);
        k r_o')
        (`(x|H) <- c;
        k (f x H)).
 Proof.
-  intros.
-  intros ??.
+  split; intros;
+  intros ??;
+  destruct H;
   destruct H.
-  destruct H.
-  eapply BindComputes.
-    Focus 2.
-    apply i.
-  eexists.
+    eapply BindComputes.
+      Focus 2.
+      apply i.
+    eexists.
+    exists x0.
+    constructor.
+  apply Bind_dep_inv in H.
+  destruct H, H.
   exists x0.
-  constructor.
+  exists x1.
+  apply Return_inv in c0.
+  subst.
+  exact H0.
 Qed.
 
 Lemma refine_bind_dep_ignore {A} (c : Comp A) B (k : A -> Comp B) :
-  refine (`(x | _) <- c; k x) (x <- c; k x).
+  refineEquiv (`(x | _) <- c; k x) (x <- c; k x).
 Proof.
-  intros ??.
-  destruct H.
-  destruct H.
+  split; intros;
+  intros ??;
+  destruct H;
+  destruct H;
   exists x.
-  exists H.
-  exact H0.
+    exists H.
+    exact H0.
+  intuition.
 Qed.
 
 Ltac remove_dependency :=

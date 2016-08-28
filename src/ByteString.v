@@ -21,10 +21,10 @@ Definition ByteStringSpec := Def ADT {
   Def Method1 consS (r : rep) (w : Mem.Word8) : rep * unit :=
     ret (cons w r, tt),
   Def Method0 unconsS (r : rep) : rep * (option Mem.Word8) :=
-    match r with
-    | nil => ret (r, None)
-    | cons x xs => ret (xs, Some x)
-    end
+    ret (match r with
+         | nil => (r, None)
+         | cons x xs => (xs, Some x)
+         end)
 
 }%ADTParsing.
 

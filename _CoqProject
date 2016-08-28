@@ -21,3 +21,4 @@ src/Within.v
 src/HeapFMap.v
 src/ByteString.v
 src/ByteStringLib.v
+src/ByteStringHeap.v
