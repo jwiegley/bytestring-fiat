@@ -216,7 +216,10 @@ Qed.
 
 Definition buffer_uncons (r : PS) : Comp (PS * option Mem.Word8) :=
   If psLength r =? 0
-  Then ret (r, None)
+  Then (
+    v <- { p | p = None /\ psOffset r = 0 /\ psBufLen r = 0 };
+    ret (r, v)
+  )
   Else (
     w <- peek' (psHeap r) (psBuffer r + psOffset r);
     ret ({| psHeap   := psHeap r
@@ -225,24 +228,18 @@ Definition buffer_uncons (r : PS) : Comp (PS * option Mem.Word8) :=
           ; psOffset := psOffset r + 1
           ; psLength := psLength r - 1 |}, Some (snd w))).
 
-Definition list_to_set {A} (xs : list A) : Ensemble A :=
-  fold_right (fun x rest => Add _ rest x) (Empty_set _) xs.
-
-Definition number_list {A} (base : N) (xs : list A) : list (N * A) :=
-  snd (fold_right (fun x (p : N * list (N * A)) =>
-                     let (n, rest) := p in
-                     (N.succ n, (n, x) :: rest)) (base, []) xs).
-
-Definition list_map_rel {A} (base : N) (xs : list A) : EMap N A -> Prop :=
-  Same (list_to_set (number_list base xs)).
+Definition list_map_rel {A} (base : N) (xs : list A) (ys : EMap N A) : Prop :=
+  forall k e, Lookup k e ys <-> nth (N.to_nat (k - base)) xs e = e.
 
 Definition ByteString_list_AbsR (or : Rep ByteStringSpec) `(nr : PS) :=
   length or = N.to_nat (psLength nr) /\
   IF psLength nr = 0
-  then psBufLen nr = 0 /\ psOffset nr = 0
+  then psBufLen nr = 0
   else exists data,
-    Lookup (psBuffer nr) {| memSize := psBufLen nr; memData := data |}
-           (` (psHeap nr))
+    fits (psBuffer nr) (psBufLen nr)
+         (psBuffer nr + psOffset nr) (psLength nr)
+      /\ Lookup (psBuffer nr) {| memSize := psBufLen nr; memData := data |}
+                (` (psHeap nr))
       /\ list_map_rel (psOffset nr) or
                       (Filter (fun k _ => within (psOffset nr)
                                                  (psLength nr) k) data).
@@ -381,18 +378,6 @@ Proof.
 *)
 Admitted.
 
-Theorem buffer_uncons_sound
-        (r_o : list Mem.Word8) (r_n : PS)
-        (AbsR : ByteString_list_AbsR r_o r_n) :
-  forall x r_n' (H : buffer_uncons r_n ↝ (r_n', x)),
-    ByteString_list_AbsR (match x with
-                          | None   => r_o
-                          | Some _ => tl r_o
-                          end) r_n'.
-Proof.
-  intros.
-Admitted.
-
 Lemma refine_ret_eq_r : forall A (a b : A), refine (ret a) (ret b) -> a = b.
 Proof.
   intros.
@@ -400,25 +385,68 @@ Proof.
   apply Return_inv; assumption.
 Qed.
 
-Theorem buffer_uncons_impl : forall r_o r_n a,
+Lemma nth_plus_one : forall A (x : A) xs e off,
+  (0 < off)%nat -> nth off (x :: xs) e = nth (off - 1) xs e.
+Proof.
+  intros.
+  destruct off.
+    nomega.
+  simpl.
+  rewrite Nat.sub_0_r.
+  reflexivity.
+Qed.
+
+Lemma list_map_rel_cons_inv : forall off len A (x : A) xs ys,
+  length xs = N.to_nat len
+    -> list_map_rel off (x :: xs) (Filter (fun k _ => within off len k) ys)
+    -> Lookup off x ys
+         /\ list_map_rel (off + 1) xs
+                         (Filter (fun k _ => within (off + 1) (len - 1) k) ys).
+Proof.
+  unfold list_map_rel; split; intros.
+    specialize (H0 off x).
+    apply H0.
+    replace (N.to_nat (off - off)) with 0%nat.
+      reflexivity.
+    nomega.
+  split; intros.
+    teardown.
+    rewrite N.sub_add_distr, N2Nat.inj_sub.
+    simpl in *.
+    erewrite <- nth_plus_one.
+      apply H0.
+      repeat teardown.
+      intuition.
+      nomega.
+    nomega.
+  teardown.
+  split.
+    apply H0.
+    admit.
+  admit.
+Admitted.
+
+Theorem buffer_uncons_sound : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
     -> buffer_uncons r_n ↝ a
-    -> match snd a with
-       | Some w => exists r_o', r_o = w :: r_o'
-       | None => r_o = []
-       end.
+    -> ByteString_list_AbsR (match r_o with
+                             | [] => r_o
+                             | _ :: xs => xs
+                             end) (fst a).
 Proof.
   unfold buffer_uncons; intros.
   apply refine_computes_to_ret in H0.
   apply refine_If_Then_Else_bool in H0.
   destruct (psLength r_n =? 0) eqn:Heqe.
-    apply refine_ret_eq_r in H0.
+    apply refine_computes_to_ret in H0.
+    apply Bind_inv in H0.
+    destruct H0, H0.
+    apply Pick_inv in H0.
+    apply Return_inv in H1.
     destruct a; tsubst; simpl in *.
-    destruct H, H0, H0.
-      destruct r_o; simpl in *; auto.
-      rewrite H0 in H; simpl in H.
-      discriminate.
     destruct r_o; simpl in *; auto.
+    destruct H, H0, H0, H1.
+      destruct r_o; simpl in *; nomega.
     nomega.
   revert H0.
   unfold peek'.
@@ -436,9 +464,112 @@ Proof.
   destruct H.
   destruct H1.
     nomega.
-  destruct H1, H2, H2.
-  specialize (H0 _ _ H2); simpl in *.
+  destruct H1, H2, H2, H3.
+  assert (within (psBuffer r_n) (psBufLen r_n) (psBuffer r_n + psOffset r_n)).
+    nomega.
+  specialize (H0 _ _ H3 H5); simpl in *.
+  destruct r_o.
+    nomega.
+  f_equal.
+  split; simpl.
+    nomega.
+  destruct r_o; simpl in *.
+    left.
+    split.
+      nomega.
+    admit.
+  right.
+  split.
+    nomega.
+  exists x0.
+  split.
+    nomega.
+  split.
+    assumption.
+  apply list_map_rel_cons_inv in H4.
+  destruct H4.
+  assumption.
 Admitted.
+
+Theorem buffer_uncons_impl : forall r_o r_n a,
+  ByteString_list_AbsR r_o r_n
+    -> buffer_uncons r_n ↝ a
+    -> snd a = match r_o with
+               | [] => None
+               | x :: _ => Some x
+               end.
+Proof.
+  unfold buffer_uncons; intros.
+  apply refine_computes_to_ret in H0.
+  apply refine_If_Then_Else_bool in H0.
+  destruct (psLength r_n =? 0) eqn:Heqe.
+    apply refine_computes_to_ret in H0.
+    apply Bind_inv in H0.
+    destruct H0, H0.
+    apply Pick_inv in H0.
+    apply Return_inv in H1.
+    destruct a; tsubst; simpl in *.
+    destruct r_o; simpl in *;
+    destruct H, H0, H0, H1; auto.
+      destruct H0.
+      rewrite H0 in H; simpl in H.
+      discriminate.
+    nomega.
+  revert H0.
+  unfold peek'.
+  rewrite refine_bind_dep_bind_ret; simpl.
+  rewrite refine_bind_dep_ignore.
+  unfold peek.
+  autorewrite with monad laws; simpl.
+  intros.
+  apply refine_computes_to_ret in H0.
+  apply Bind_inv in H0.
+  destruct H0, H0.
+  apply Return_inv in H1.
+  destruct a; tsubst; simpl in *.
+  apply Pick_inv in H0.
+  destruct H.
+  destruct H1.
+    nomega.
+  destruct H1, H2, H2, H3.
+  assert (within (psBuffer r_n) (psBufLen r_n) (psBuffer r_n + psOffset r_n)).
+    nomega.
+  specialize (H0 _ _ H3 H5); simpl in *.
+  destruct r_o.
+    nomega.
+  f_equal.
+  apply H0.
+  replace (psBuffer r_n + psOffset r_n - psBuffer r_n)
+     with (psOffset r_n); [|nomega].
+  apply list_map_rel_cons_inv in H4.
+    destruct H4.
+    assumption.
+  admit.
+Admitted.
+
+Lemma fst_match_list :
+  forall A (xs : list A) B z C z'
+         (f : A -> list A -> B) (f' : A -> list A -> C),
+    fst match xs with
+        | [] => (z, z')
+        | x :: xs => (f x xs, f' x xs)
+        end = match xs with
+              | [] => z
+              | x :: xs => f x xs
+              end.
+Proof. induction xs; auto. Qed.
+
+Lemma snd_match_list :
+  forall A (xs : list A) B z C z'
+         (f : A -> list A -> B) (f' : A -> list A -> C),
+    snd match xs with
+        | [] => (z, z')
+        | x :: xs => (f x xs, f' x xs)
+        end = match xs with
+              | [] => z'
+              | x :: xs => f' x xs
+              end.
+Proof. induction xs; auto. Qed.
 
 Section Refined.
 
@@ -457,7 +588,9 @@ Proof.
        ; psOffset := 0
        ; psLength := 0 |}.
       finish honing.
-    right; simpl; intuition.
+    split.
+      reflexivity.
+    left; intuition.
   }
   {
     simplify with monad laws.
@@ -482,31 +615,14 @@ Proof.
       apply refine_under_bind; intros; simpl.
       pose proof H1.
       eapply buffer_uncons_impl in H1; eauto.
+      rewrite fst_match_list, snd_match_list.
+      rewrite <- H1.
       refine pick val (fst a).
         simplify with monad laws.
-        finish honing.
-      pose proof (buffer_uncons_sound H0 (snd a) (fst a)).
-      rewrite <- surjective_pairing in H3.
-      specialize (H3 H2).
-      destruct (snd a); simpl in *.
-        destruct H1; subst; assumption.
-      subst; assumption.
-    simpl.
-    etransitivity.
-      eapply refine_under_bind; intros; simpl.
-      replace (snd match r_o with
-                   | [] => (r_o, None)
-                   | x :: xs => (xs, Some x)
-                   end)
-          with (snd a).
         rewrite <- surjective_pairing.
         finish honing.
-      eapply buffer_uncons_impl in H1; eauto.
-      destruct (snd a).
-        destruct H1; subst.
-        reflexivity.
-      subst; reflexivity.
-    simplify with monad laws; simpl.
+      eapply buffer_uncons_sound; eauto.
+    simplify with monad laws.
     unfold buffer_uncons.
     finish honing.
   }
