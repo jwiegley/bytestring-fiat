@@ -216,10 +216,7 @@ Qed.
 
 Definition buffer_uncons (r : PS) : Comp (PS * option Mem.Word8) :=
   If psLength r =? 0
-  Then (
-    v <- { p | p = None /\ psOffset r = 0 /\ psBufLen r = 0 };
-    ret (r, v)
-  )
+  Then ret (r, None)
   Else (
     w <- peek' (psHeap r) (psBuffer r + psOffset r);
     ret ({| psHeap   := psHeap r
@@ -228,21 +225,16 @@ Definition buffer_uncons (r : PS) : Comp (PS * option Mem.Word8) :=
           ; psOffset := psOffset r + 1
           ; psLength := psLength r - 1 |}, Some (snd w))).
 
-Definition list_map_rel {A} (base : N) (xs : list A) (ys : EMap N A) : Prop :=
-  forall k e, Lookup k e ys <-> nth (N.to_nat (k - base)) xs e = e.
-
 Definition ByteString_list_AbsR (or : Rep ByteStringSpec) `(nr : PS) :=
   length or = N.to_nat (psLength nr) /\
-  IF psLength nr = 0
-  then psBufLen nr = 0
-  else exists data,
-    fits (psBuffer nr) (psBufLen nr)
-         (psBuffer nr + psOffset nr) (psLength nr)
-      /\ Lookup (psBuffer nr) {| memSize := psBufLen nr; memData := data |}
-                (` (psHeap nr))
-      /\ list_map_rel (psOffset nr) or
-                      (Filter (fun k _ => within (psOffset nr)
-                                                 (psLength nr) k) data).
+  (psLength nr = 0 \/
+   exists data,
+     fits (psBuffer nr) (psBufLen nr)
+          (psBuffer nr + psOffset nr) (psLength nr) /\
+     Lookup (psBuffer nr) {| memSize := psBufLen nr; memData := data |}
+            (` (psHeap nr)) /\
+     (forall i x, nth (N.to_nat i) or x = x
+                    -> Lookup (psOffset nr + i) x data)).
 
 Global Program Instance refineEquiv_bind_dep : forall A (ca : Comp A) B,
   Proper (forall_relation
@@ -267,115 +259,32 @@ Theorem buffer_cons_sound
   forall x r_n' (H : buffer_cons r_n x ↝ r_n'),
     ByteString_list_AbsR (x :: r_o) r_n'.
 Proof.
-  intros.
-(*
-  right.
-  split; [nomega|].
-  destruct AbsR.
-    destruct H0, H1, H2.
-    exists (Update 0 x Empty).
-    split.
-      revert H.
-      unfold buffer_cons, make_room_by_growing_buffer, poke_at_offset.
-      rewrite H1, H2, H3; simpl; clear H1 H2 H3.
-      unfold realloc'.
-      rewrite refine_bind_dep_bind_ret; simpl.
-      rewrite refine_bind_dep_bind_ret; simpl.
-      unfold poke'; simpl.
-      setoid_rewrite refine_bind_dep_bind_ret; simpl.
-      intros.
-      apply Bind_dep_inv in H.
+  unfold buffer_cons; intros.
+  apply refine_computes_to_ret in H.
+  rewrite refineEquiv_If_Then_Else_Bind in H.
+  apply refine_If_Then_Else_bool in H.
+  destruct (0 <? psOffset r_n) eqn:Heqe.
+    apply refine_computes_to_ret in H.
+    {
+      apply Bind_inv in H.
       destruct H, H.
-      apply Bind_dep_inv in c.
-      destruct c, H.
-      apply Return_inv in c.
-      destruct r_n';
-      tsubst; simpl in *.
-      inv c; simpl.
-      apply Return_inv in x3; subst; simpl.
-      teardown.
-      exists {| memSize := 1; memData := Empty |}; simpl.
-      rewrite N.add_0_r.
-      assert (within (snd x0) 1 (snd x0)) by nomega.
-      unfold IfDec_Then_Else; simpl.
-      apply within_reflect in H; rewrite H.
-      intuition.
-      f_equal; f_equal.
-      nomega.
-      unfold poke in x3.
-  destruct H0, H1.
-  exists (Update (psOffset r_n') x x0).
-*)
-(*
-  revert AbsR.
-  apply
-    (buffer_cons_ind
-       (fun r_n r_n' =>
-          r_n' = {| psHeap   := psHeap   r_n
-                  ; psBuffer := psBuffer r_n
-                  ; psBufLen := psBufLen r_n
-                  ; psOffset := psOffset r_n - 1
-                  ; psLength := psLength r_n + 1 |})
-       (fun r_n r_n' =>
-          exists h,
-          memcpy' (psHeap r_n) (psBuffer r_n) (psBuffer r_n + 1)
-                  (psLength r_n) ↝ h /\
-          r_n' = {| psHeap   := fst h
-                  ; psBuffer := psBuffer r_n
-                  ; psBufLen := psBufLen r_n
-                  ; psOffset := 0
-                  ; psLength := psLength r_n + 1 |})
-       (fun r_n r_n' =>
-          exists h,
-          realloc' (psHeap r_n) (psBuffer r_n)
-                   (exist (N.lt 0) (psLength r_n + 1)
-                          (Nlt_plus_1 (psLength r_n))) ↝ h /\
-          r_n' = {| psHeap   := fst h
-                  ; psBuffer := snd h
-                  ; psBufLen := psLength r_n + 1
-                  ; psOffset := 0
-                  ; psLength := psLength r_n + 1 |}))
-   with (ps:=r_n) (ps':=r_n') (d:=x);
-  intros; trivial;
-  destruct r_n; simpl in *;
-  f_equal; try nomega;
-  tease_apart_binds;
-  simpl in *; subst.
-  - remember (exist _ _ _) as E.
-    exists (E, snd x1).
-    split; trivial.
-    rewrite HeqE.
-    exists x1.
-    exists x2.
-    constructor.
-  - remember (exist _ (fst x1) _) as E.
-    exists (E, snd x1).
-    split; trivial.
-    rewrite HeqE.
-    exists x1.
-    exists x2.
-    constructor.
-  - destruct H0.
-      subst; simpl in *.
-      unfold ByteString_list_AbsR in *; simpl in *.
-      left.
-      destruct AbsR.
-        admit.
-      destruct H0, H2.
-      split.
-        nomega.
-      rewrite H2, H3 in *; simpl.
-      exists Empty.
-    destruct H0.
-      destruct H0, H0.
-      subst; simpl in *.
-      unfold ByteString_list_AbsR in *; simpl in *.
+      apply Return_inv in H.
       admit.
-    destruct H0, H0.
-      subst; simpl in *.
-      unfold ByteString_list_AbsR in *; simpl in *.
-      admit.
-*)
+    }
+  rewrite refineEquiv_If_Then_Else_Bind in H.
+  apply refine_If_Then_Else_bool in H.
+  destruct (psLength r_n <? psBufLen r_n) eqn:Heqe2;
+  apply refine_computes_to_ret in H.
+  {
+    apply Bind_inv in H.
+    destruct H, H.
+    admit.
+  }
+  {
+    apply Bind_inv in H.
+    destruct H, H.
+    admit.
+  }
 Admitted.
 
 Lemma refine_ret_eq_r : forall A (a b : A), refine (ret a) (ret b) -> a = b.
@@ -396,36 +305,6 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma list_map_rel_cons_inv : forall off len A (x : A) xs ys,
-  length xs = N.to_nat len
-    -> list_map_rel off (x :: xs) (Filter (fun k _ => within off len k) ys)
-    -> Lookup off x ys
-         /\ list_map_rel (off + 1) xs
-                         (Filter (fun k _ => within (off + 1) (len - 1) k) ys).
-Proof.
-  unfold list_map_rel; split; intros.
-    specialize (H0 off x).
-    apply H0.
-    replace (N.to_nat (off - off)) with 0%nat.
-      reflexivity.
-    nomega.
-  split; intros.
-    teardown.
-    rewrite N.sub_add_distr, N2Nat.inj_sub.
-    simpl in *.
-    erewrite <- nth_plus_one.
-      apply H0.
-      repeat teardown.
-      intuition.
-      nomega.
-    nomega.
-  teardown.
-  split.
-    apply H0.
-    admit.
-  admit.
-Admitted.
-
 Theorem buffer_uncons_sound : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
     -> buffer_uncons r_n ↝ a
@@ -439,13 +318,10 @@ Proof.
   apply refine_If_Then_Else_bool in H0.
   destruct (psLength r_n =? 0) eqn:Heqe.
     apply refine_computes_to_ret in H0.
-    apply Bind_inv in H0.
-    destruct H0, H0.
-    apply Pick_inv in H0.
-    apply Return_inv in H1.
+    apply Return_inv in H0.
     destruct a; tsubst; simpl in *.
     destruct r_o; simpl in *; auto.
-    destruct H, H0, H0, H1.
+    destruct H, H0.
       destruct r_o; simpl in *; nomega.
     nomega.
   revert H0.
@@ -461,35 +337,28 @@ Proof.
   apply Return_inv in H1.
   destruct a; tsubst; simpl in *.
   apply Pick_inv in H0.
-  destruct H.
-  destruct H1.
+  destruct H, H1.
     nomega.
-  destruct H1, H2, H2, H3.
+  destruct H1, H1, H2.
   assert (within (psBuffer r_n) (psBufLen r_n) (psBuffer r_n + psOffset r_n)).
     nomega.
-  specialize (H0 _ _ H3 H5); simpl in *.
+  specialize (H0 _ _ H2 H4); simpl in *.
   destruct r_o.
     nomega.
-  f_equal.
   split; simpl.
     nomega.
-  destruct r_o; simpl in *.
+  destruct r_o.
     left.
-    split.
-      nomega.
-    admit.
+    nomega.
   right.
-  split.
-    nomega.
   exists x0.
-  split.
+  intuition.
     nomega.
-  split.
-    assumption.
-  apply list_map_rel_cons_inv in H4.
-  destruct H4.
-  assumption.
-Admitted.
+  rewrite <- N.add_assoc.
+  apply H3.
+  rewrite N2Nat.inj_add.
+  apply H5.
+Qed.
 
 Theorem buffer_uncons_impl : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
@@ -504,14 +373,10 @@ Proof.
   apply refine_If_Then_Else_bool in H0.
   destruct (psLength r_n =? 0) eqn:Heqe.
     apply refine_computes_to_ret in H0.
-    apply Bind_inv in H0.
-    destruct H0, H0.
-    apply Pick_inv in H0.
-    apply Return_inv in H1.
+    apply Return_inv in H0.
     destruct a; tsubst; simpl in *.
     destruct r_o; simpl in *;
-    destruct H, H0, H0, H1; auto.
-      destruct H0.
+    destruct H, H0; auto.
       rewrite H0 in H; simpl in H.
       discriminate.
     nomega.
@@ -531,21 +396,21 @@ Proof.
   destruct H.
   destruct H1.
     nomega.
-  destruct H1, H2, H2, H3.
+  destruct H1, H1, H2.
   assert (within (psBuffer r_n) (psBufLen r_n) (psBuffer r_n + psOffset r_n)).
     nomega.
-  specialize (H0 _ _ H3 H5); simpl in *.
+  specialize (H0 _ _ H2 H4); simpl in *.
   destruct r_o.
     nomega.
   f_equal.
   apply H0.
   replace (psBuffer r_n + psOffset r_n - psBuffer r_n)
      with (psOffset r_n); [|nomega].
-  apply list_map_rel_cons_inv in H4.
-    destruct H4.
-    assumption.
-  admit.
-Admitted.
+  replace (psOffset r_n) with (psOffset r_n + 0).
+    apply H3.
+    reflexivity.
+  nomega.
+Qed.
 
 Lemma fst_match_list :
   forall A (xs : list A) B z C z'
@@ -588,9 +453,7 @@ Proof.
        ; psOffset := 0
        ; psLength := 0 |}.
       finish honing.
-    split.
-      reflexivity.
-    left; intuition.
+    split; simpl; auto.
   }
   {
     simplify with monad laws.
