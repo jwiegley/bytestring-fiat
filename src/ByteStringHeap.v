@@ -44,6 +44,32 @@ Theorem refine_If_Then_Else_bool :
       <-> refine (If b Then cpst Else cpse) res.
 Proof. split; intros; destruct b; auto. Qed.
 
+Global Program Instance refineEquiv_bind_dep : forall A (ca : Comp A) B,
+  Proper (forall_relation
+            (fun x0 : A =>
+               pointwise_relation (refine ca (ret x0)) refineEquiv) ==>
+            (@refineEquiv B))
+         (Bind_dep ca).
+Obligation 1.
+  intros ???.
+  split; intros; intros ??;
+  apply Bind_dep_inv in H0;
+  destruct H0;
+  exists x0;
+  destruct H0;
+  exists x1;
+  eapply H in c; eauto.
+Qed.
+
+Ltac destruct_computations :=
+  repeat match goal with
+  | [ H : _ ↝ _ |- _ ] => apply Bind_dep_inv in H; destruct H as [? [? H]]
+  | [ H : _ ↝ _ |- _ ] => apply Bind_inv in H; destruct H as [? [? H]]
+  | [ H : _ ↝ _ |- _ ] => apply Pick_inv in H
+  | [ H : _ ↝ _ |- _ ] => apply Return_inv in H; subst
+  (* | [ H : _ ↝ _ |- _ ] => destruct H *)
+  end.
+
 Module ByteStringHeap (Mem : Memory).
 
 Module Import BS := ByteString Mem.
@@ -95,9 +121,64 @@ Definition simply_widen_region (r : PS) : PS :=
    ; psOffset := psOffset r - 1
    ; psLength := psLength r + 1 |}.
 
+Lemma refine_local_memcpy (r : PS) :
+  0 < psLength r ->
+  fits (psBuffer r) (psBufLen r) (psBuffer r + 1) (psLength r) ->
+  (forall blk, Lookup (psBuffer r) blk (` (psHeap r))
+                 -> memSize blk = psBufLen r) ->
+  refineEquiv
+    (memcpy (` (psHeap r)) (psBuffer r) (psBuffer r + 1) (psLength r))
+    (blk <- { blk : MemoryBlock | Lookup (psBuffer r) blk (` (psHeap r)) };
+     ret (Update
+            (psBuffer r)
+            {| memSize := memSize blk
+             ; memData :=
+                 Union _ (KeepKeys (not ∘ within 1 (psLength r))
+                                   (memData blk))
+                         (ShiftKeys 0 1 (KeepKeys (within 0 (psLength r))
+                                                  (memData blk))) |}
+            (` (psHeap r)), tt)).
+Proof.
+  unfold memcpy; split; intros.
+    intros ??.
+    apply Bind_inv in H2.
+    destruct H2 as [blk [H3 H4]].
+    apply Pick_inv in H3.
+    apply refine_computes_to_ret.
+    refine pick val (Some (psBuffer r, blk)).
+      simplify with monad laws.
+      refine pick val (Some (psBuffer r, blk)).
+        simplify with monad laws.
+        destruct H4.
+        do 4 f_equiv.
+        replace (psBuffer r - psBuffer r) with 0 by nomega.
+        replace (psBuffer r + 1 - psBuffer r) with 1 by nomega.
+        reflexivity.
+      intros; inv H2; intuition.
+      rewrite H1; auto.
+    intros; inv H2; intuition.
+    rewrite H1; auto.
+    nomega.
+  intros ??.
+  apply Bind_inv in H2.
+  destruct H2 as [[[n blk]|] [H3 H4]];
+  apply Pick_inv in H3;
+  [destruct (H3 n blk eq_refl) as [? [? ?]]; clear H3|];
+  apply refine_computes_to_ret.
+    refine pick val blk.
+      simplify with monad laws.
+      apply Bind_inv in H4.
+      destruct H4 as [[[n' blk']|] [H7 H8]].
+        apply Pick_inv in H7;
+        destruct (H7 n' blk' eq_refl) as [? [? ?]]; clear H7.
+        destruct H8.
+        admit.
+      clear H7.
+      destruct H8.
+Admitted.
+
 Definition make_room_by_shifting_up (r : PS) : Comp PS :=
-  res <- memcpy' (psHeap r) (psBuffer r) (psBuffer r + 1)
-                 (psLength r);
+  res <- memcpy' (psHeap r) (psBuffer r) (psBuffer r + 1) (psLength r);
   ret {| psHeap   := fst res
        ; psBuffer := psBuffer r
        ; psBufLen := psBufLen r
@@ -124,96 +205,6 @@ Definition buffer_cons (r : PS) (d : Mem.Word8) : Comp PS :=
              Else make_room_by_growing_buffer r;
   poke_at_offset ps d.
 
-Ltac tease_apart_binds :=
-  repeat match goal with
-  | [ H : _ ↝ _ |- _ ] =>
-    apply Bind_inv in H;
-    destruct H as [? [? H]];
-    apply Return_inv in H;
-    rewrite <- H; simpl
-  | [ H : _ ↝ _ |- _ ] =>
-    apply Bind_dep_inv in H;
-    destruct H as [? [? H]];
-    apply Return_inv in H;
-    rewrite <- H; simpl
-  end.
-
-Lemma buffer_cons_ind : forall (R1 R2 R3 R : relation PS) ps d ps',
-     (0 < psOffset ps -> R1 ps (simply_widen_region ps))
-  -> (forall v,
-        psOffset ps = 0
-          -> psLength ps < psBufLen ps
-          -> make_room_by_shifting_up ps ↝ v
-          -> R2 ps v)
-  -> (forall v,
-        psOffset ps = 0
-          -> psLength ps >= psBufLen ps
-          -> make_room_by_growing_buffer ps ↝ v
-          -> R3 ps v)
-  -> (forall v v' v'',
-        (R1 v v' \/ R2 v v' \/ R3 v v')
-          -> 0 < psLength v'
-          -> poke_at_offset v' d ↝ v''
-          -> R v v'')
-  -> buffer_cons ps d ↝ ps'
-  -> R ps ps'.
-Proof.
-  intros R1 R2 R3 R ? ? H1 H2 H3 H4 H5 H.
-  unfold buffer_cons in H.
-  apply refine_computes_to_ret in H.
-  rewrite refineEquiv_If_Then_Else_Bind in H.
-  apply refine_If_Then_Else_bool in H.
-  destruct (0 <? psOffset ps) eqn:Heqe.
-    apply refine_computes_to_ret in H.
-    {
-      apply Bind_inv in H.
-      destruct H, H.
-      apply Return_inv in H.
-      apply H5 with (v':=x); subst.
-      - left; apply H2; nomega.
-      - nomega.
-      - nomega.
-    }
-  rewrite refineEquiv_If_Then_Else_Bind in H.
-  apply refine_If_Then_Else_bool in H.
-  destruct (psLength ps <? psBufLen ps) eqn:Heqe2;
-  apply refine_computes_to_ret in H.
-  {
-    apply Bind_inv in H.
-    destruct H, H.
-    apply H5 with (v':=x).
-    - right; left.
-      apply H3; nomega.
-    - tease_apart_binds; nomega.
-    - assumption.
-  }
-  {
-    apply Bind_inv in H.
-    destruct H, H.
-    apply H5 with (v':=x).
-    - right; right.
-      apply H4, H; nomega.
-    - tease_apart_binds; nomega.
-    - assumption.
-  }
-Qed.
-
-Tactic Notation "unfold_buffer_cons" constr(R1) constr(R2) constr(R3) :=
-  repeat match goal with
-  | [ H : buffer_cons ?PS ?D ↝ ?PS' |- _ ] =>
-    apply (buffer_cons_ind R1 R2 R3)
-      with (ps:=PS) (d:=D) (ps':=PS'); intuition
-  | [ H : _ ↝ _ |- _ ] => tease_apart_binds
-  end.
-
-Theorem buffer_cons_length_increase ps : forall ps' x,
-  buffer_cons ps x ↝ ps' -> psLength ps' = psLength ps + 1.
-Proof.
-  intros;
-  set (P := fun x x' => psLength x = psLength x' - 1).
-  unfold_buffer_cons P P P; unfold P in *; nomega.
-Qed.
-
 Definition buffer_uncons (r : PS) : Comp (PS * option Mem.Word8) :=
   If psLength r =? 0
   Then ret (r, None)
@@ -225,33 +216,31 @@ Definition buffer_uncons (r : PS) : Comp (PS * option Mem.Word8) :=
           ; psOffset := psOffset r + 1
           ; psLength := psLength r - 1 |}, Some (snd w))).
 
-Definition ByteString_list_AbsR (or : Rep ByteStringSpec) `(nr : PS) :=
+Definition ByteString_list_AbsR (or : Rep ByteStringSpec) (nr : PS) :=
   length or = N.to_nat (psLength nr) /\
-  (psLength nr = 0 \/
-   exists data,
-     fits (psBuffer nr) (psBufLen nr)
-          (psBuffer nr + psOffset nr) (psLength nr) /\
-     Lookup (psBuffer nr) {| memSize := psBufLen nr; memData := data |}
-            (` (psHeap nr)) /\
-     (forall i x, nth (N.to_nat i) or x = x
-                    -> Lookup (psOffset nr + i) x data)).
+  IF psBufLen nr = 0
+  then psOffset nr = 0 /\ psLength nr = 0
+  else
+    fits (psBuffer nr) (psBufLen nr + 1)
+         (psBuffer nr + psOffset nr) (psLength nr) /\
+    exists data,
+      Lookup (psBuffer nr) {| memSize := psBufLen nr; memData := data |}
+             (` (psHeap nr)) /\
+      (forall i x, nth (N.to_nat i) or x = x
+                     -> Lookup (psOffset nr + i) x data).
 
-Global Program Instance refineEquiv_bind_dep : forall A (ca : Comp A) B,
-  Proper (forall_relation
-            (fun x0 : A =>
-               pointwise_relation (refine ca (ret x0)) refineEquiv) ==>
-            (@refineEquiv B))
-         (Bind_dep ca).
-Obligation 1.
-  intros ???.
-  split; intros; intros ??;
-  apply Bind_dep_inv in H0;
-  destruct H0;
-  exists x0;
-  destruct H0;
-  exists x1;
-  eapply H in c; eauto.
-Qed.
+Ltac destruct_AbsR H :=
+  let H1 := fresh "H1" in
+  let H2 := fresh "H2" in
+  destruct H as [H1 H2];
+  let H3 := fresh "H3" in
+  let H4 := fresh "H4" in
+  let data := fresh "data" in
+  destruct H2 as [[H [H2 H3]]|[H [H2 [data [H3 H4]]]]];
+  [ rewrite ?H, ?H2 in * | ].
+
+Ltac construct_AbsR :=
+  split; try split; simpl; try nomega.
 
 Theorem buffer_cons_sound
         (r_o : list Mem.Word8) (r_n : PS)
@@ -266,25 +255,40 @@ Proof.
   destruct (0 <? psOffset r_n) eqn:Heqe.
     apply refine_computes_to_ret in H.
     {
-      apply Bind_inv in H.
-      destruct H, H.
-      apply Return_inv in H.
-      admit.
+      destruct_computations; simpl.
+      destruct_AbsR AbsR; construct_AbsR.
+      right; intuition; [nomega|].
+      exists (Update (psOffset r_n - 1) x data).
+      split; intros; teardown.
+        destruct_computations; tsubst; teardown.
+        exists {| memSize := psBufLen r_n; memData := data |}; simpl.
+        decisions; intuition.
+          f_equal; f_equal; nomega.
+        destruct H2; nomega.
+      destruct i using N.peano_ind.
+        left; nomega.
+      right; split; [nomega|].
+      rewrite <- N.add_sub_swap; [|nomega].
+      rewrite <- N.add_sub_assoc; [|nomega].
+      apply H4.
+      rewrite N2Nat.inj_sub.
+      replace (N.to_nat 1) with 1%nat; [|nomega].
+      simpl; rewrite N2Nat.inj_succ in *; simpl.
+      rewrite Nat.sub_0_r; assumption.
     }
+  assert (psOffset r_n = 0) by nomega; clear Heqe.
   rewrite refineEquiv_If_Then_Else_Bind in H.
   apply refine_If_Then_Else_bool in H.
   destruct (psLength r_n <? psBufLen r_n) eqn:Heqe2;
   apply refine_computes_to_ret in H.
   {
-    apply Bind_inv in H.
-    destruct H, H.
-    admit.
-  }
-  {
-    apply Bind_inv in H.
-    destruct H, H.
-    admit.
-  }
+    revert H.
+    unfold make_room_by_shifting_up, poke_at_offset.
+    autorewrite with monad laws; simpl.
+    rewrite N.add_0_r.
+    unfold memcpy', poke'.
+    rewrite refine_bind_dep_bind_ret; simpl.
+    setoid_rewrite refine_bind_dep_bind_ret; simpl.
 Admitted.
 
 Lemma refine_ret_eq_r : forall A (a b : A), refine (ret a) (ret b) -> a = b.
