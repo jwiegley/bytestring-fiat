@@ -208,3 +208,23 @@ Obligation 1.
   exists x1;
   eapply H in c; eauto.
 Qed.
+
+Ltac destruct_computations :=
+  repeat match goal with
+  | [ H : computes_to (Bind_dep _ _) _ |- _ ] =>
+    let H0 := fresh "H0" in
+    apply Bind_dep_inv in H; destruct H as [? [? H0]]
+  | [ H : computes_to (Bind _ _) _     |- _ ] =>
+    let H0 := fresh "H0" in
+    apply Bind_inv in H; destruct H as [? [? H0]]
+  | [ H : computes_to (Pick _) _       |- _ ] =>
+    apply Pick_inv in H
+  | [ H : computes_to (Return _) _     |- _ ] =>
+    apply Return_inv in H; subst
+  | [ H : computes_to _ _ |- _ ] =>
+    let H0 := fresh "H0" in
+    first [ apply Bind_dep_inv in H; destruct H as [? [? H0]]
+          | apply Bind_inv in H; destruct H as [? [? H0]]
+          | apply Pick_inv in H
+          | apply Return_inv in H; subst ]
+  end.

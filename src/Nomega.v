@@ -188,7 +188,7 @@ Definition within_bool (addr : N) (len : N) (a : N) : bool :=
   ((addr <=? a) && (a <? addr + len))%bool.
 
 Definition fits (addr1 len1 addr2 len2 : N) : Prop :=
-  addr1 <= addr2 /\ addr2 + len2 <= addr1 + len1.
+  within addr1 len1 addr2 /\ addr2 + len2 <= addr1 + len1.
 
 Definition overlaps (addr len addr2 len2 : N) : Prop :=
   addr < addr2 + len2 /\ addr2 < addr + len.
@@ -300,7 +300,7 @@ Ltac norm_N_step :=
 Ltac norm_N := repeat progress (norm_N_step; auto).
 
 Ltac pre_nomega :=
-  unfold within, within_bool, fits, overlaps in *;
+  unfold fits, within, within_bool, overlaps in *;
   nsimp; intros; norm_N; nsimp;
   repeat
     match goal with
@@ -441,3 +441,13 @@ Qed.
 
 Theorem Nlt_plus_1 : forall n : N, 0 < n + 1.
 Proof. nomega. Qed.
+
+Lemma not_fits : forall n o m p, 0 < p ->
+  ~ fits n o m p -> m < n \/ n + o < m + p.
+Proof.
+  intros.
+  apply Decidable.not_and in H0.
+    nomega.
+  destruct (within_dec n o m);
+  [left|right]; assumption.
+Qed.

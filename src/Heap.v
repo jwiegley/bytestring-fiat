@@ -208,14 +208,6 @@ Definition memset (r : Rep HeapSpec) (addr : N) (len : N) (w : Mem.Word8) :
  ** Theorems related to the Heap specification.
  **)
 
-Ltac destruct_computations :=
-  repeat match goal with
-  | [ H : _ ↝ _ |- _ ] => apply Bind_dep_inv in H; destruct H as [? [? H]]
-  | [ H : _ ↝ _ |- _ ] => apply Bind_inv in H; destruct H as [? [? H]]
-  | [ H : _ ↝ _ |- _ ] => apply Pick_inv in H
-  | [ H : _ ↝ _ |- _ ] => apply Return_inv in H; subst
-  end.
-
 Ltac inspect :=
   repeat (unfold KeepKeys, ShiftKeys,
                  FindFreeBlock, FindBlock, FindBlockThatFits in *;

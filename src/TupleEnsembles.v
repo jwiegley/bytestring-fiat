@@ -390,6 +390,20 @@ Lemma All_Remove_Lookup_inv : forall a P r,
   All P (Remove a r) -> forall a' b', a' <> a -> Lookup a' b' r -> P a' b'.
 Proof. intros; apply H, Lookup_Remove; trivial. Qed.
 
+Lemma All_Update_inv : forall k e P r,
+  All P (Update k e r) -> P k e /\ All P (Remove k r).
+Proof.
+  intros.
+  split.
+    apply H, Lookup_Update.
+    left; auto.
+  intros ???.
+  apply Lookup_Remove_inv in H0.
+  destruct H0.
+  apply H, Lookup_Update.
+  right; intuition.
+Qed.
+
 End TupleEnsemble.
 
 Arguments Functional : default implicits.
@@ -482,6 +496,9 @@ Ltac teardown :=
   | [ |- Lookup _ _ (Union _ _ _)    ] => apply Lookup_Union
 
   | [ H : Lookup ?X ?Y ?R |- Member ?X ?R ] => exists Y; exact H
+
+  (* | [ H1 : All _ (Remove _ _)   |- _ ] => apply All_Remove_inv in H1 *)
+  (* | [ H1 : All _ (Update _ _ _) |- _ ] => apply All_Update_inv in H1 *)
 
   | [ H1 : All ?P ?R, H2 : Lookup ?X ?Y ?R |- _ ] =>
     specialize (H1 _ _ H2); simpl in H1
