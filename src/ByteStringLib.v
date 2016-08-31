@@ -1,23 +1,21 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
-  Fiat.Computation.FixComp.
+  Fiat.Computation.FixComp
+  ByteString.Heap.
 
 Require Import
   ByteString.ByteString.
 
-Section ByteStringLib.
+Module ByteStringLib (Mem : Memory).
 
-Variable Word8 : Type.
-
-Definition ByteStringSpec := ByteStringSpec Word8.
-Definition ByteString     := ByteString Word8.
+Module Import BS := ByteString Mem.
 
 (************************************************************************
  ** Semantics of the Haskell ByteString library in Fiat.               **
  ************************************************************************)
 
-Definition singleton_Spec (w : Word8) : Comp ByteString :=
+Definition singleton_Spec (w : Mem.Word8) : Comp ByteString :=
   xs  <- callCons ByteStringSpec emptyS;
   res <- callMeth ByteStringSpec consS xs w;
   ret (fst res).
@@ -31,10 +29,10 @@ Definition snoc (bs : ByteString) (w : Word8) : Comp (ByteString * unit) :=
 Import LeastFixedPointFun.
 
 Definition foldr_Spec {A} :
-  ByteString -> (Word8 -> A -> A) -> A -> Comp (ByteString * A) :=
-  LeastFixedPoint (fDom := [ByteString; Word8 -> A -> A; A])
+  ByteString -> (Mem.Word8 -> A -> A) -> A -> Comp (ByteString * A) :=
+  LeastFixedPoint (fDom := [ByteString; Mem.Word8 -> A -> A; A])
                   (fCod := ByteString * A)
-    (fun rec (bs : ByteString) (f : Word8 -> A -> A) (z : A) =>
+    (fun rec (bs : ByteString) (f : Mem.Word8 -> A -> A) (z : A) =>
        p <- uncons bs;
        Ifopt snd p as w
        Then bs' <- rec (fst p) f z;

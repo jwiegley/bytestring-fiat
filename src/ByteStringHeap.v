@@ -140,10 +140,11 @@ Definition make_room_by_growing_buffer (r : PS) : Comp PS :=
   (* jww (2016-06-28): We could make a trade-off here by allocating
      extra bytes at the beginning in anticipation of future calls to
      [buffer_cons]. *)
-  res <- realloc' (psHeap r) (psBuffer r)
-                  (exist _ (psLength r + 1) (Nlt_plus_1 _));
-  ret {| psHeap   := fst res
-       ; psBuffer := snd res
+  `(r', addr) <- realloc' (psHeap r) (psBuffer r)
+                          (exist _ (psLength r + 1) (Nlt_plus_1 _));
+  `(r'', _) <- memcpy' r' addr (addr + 1) (psLength r);
+  ret {| psHeap   := r''
+       ; psBuffer := addr
        ; psBufLen := psLength r + 1
        ; psOffset := 0
        ; psLength := psLength r + 1 |}.
@@ -177,7 +178,8 @@ Definition ByteString_list_AbsR (or : Rep ByteStringSpec) (nr : PS) :=
     exists data,
       Lookup (psBuffer nr) {| memSize := psBufLen nr; memData := data |}
              (` (psHeap nr)) /\
-      (forall i x, nth (N.to_nat i) or x = x
+      (forall i x, i < psLength nr
+                     -> nth (N.to_nat i) or x = x
                      -> Lookup (psOffset nr + i) x data).
 
 Ltac destruct_AbsR H :=
@@ -221,7 +223,7 @@ Proof.
       right; split; [nomega|].
       rewrite <- N.add_sub_swap; [|nomega].
       rewrite <- N.add_sub_assoc; [|nomega].
-      apply H4.
+      apply H4; [nomega|].
       rewrite N2Nat.inj_sub.
       replace (N.to_nat 1) with 1%nat; [|nomega].
       simpl; rewrite N2Nat.inj_succ in *; simpl.
@@ -240,13 +242,9 @@ Proof.
   unfold memcpy', realloc', poke';
   rewrite refine_bind_dep_bind_ret; simpl;
   setoid_rewrite refine_bind_dep_bind_ret;
-  simpl; intros;
-  apply Bind_dep_inv in H;
-  destruct H as [? [? ?]];
-  apply Bind_dep_inv in c;
-  destruct c as [? [? ?]]; destruct c;
+  simpl; intros; destruct_computations;
   destruct_AbsR AbsR; construct_AbsR;
-  try (right; split; [nomega|]; split; [nomega|]).
+  (right; split; [nomega|]; split; [nomega|]).
   - eapply refine_local_memcpy in x1; eauto;
     destruct (0 <? psLength r_n) eqn:Heqe;
     try nomega; destruct x1, x3; simpl in *.
@@ -273,38 +271,66 @@ Proof.
         exists (i, x0); simpl.
         split.
           f_equal; nomega.
-        specialize (H4 _ _ H).
+        assert (i < psLength r_n) by nomega.
+        specialize (H4 _ _ H6 H5).
         teardown; intuition.
         nomega.
       left; teardown.
       split.
-        apply H4.
+        apply H4; [nomega|].
         rewrite N2Nat.inj_succ, nth_overflow; trivial.
         nomega.
       unfold not, compose; intros.
       contradiction n.
-      clear -H5.
-      destruct H5.
-      split; [nomega|]; simpl.
-      rewrite N.add_1_l in H0.
-      assumption.
+      nomega.
     eexists.
     split.
       teardown.
-      exists {| memSize := psBufLen r_n
-              ; memData := data |}.
+      exists {| memSize := psBufLen r_n; memData := data |}.
       split; auto.
       decisions; f_equal; f_equal; nomega.
     intros; teardown.
     destruct i using N.peano_ind.
       left; nomega.
     right; split; [nomega|].
-    rewrite H0 in H4; simpl in H4; apply H4.
+    rewrite H0 in H4; simpl in H4; apply H4; [nomega|].
     simpl; rewrite N2Nat.inj_succ in *; simpl.
-    destruct r_o; simpl in *; auto.
+    destruct r_o; simpl in *; auto; nomega.
+  - unfold realloc, FindBlock, FindFreeBlock in x1.
+    destruct_computations; simpl in *.
+    apply Bind_inv in x1; destruct x1 as [? [? ?]].
+    apply Bind_inv in H4; destruct H4 as [? [? ?]].
+    apply Pick_inv in H.
+    apply Pick_inv in H4; simpl in *.
+    destruct x1; simpl in *;
+    destruct H5; simpl in *.
+      admit.
+    rewrite H3, N.add_0_r in *; simpl in *.
+    exists (Update 0 x Empty).
+    split.
+      teardown.
+      exists {| memSize := 1; memData := Empty |}.
+      split.
+        decisions; auto.
+          f_equal; f_equal; nomega.
+        nomega.
+      teardown.
+      admit.
+    intros.
+    destruct i using N.peano_ind; simpl.
+      teardown.
+      left; intuition.
     nomega.
-  - admit.
-  - admit.
+  - unfold realloc, FindBlock, FindFreeBlock in x1.
+    destruct_computations; simpl in *.
+    apply Bind_inv in x1; destruct x1 as [? [? ?]].
+    apply Bind_inv in H5; destruct H5 as [? [? ?]].
+    apply Pick_inv in H.
+    apply Pick_inv in H5; simpl in *.
+    destruct x1; simpl in *;
+    destruct H6; simpl in *.
+      admit.
+    admit.
 Admitted.
 
 Lemma refine_ret_eq_r : forall A (a b : A), refine (ret a) (ret b) -> a = b.
@@ -324,12 +350,6 @@ Proof.
   rewrite Nat.sub_0_r.
   reflexivity.
 Qed.
-
-Lemma it_fits : forall base size off len,
-  off + 1 < size ->
-  fits base size (base + off) len ->
-  fits base size (base + off + 1) (len - 1).
-Proof. nomega. Qed.
 
 Theorem buffer_uncons_sound : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
@@ -362,30 +382,17 @@ Proof.
   destruct x; try destruct p; simpl in *;
   destruct r_o; simpl in *;
   try nomega; right;
-  split; try nomega; split.
-  - rewrite N.add_assoc.
-    apply it_fits; trivial.
-    admit.
-  - eexists.
-    split.
-      exact H4.
-    intros.
-    rewrite <- N.add_assoc.
-    apply H5.
-    rewrite N.add_1_l, N2Nat.inj_succ.
-    assumption.
-  - rewrite N.add_assoc.
-    apply it_fits; trivial.
-    admit.
-  - eexists.
-    split.
-      exact H4.
-    intros.
-    rewrite <- N.add_assoc.
-    apply H5.
-    rewrite N.add_1_l, N2Nat.inj_succ.
-    assumption.
-Admitted.
+  split; try nomega;
+  split; try nomega;
+  (eexists;
+   split; [exact H4|];
+   intros;
+   rewrite <- N.add_assoc;
+   apply H5;
+   [ apply N.lt_add_lt_sub_l
+   | rewrite N.add_1_l, N2Nat.inj_succ ];
+   trivial).
+Qed.
 
 Theorem buffer_uncons_impl : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
@@ -404,39 +411,34 @@ Proof.
     destruct a; tsubst; simpl in *.
     destruct r_o; simpl in *;
     destruct H, H0; auto.
-      rewrite H0 in H; simpl in H.
+      destruct H0, H1.
+      rewrite H2 in H; simpl in H.
       discriminate.
     nomega.
   revert H0.
   unfold peek'.
   rewrite refine_bind_dep_bind_ret; simpl.
   rewrite refine_bind_dep_ignore.
-  unfold peek.
-  autorewrite with monad laws; simpl.
-  intros.
+  unfold peek, FindBlockThatFits.
+  autorewrite with monad laws; simpl; intros.
   apply refine_computes_to_ret in H0.
-  apply Bind_inv in H0.
-  destruct H0, H0.
-  apply Return_inv in H1.
-  destruct a; tsubst; simpl in *.
-  apply Pick_inv in H0.
-  destruct H.
-  destruct H1.
-    nomega.
-  destruct H1, H1, H2.
-  assert (within (psBuffer r_n) (psBufLen r_n) (psBuffer r_n + psOffset r_n)).
-    nomega.
-  specialize (H0 _ _ H2 H4); simpl in *.
-  destruct r_o.
+  destruct_computations.
+  destruct_AbsR H; simpl.
+    destruct r_o; simpl in *; nomega.
+  destruct r_o; simpl in *.
     nomega.
   f_equal.
-  apply H0.
-  replace (psBuffer r_n + psOffset r_n - psBuffer r_n)
-     with (psOffset r_n); [|nomega].
-  replace (psOffset r_n) with (psOffset r_n + 0).
-    apply H3.
-    reflexivity.
-  nomega.
+  destruct x; tsubst; simpl in *.
+    destruct p.
+    specialize (H2 w _ _ eq_refl); simpl in *.
+    apply H2.
+    destruct H1.
+    competing_lookups (psHeap r_n) H4 (psBuffer r_n) H1 n.
+    simpl in *.
+    replace (psBuffer r_n + psOffset r_n - psBuffer r_n)
+       with (psOffset r_n + 0) by nomega.
+    apply H5; nomega.
+  resolve_contention; trivial; nomega.
 Qed.
 
 Lemma fst_match_list :
@@ -481,6 +483,7 @@ Proof.
        ; psLength := 0 |}.
       finish honing.
     split; simpl; auto.
+    left; auto.
   }
   {
     simplify with monad laws.

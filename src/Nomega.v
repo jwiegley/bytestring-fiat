@@ -188,7 +188,7 @@ Definition within_bool (addr : N) (len : N) (a : N) : bool :=
   ((addr <=? a) && (a <? addr + len))%bool.
 
 Definition fits (addr1 len1 addr2 len2 : N) : Prop :=
-  within addr1 len1 addr2 /\ addr2 + len2 <= addr1 + len1.
+  addr1 <= addr2 /\ addr2 + len2 <= addr1 + len1.
 
 Definition overlaps (addr len addr2 len2 : N) : Prop :=
   addr < addr2 + len2 /\ addr2 < addr + len.
