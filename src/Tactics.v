@@ -147,3 +147,15 @@ Ltac simplify_ADT :=
   try refine pick val tt; try tauto;
   try simplify with monad laws;
   try finish_concrete.
+
+Lemma refineEquiv_If_Then_Else_Bind :
+  forall (A B : Type) (i : bool) (t e : Comp A) (b : A -> Comp B),
+    refineEquiv (a <- If i Then t Else e; b a)
+                (If i Then a <- t; b a Else (a <- e; b a)).
+Proof. split; intros; destruct i; reflexivity. Qed.
+
+Theorem refine_If_Then_Else_bool :
+  forall (b : bool) A cpst cpse (res : Comp A),
+    (if b then refine cpst res else refine cpse res)
+      <-> refine (If b Then cpst Else cpse) res.
+Proof. split; intros; destruct b; auto. Qed.

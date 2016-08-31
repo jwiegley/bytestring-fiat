@@ -47,11 +47,27 @@ Definition ShiftKeys (orig_base : N) (new_base : N) :
   EMap N Mem.Word8 -> EMap N Mem.Word8 :=
   Map_set (fun p => (fst p - orig_base + new_base, snd p)).
 
-Ltac inspect :=
-  repeat (unfold KeepKeys, ShiftKeys in *;
-          repeat teardown; tsubst; simpl in *;
-          decisions; eauto with sets;
-          try congruence).
+Definition FindFreeBlock (len : N) (heap : EMap N MemoryBlock) : Comp N :=
+  { addr : N | All (fun addr' blk' =>
+                      ~ overlaps addr' (memSize blk') addr len) heap }.
+
+Definition FindBlock (base : N) (heap : EMap N MemoryBlock) :
+  Comp (option MemoryBlock) :=
+  { blk : option MemoryBlock
+  | Ifopt blk as blk'
+    Then Lookup base blk' heap
+    Else ~ Member base heap }.
+
+Definition FindBlockThatFits (off len : N) (heap : EMap N MemoryBlock) :
+  Comp (option (N * MemoryBlock)) :=
+  { mres : option (N * MemoryBlock)
+  | match mres with
+    | Some (addr', blk') =>
+      Lookup addr' blk' heap /\ fits addr' (memSize blk') off len
+    | None =>
+      All (fun addr' blk' =>
+             ~ fits addr' (memSize blk') off len) heap
+    end }.
 
 Definition emptyS   := "empty".
 Definition allocS   := "alloc".
@@ -77,9 +93,7 @@ Definition HeapSpec := Def ADT {
      exhausting memory -- do not belong here, since a mathematical machine has
      no such limits. *)
   Def Method1 allocS (r : rep) (len : N | 0 < len) : rep * N :=
-    addr <- { addr : N
-            | All (fun addr' blk' =>
-                     ~ overlaps addr' (memSize blk') addr (` len)) r };
+    addr <- FindFreeBlock (` len) r;
     ret (Update addr {| memSize := ` len
                       ; memData := Empty |} r, addr),
 
@@ -92,14 +106,8 @@ Definition HeapSpec := Def ADT {
      bytes moved. If a block did exist previously, as many bytes as possible
      are copied to the new block. *)
   Def Method2 reallocS (r : rep) (addr : N) (len : N | 0 < len) : rep * N :=
-    present <- { blk : option MemoryBlock
-               | Ifopt blk as blk'
-                 Then Lookup addr blk' r
-                 Else ~ Member addr r };
-    naddr   <- { naddr : N
-               | All (fun addr' blk' =>
-                        ~ overlaps addr' (memSize blk') naddr (` len))
-                     (Remove addr r) };
+    present <- FindBlock addr r;
+    naddr   <- FindFreeBlock (` len) (Remove addr r);
     ret (
       Ifopt present as blk
       Then Update naddr {| memSize := ` len
@@ -111,18 +119,11 @@ Definition HeapSpec := Def ADT {
 
   (* Peeking an unallocated address allows anydefault value to be returned. *)
   Def Method1 peekS (r : rep) (addr : N) : rep * Mem.Word8 :=
+    mres <- FindBlockThatFits addr 1 r;
     p <- { p : Mem.Word8
-         | forall base blk',
-             (* There are three cases to consider here:
-                1. Peeking an allocated, initialized byte. This must
-                   return the same byte that was last poke'd at that
-                   position.
-                2. Peeking an allocated, uninitialized byte.
-                3. Peeking at an unallocated location. *)
-             Lookup base blk' r
-               -> within base (memSize blk') addr
-               -> forall v, Lookup (addr - base) v (memData blk')
-               -> p = v };
+         | forall v base' blk', mres = Some (base', blk')
+             -> Lookup (addr - base') v (memData blk')
+             -> p = v };
     ret (r, p),
 
   (* Poking an unallocated address is a no-op. *)
@@ -138,28 +139,27 @@ Definition HeapSpec := Def ADT {
      destination. Otherwise, the operation is a no-op. *)
   Def Method3 memcpyS (r : rep) (addr1 : N) (addr2 : N) (len : N) :
     rep * unit :=
-    ms <- { ms : option (N * MemoryBlock)
-          | forall addr' blk', ms = Some (addr', blk') ->
-              0 < len /\ Lookup addr' blk' r /\
-              fits addr' (memSize blk') addr1 len };
-    md <- { md : option (N * MemoryBlock)
-          | forall addr' blk', md = Some (addr', blk') ->
-              0 < len /\ Lookup addr' blk' r /\
-              fits addr' (memSize blk') addr2 len };
-    ret (match ms, md with
-         | Some (saddr, sblk), Some (daddr, dblk) =>
-           Update daddr
-             {| memSize := memSize dblk
-              ; memData :=
-                  let soff := addr1 - saddr in
-                  let doff := addr2 - daddr in
-                  (* [s] is the source region to copy from *)
-                  let s := KeepKeys (within soff len) (memData sblk) in
-                  (* [d] has a hole where the region will be copied to *)
-                  let d := KeepKeys (not ∘ within doff len) (memData dblk) in
-                  Union _ d (ShiftKeys soff doff s) |} r
-         | _, _ => r
-         end, tt),
+      ms <- FindBlockThatFits addr1 len r;
+      md <- FindBlockThatFits addr2 len r;
+      ret (match ms, md with
+           | Some (saddr, sblk), Some (daddr, dblk) =>
+             IfDec 0 < len
+             Then (
+               Update daddr
+                 {| memSize := memSize dblk
+                  ; memData :=
+                      let soff := addr1 - saddr in
+                      let doff := addr2 - daddr in
+                      (* [s] is the source region to copy from *)
+                      let s := KeepKeys (within soff len) (memData sblk) in
+                      (* [d] has a hole where the region will be copied to *)
+                      let d := KeepKeys (not ∘ within doff len)
+                                        (memData dblk) in
+                      Union _ d (ShiftKeys soff doff s) |} r
+             )
+             Else r
+           | _, _ => r
+           end, tt),
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
   Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Mem.Word8) :
@@ -207,6 +207,22 @@ Definition memset (r : Rep HeapSpec) (addr : N) (len : N) (w : Mem.Word8) :
 (**
  ** Theorems related to the Heap specification.
  **)
+
+Ltac destruct_computations :=
+  repeat match goal with
+  | [ H : _ ↝ _ |- _ ] => apply Bind_dep_inv in H; destruct H as [? [? H]]
+  | [ H : _ ↝ _ |- _ ] => apply Bind_inv in H; destruct H as [? [? H]]
+  | [ H : _ ↝ _ |- _ ] => apply Pick_inv in H
+  | [ H : _ ↝ _ |- _ ] => apply Return_inv in H; subst
+  end.
+
+Ltac inspect :=
+  repeat (unfold KeepKeys, ShiftKeys,
+                 FindFreeBlock, FindBlock, FindBlockThatFits in *;
+          destruct_computations; simpl in *;
+          repeat teardown; tsubst; simpl in *;
+          decisions; eauto with sets;
+          try congruence).
 
 Ltac complete IHfromADT :=
   inspect;
@@ -296,10 +312,10 @@ Proof.
   ADT induction r; inspect.
   - unfold compose in *; nomega.
   - unfold compose in *; nomega.
-  - apply N.add_cancel_r in H12.
-    apply Nsub_eq in H12.
+  - apply N.add_cancel_r in H10.
+    apply Nsub_eq in H10.
     + subst.
-      clear H6.
+      clear H4.
       eapply IHfromADT; eauto.
     + nomega.
     + nomega.

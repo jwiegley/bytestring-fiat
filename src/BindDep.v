@@ -178,3 +178,33 @@ Ltac remove_dependency :=
                      _) _ ] =>
         rewrite refine_bind_dep_ignore
     end.
+
+
+Corollary refine_computes_to_ret :
+  forall A f (v : A), f ↝ v <-> refine f (ret v).
+Proof.
+  split; intros.
+    apply refine_In.
+    exact H.
+  apply H.
+  constructor.
+Qed.
+
+Global Program Instance refineEquiv_bind_dep_equiv :
+  forall A (ca : Comp A) B,
+    Proper (forall_relation
+              (fun x0 : A =>
+                 pointwise_relation
+                   (refine ca (ret x0)) refineEquiv) ==>
+              (@refineEquiv B))
+           (Bind_dep ca).
+Obligation 1.
+  intros ???.
+  split; intros; intros ??;
+  apply Bind_dep_inv in H0;
+  destruct H0;
+  exists x0;
+  destruct H0;
+  exists x1;
+  eapply H in c; eauto.
+Qed.
