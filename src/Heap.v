@@ -14,12 +14,8 @@ Generalizable All Variables.
 
 Open Scope string_scope.
 
-Module Type Memory.
-  Parameter Word8 : Type.
-  Parameter Zero  : Word8.
-End Memory.
-
-Module Heap (Import Mem : Memory).
+Definition Word8 := Ascii.ascii.
+Definition Zero  := Ascii.zero.
 
 Record MemoryBlock := {
   memSize : N;
@@ -425,7 +421,3 @@ Proof.
   finite_preservation;
   eauto; nomega.
 Qed.
-
-End Heap.
-
-Print Heap.

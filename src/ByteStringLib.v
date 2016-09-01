@@ -2,14 +2,8 @@ Require Import
   Fiat.ADT
   Fiat.ADTNotation
   Fiat.Computation.FixComp
-  ByteString.Heap.
-
-Require Import
+  ByteString.Heap
   ByteString.ByteString.
-
-Module ByteStringLib (Import Mem : Memory).
-
-Module Import BS := ByteString Mem.
 
 (************************************************************************
  ** Semantics of the Haskell ByteString library in Fiat.               **
@@ -151,5 +145,3 @@ hPutStrLn :: Handle -> ByteString -> IO ()
 (*
 breakByte :: Word8 -> ByteString -> (ByteString, ByteString)
 *)
-
-End ByteStringLib.

@@ -20,11 +20,6 @@ Require Import
 
 Generalizable All Variables.
 
-Module ByteStringHeap (Import Mem : Memory).
-
-Module Import BS  := ByteString Mem.
-Module Import Adt := HeapADT Mem.
-
 Open Scope N_scope.
 
 Definition HSpec := projT1 HeapSpecADT.
@@ -300,7 +295,7 @@ Proof.
             ShiftKeys_nothing,
             KeepKeys_everything.
     + destruct blk2; simpl in *.
-      assert (Union (N * Word8) memData0 Empty = memData0).
+      assert (Union (N * Word8) memData Empty = memData).
         apply Extensionality_Ensembles.
         split; intros; intros ??.
           destruct H6; trivial.
@@ -647,9 +642,4 @@ Proof.
   apply reflexivityT.
 Defined.
 
-Definition ByteStringHeap' := Eval simpl in projT1 ByteStringHeap.
-Print ByteStringHeap'.
-
 End Refined.
-
-End ByteStringHeap.

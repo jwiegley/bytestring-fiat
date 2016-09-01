@@ -7,16 +7,11 @@ Require Import
   ByteString.FromADT
   ByteString.Heap.
 
-Module HeapADT (Import Mem : Memory).
-
-Module Heap := Heap Mem.
-Include Heap.
+Open Scope N_scope.
 
 Lemma empty_fromADT r :
   refine (callCons HeapSpec emptyS) (ret r) -> fromADT HeapSpec r.
 Proof. check constructor (fromCons HeapSpec emptyS r). Qed.
-
-Open Scope N_scope.
 
 Lemma alloc_fromADT r :
   fromADT HeapSpec r
@@ -94,5 +89,3 @@ Proof.
                      (@memset_fromADT _ (proj2_sig r_n) d d0 d1).
   apply reflexivityT.
 Defined.
-
-End HeapADT.

@@ -9,10 +9,7 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module MemoryBlockC (Import Mem : Memory) (M : WSfun N_as_DT).
-
-Module Import Adt := HeapADT Mem.
-Import Heap.
+Module MemoryBlockC (M : WSfun N_as_DT).
 
 Module Import FunMaps := FunMaps N_as_DT M.
 Import FunMaps.FMapExt.

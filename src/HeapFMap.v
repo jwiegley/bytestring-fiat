@@ -6,20 +6,19 @@ Require Import
   ByteString.ADTInduction
   ByteString.Tactics
   ByteString.Heap
+  ByteString.HeapADT
   ByteString.Within
   ByteString.DefineAbsR
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module HeapFMap (Import Mem : Memory) (M : WSfun N_as_DT).
+Module HeapFMap (M : WSfun N_as_DT).
 
-Module Import Within := Within Mem M.
+Module Import Within := Within M.
 Module Import Define := Define_AbsR M.
 
 Import Within.Block.
-Import Within.Block.Adt.
-Import Within.Block.Adt.Heap.
-Import Within.Block.FunMaps.
+Import Block.FunMaps.
 
 Require Import Fiat.ADT Fiat.ADTNotation.
 
@@ -58,8 +57,10 @@ Lemma Heap_AbsR_outside_mem
          ~ overlaps addr' (memSize blk') (fst r_n) (` d)) (` r_o).
 Proof.
   intros addr blk H.
-  apply AbsR in H; destruct H as [? [? ?]]; swap_sizes.
-  destruct AbsR as [_ ?]; apply_for_all; nomega.
+  apply AbsR in H; destruct H as [? [? ?]].
+  rewrite (proj1 H0).
+  destruct AbsR as [_ ?].
+  apply_for_all. nomega.
 Qed.
 
 Theorem Peek_in_heap {r_o r_n} (AbsR : Heap_AbsR r_o r_n) pos :

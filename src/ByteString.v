@@ -3,8 +3,6 @@ Require Import
   Fiat.ADTNotation
   ByteString.Heap.
 
-Module ByteString (Import Mem : Memory).
-
 (************************************************************************
  ** Semantics of the core Haskell ByteString data type in Fiat.        **
  ************************************************************************)
@@ -38,5 +36,3 @@ Definition cons (w : Word8) (bs : ByteString) : Comp ByteString :=
 
 Definition uncons (bs : ByteString) : Comp (ByteString * option Word8) :=
   Eval simpl in callMeth ByteStringSpec unconsS bs.
-
-End ByteString.

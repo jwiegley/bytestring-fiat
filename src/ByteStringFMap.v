@@ -24,23 +24,23 @@ Require Import
 
 Generalizable All Variables.
 
-Module ByteStringFMap (Import Mem : Memory) (M : WSfun N_as_DT).
+Module ByteStringFMap (M : WSfun N_as_DT).
 
-Module Import BS := ByteStringHeap Mem.
-
-Import Adt.Heap.
-
-Module Import HF := HeapFMap Mem M.
+Module Import HF := HeapFMap M.
 
 Import Within.
 Import Within.Block.
-Import Within.Block.Adt.Heap.
 
 Section Refined.
 
 Variable heap : Rep HSpec.
 
-Record PS' := makePS {
+(* This style of computational refinement makes use of a separately refined
+   heap. Another approach is to refine the heap methods directly, which would
+   mean going directly to the metal (but would require replicating much of the
+   proof word that is done in HeapFMap.v). *)
+
+Record PS' := {
   ps'Heap : ComputationalADT.cRep (projT1 HeapImpl);
 
   ps'Buffer : N;
@@ -51,9 +51,11 @@ Record PS' := makePS {
 }.
 
 Variable heap' : ComputationalADT.cRep (projT1 HeapImpl).
+Variable AbsR : Heap_AbsR heap heap'.
 
 (* Strip away the proofy bits. *)
-Lemma ByteStringStrip : { adt : _ & refineADT (ByteStringHeap' heap) adt }.
+Lemma ByteStringStrip :
+  { adt : _ & refineADT (projT1 (ByteStringHeap heap)) adt }.
 Proof.
   eexists.
   hone representation using
@@ -65,13 +67,13 @@ Proof.
           psLength or = ps'Length nr);
   try simplify with monad laws; simpl.
   {
-    refine pick val {| ps'Heap   := ` heap
+    refine pick val {| ps'Heap   := heap'
                      ; ps'Buffer := 0
                      ; ps'BufLen := 0
                      ; ps'Offset := 0
                      ; ps'Length := 0 |}.
       finish honing.
-    simpl; firstorder.
+    simpl; intuition.
   }
   {
     destruct (psHeap r_o); simpl in *.
@@ -84,10 +86,44 @@ Proof.
     rewrite refineEquiv_If_Then_Else_Bind.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
-      unfold poke'.
-      remove_dependency.
-      rewrite H4.
-      finish honing.
+      unfold Heap_AbsR, poke', poke; simpl.
+      remove_dependency; simpl.
+      simplify with monad laws; simpl.
+      {
+        refine pick val
+          {| ps'Heap :=
+               (fst (ps'Heap r_n),
+                M.mapi
+                  (fun (base : N) (blk : MemoryBlockC) =>
+                     IfDec (within base (memCSize blk)
+                                   (ps'Buffer r_n + (ps'Offset r_n - 1)))
+                     Then {| memCSize := memCSize blk
+                             ; memCData :=
+                                 M.add (ps'Buffer r_n + (ps'Offset r_n - 1)
+                                                        - base) d
+                                       (memCData blk) |}
+                     Else blk)
+                  (snd (ps'Heap r_n)))
+           ; ps'Buffer := ps'Buffer r_n
+           ; ps'BufLen := ps'BufLen r_n
+           ; ps'Offset := ps'Offset r_n - 1
+           ; ps'Length := ps'Length r_n + 1 |}.
+          simplify with monad laws.
+          finish honing.
+        simpl; intuition.
+        - apply FunMaps.Map_Map_AbsR; eauto.
+          + relational.
+          + relational.
+          + relational.
+            rewrite (proj1 H2).
+            decisions; auto.
+            apply MemoryBlock_AbsR_AbsR; auto.
+            apply FunMaps.Update_Map_AbsR; auto.
+            exact (proj2 H2).
+          + exact (proj1 H0).
+        - apply (@Poke_in_heap (exist _ x f)); auto.
+        - rewrite H4; reflexivity.
+      }
     rewrite refineEquiv_If_Then_Else_Bind.
     subst H.
     replace (psLength r_o <? ps'BufLen r_n)
@@ -95,11 +131,12 @@ Proof.
          by (rewrite H4; reflexivity).
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
-      unfold memcpy', poke'.
+      unfold Heap_AbsR, memcpy', poke', memcpy, FindBlockThatFits.
       remove_dependency.
       setoid_rewrite refine_bind_dep_bind_ret.
       setoid_rewrite refine_bind_dep_ret; simpl.
       remove_dependency.
+      simplify with monad laws; simpl.
       rewrite H4.
       finish honing.
     rewrite refineEquiv_If_Then_Else_Bind.
@@ -111,7 +148,7 @@ Proof.
       simpl; remove_dependency.
       do 3 setoid_rewrite refine_bind_dep_ignore.
       rewrite H4.
-      unfold BS.buffer_cons_obligation_2.
+      unfold ByteStringHeap.buffer_cons_obligation_2.
       finish honing.
     unfold allocate_buffer, alloc', poke'.
     simplify with monad laws; simpl.
@@ -119,7 +156,7 @@ Proof.
     setoid_rewrite refine_bind_dep_ret.
     autorewrite with monad laws; simpl.
     remove_dependency.
-    unfold BS.buffer_cons_obligation_3.
+    unfold ByteStringHeap.buffer_cons_obligation_3.
     finish honing.
   }
   {
@@ -144,13 +181,26 @@ Proof.
   apply reflexivityT.
 Defined.
 
-Definition ByteStringStrip' := Eval simpl in projT1 ByteStringStrip.
-Print ByteStringStrip'.
+Record PS'' := {
+  ps''Heap : ;
 
-Lemma ByteStringImpl : FullySharpened ByteStringStrip'.
+  ps''Buffer : N;
+  ps''BufLen : N;
+
+  ps''Offset : N;
+  ps''Length : N
+}.
+
+Lemma ByteStringImpl : FullySharpened (projT1 ByteStringStrip).
 Proof.
   start sharpening ADT.
-  hone representation using eq;
+  hone representation using
+       (fun (or : PS') (nr : PS'') =>
+          Heap_AbsR (ps'Heap or) (ps''Heap nr) /\
+          ps'Buffer or = ps''Buffer nr /\
+          ps'BufLen or = ps''BufLen nr /\
+          ps'Offset or = ps''Offset nr /\
+          ps'Length or = ps''Length nr);
   try simplify with monad laws; simpl; subst.
   {
     refine pick eq.

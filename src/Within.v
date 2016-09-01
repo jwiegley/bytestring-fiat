@@ -8,14 +8,12 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module Within (Mem : Memory) (M : WSfun N_as_DT).
-
-Module Import Block := MemoryBlockC Mem M.
-Import Adt.
-Import Adt.Heap.
+Module Within (M : WSfun N_as_DT).
 
 Module X := FMapExt N_as_DT M.
 Include X.
+
+Module Import Block := MemoryBlockC M.
 
 Definition within_allocated_mem (n : N) :=
   fun (addr : M.key) (blk : MemoryBlockC) => addr + memCSize blk <=? n.
