@@ -26,6 +26,13 @@ Record MemoryBlock := {
   memData : EMap N Mem.Word8
 }.
 
+Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
+  memSize x = memSize y /\ Same (memData x) (memData y).
+
+Global Program Instance MemoryBlock_Proper :
+  Proper (eq ==> @Same _ _ ==> MemoryBlock_Same) Build_MemoryBlock.
+Obligation 1. relational; split; simpl; subst; auto. Qed.
+
 Ltac tsubst :=
   repeat
     match goal with

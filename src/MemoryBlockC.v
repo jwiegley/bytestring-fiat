@@ -19,13 +19,6 @@ Import FunMaps.FMapExt.
 Module P := FunMaps.FMapExt.P.
 Module F := P.F.
 
-Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
-  memSize x = memSize y /\ Same (memData x) (memData y).
-
-Global Program Instance MemoryBlock_Proper :
-  Proper (eq ==> @Same _ _ ==> MemoryBlock_Same) Build_MemoryBlock.
-Obligation 1. relational; split; simpl; subst; auto. Qed.
-
 Record MemoryBlockC := {
   memCSize : N;
   memCData : M.t Mem.Word8

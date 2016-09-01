@@ -72,8 +72,7 @@ Program Definition Update (a : A) (b : B) (r : EMap) :
   EMap := Insert a b (Remove a r) _.
 Obligation 1. firstorder. Qed.
 
-Definition Map {C} (f : A -> B -> C) (r : EMap) :
-  Ensemble (A * C) :=
+Definition Map {C} (f : A -> B -> C) (r : EMap) : Ensemble (A * C) :=
   fun p => exists b : B, Lookup (fst p) b r /\ snd p = f (fst p) b.
 
 Definition Relate {C D} (f : A -> B -> C -> D -> Prop) (r : EMap) :
@@ -209,6 +208,22 @@ Proof.
   left; constructor.
     exact H1.
   exact H.
+Qed.
+
+Lemma Lookup_Update_eq : forall a b b' r,
+  b = b' -> Lookup a b (Update a b' r).
+Proof.
+  intros; subst.
+  apply Lookup_Update.
+  left; intuition.
+Qed.
+
+Lemma Lookup_Update_neq : forall a a' b b' r,
+  a <> a' -> Lookup a b r -> Lookup a b (Update a' b' r).
+Proof.
+  intros; subst.
+  apply Lookup_Update.
+  right; intuition.
 Qed.
 
 Lemma Lookup_Update_inv : forall a b a' b' r,
@@ -485,7 +500,11 @@ Ltac teardown :=
   | [ |- Lookup _ _ (Single _ _)     ] => apply Lookup_Single
   | [ |- Lookup _ _ (Insert _ _ _ _) ] => apply Lookup_Insert
   | [ |- Lookup _ _ (Remove _ _)     ] => apply Lookup_Remove
-  | [ |- Lookup _ _ (Update _ _ _)   ] => apply Lookup_Update
+  | [ |- Lookup ?A _ (Update ?A _ _) ] => apply Lookup_Update_eq
+  | [ H : ?A = ?B  |- Lookup ?A _ (Update ?B _ _) ] => apply Lookup_Update_eq
+  | [ H : ?A <> ?B |- Lookup ?A _ (Update ?B _ _) ] => apply Lookup_Update_neq
+  | [ |- Lookup _ _ (Update _ _ _)   ] => apply Lookup_Update_eq ||
+                                          apply Lookup_Update
   | [ |- Lookup _ _ (Move _ _ _)     ] => apply Lookup_Move
   | [ |- Lookup _ _ (Map _ _)        ] => apply Lookup_Map
   | [ |- Lookup _ _ (Map_set _ _)    ] => apply Lookup_Map_set
@@ -525,3 +544,34 @@ Ltac teardown :=
   | [ H1 : ?X = true, H2 : ?X = false |- _ ] => rewrite H1 in H2; discriminate
 
   end; simpl in *; try tauto.
+
+Lemma Update_Update : forall A (addr : A) B (blk1 blk2 : B) r,
+  Same (Update addr blk1 (Update addr blk2 r)) (Update addr blk1 r).
+Proof.
+  split; intros; repeat teardown.
+  right; intuition.
+  teardown.
+Qed.
+
+Global Program Instance Remove_Proper A B :
+  Proper (eq ==> @Same _ _ ==> @Same _ _) (@Remove A B).
+Obligation 1.
+  relational.
+  split; intros; repeat teardown.
+    rewrite <- H0; assumption.
+  rewrite H0; assumption.
+Qed.
+
+Global Program Instance Map_Proper A B :
+  Proper (pointwise_relation _ (pointwise_relation _ eq)
+            ==> @Same _ _ ==> @Same _ _) (@Map A B B).
+Obligation 1.
+  relational.
+  split; intros; repeat teardown; subst;
+  exists x1;
+  split.
+  - rewrite H; reflexivity.
+  - rewrite <- H0; assumption.
+  - rewrite H; reflexivity.
+  - rewrite H0; assumption.
+Qed.

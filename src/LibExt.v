@@ -122,3 +122,38 @@ Proof.
   simpl.
   intuition.
 Qed.
+
+Lemma nth_plus_one : forall A (x : A) xs e off,
+  (0 < off)%nat -> List.nth off (x :: xs) e = List.nth (off - 1) xs e.
+Proof.
+  intros.
+  destruct off.
+    firstorder.
+  simpl.
+  rewrite NPeano.Nat.sub_0_r.
+  reflexivity.
+Qed.
+
+Lemma fst_match_list :
+  forall A (xs : list A) B z C z'
+         (f : A -> list A -> B) (f' : A -> list A -> C),
+    fst match xs with
+        | List.nil => (z, z')
+        | List.cons x xs => (f x xs, f' x xs)
+        end = match xs with
+              | List.nil => z
+              | List.cons x xs => f x xs
+              end.
+Proof. induction xs; auto. Qed.
+
+Lemma snd_match_list :
+  forall A (xs : list A) B z C z'
+         (f : A -> list A -> B) (f' : A -> list A -> C),
+    snd match xs with
+        | List.nil => (z, z')
+        | List.cons x xs => (f x xs, f' x xs)
+        end = match xs with
+              | List.nil => z'
+              | List.cons x xs => f' x xs
+              end.
+Proof. induction xs; auto. Qed.
