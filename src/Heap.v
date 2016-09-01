@@ -19,11 +19,11 @@ Module Type Memory.
   Parameter Zero  : Word8.
 End Memory.
 
-Module Heap (Mem : Memory).
+Module Heap (Import Mem : Memory).
 
 Record MemoryBlock := {
   memSize : N;
-  memData : EMap N Mem.Word8
+  memData : EMap N Word8
 }.
 
 Definition MemoryBlock_Same (x y : MemoryBlock) : Prop :=
@@ -47,11 +47,11 @@ Ltac tsubst :=
   subst.
 
 Definition KeepKeys (P : N -> Prop) :
-  EMap N Mem.Word8 -> EMap N Mem.Word8 :=
+  EMap N Word8 -> EMap N Word8 :=
   Filter (fun k _ => P k).
 
 Definition ShiftKeys (orig_base : N) (new_base : N) :
-  EMap N Mem.Word8 -> EMap N Mem.Word8 :=
+  EMap N Word8 -> EMap N Word8 :=
   Map_set (fun p => (fst p - orig_base + new_base, snd p)).
 
 Definition FindFreeBlock (len : N) (heap : EMap N MemoryBlock) : Comp N :=
@@ -125,16 +125,16 @@ Definition HeapSpec := Def ADT {
       naddr),
 
   (* Peeking an unallocated address allows anydefault value to be returned. *)
-  Def Method1 peekS (r : rep) (addr : N) : rep * Mem.Word8 :=
+  Def Method1 peekS (r : rep) (addr : N) : rep * Word8 :=
     mres <- FindBlockThatFits addr 1 r;
-    p <- { p : Mem.Word8
+    p <- { p : Word8
          | forall v base' blk', mres = Some (base', blk')
              -> Lookup (addr - base') v (memData blk')
              -> p = v };
     ret (r, p),
 
   (* Poking an unallocated address is a no-op. *)
-  Def Method2 pokeS (r : rep) (addr : N) (w : Mem.Word8) : rep * unit :=
+  Def Method2 pokeS (r : rep) (addr : N) (w : Word8) : rep * unit :=
     ret (Map (fun base blk =>
                 IfDec within base (memSize blk) addr
                 Then {| memSize := memSize blk
@@ -169,7 +169,7 @@ Definition HeapSpec := Def ADT {
            end, tt),
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
-  Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Mem.Word8) :
+  Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Word8) :
     rep * unit :=
     ret (Map (fun base blk =>
                 IfDec fits base (memSize blk) addr len
@@ -196,10 +196,10 @@ Definition realloc (r : Rep HeapSpec) (addr : N) (len : N | 0 < len) :
   Eval simpl in callMeth HeapSpec reallocS r addr len.
 
 Definition peek (r : Rep HeapSpec) (addr : N) :
-  Comp (Rep HeapSpec * Mem.Word8) :=
+  Comp (Rep HeapSpec * Word8) :=
   Eval simpl in callMeth HeapSpec peekS r addr.
 
-Definition poke (r : Rep HeapSpec) (addr : N) (w : Mem.Word8) :
+Definition poke (r : Rep HeapSpec) (addr : N) (w : Word8) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec pokeS r addr w.
 
@@ -207,7 +207,7 @@ Definition memcpy (r : Rep HeapSpec) (addr : N) (addr2 : N) (len : N) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memcpyS r addr addr2 len.
 
-Definition memset (r : Rep HeapSpec) (addr : N) (len : N) (w : Mem.Word8) :
+Definition memset (r : Rep HeapSpec) (addr : N) (len : N) (w : Word8) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memsetS r addr len w.
 
@@ -427,3 +427,5 @@ Proof.
 Qed.
 
 End Heap.
+
+Print Heap.

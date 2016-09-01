@@ -861,6 +861,33 @@ Proof.
   congruence.
 Qed.
 
+Lemma find_if_not_inv : forall elt (m : M.t elt) P,
+  Proper (E.eq ==> eq ==> eq) P
+    -> find_if P m = None
+    -> P.for_all (fun k e => negb (P k e)) m = true.
+Proof.
+  unfold find_if, take_first; intros.
+  revert H0.
+  apply P.fold_rec_bis; intros.
+  - intuition.
+    apply P.for_all_iff; auto; intros.
+    rewrite <- H0 in H1.
+    assert (Proper (E.eq ==> eq ==> eq)
+                   (fun (k : M.key) (e : elt) => negb (P k e))).
+      relational.
+      rewrite H4; reflexivity.
+    pose proof (proj1 (P.for_all_iff H4 m0) H3 _ _ H1).
+    apply H5.
+  - apply for_all_empty; auto.
+  - apply for_all_add_iff; auto.
+    destruct a.
+      intuition.
+      discriminate.
+    destruct (P k e).
+      discriminate.
+    intuition.
+Qed.
+
 Ltac for_this :=
   match goal with
   | [ H1 : P.for_all ?P ?r = true,

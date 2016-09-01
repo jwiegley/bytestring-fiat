@@ -9,7 +9,7 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module MemoryBlockC (Mem : Memory) (M : WSfun N_as_DT).
+Module MemoryBlockC (Import Mem : Memory) (M : WSfun N_as_DT).
 
 Module Import Adt := HeapADT Mem.
 Import Heap.
@@ -21,7 +21,7 @@ Module F := P.F.
 
 Record MemoryBlockC := {
   memCSize : N;
-  memCData : M.t Mem.Word8
+  memCData : M.t Word8
 }.
 
 Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
@@ -95,7 +95,7 @@ Proof. intros; subst; split; intros; trivial. Qed.
 
 Corollary Empty_MemoryBlock_AbsR : forall n,
   MemoryBlock_AbsR {| memSize  := n; memData  := TupleEnsembles.Empty |}
-                   {| memCSize := n; memCData := M.empty Mem.Word8 |}.
+                   {| memCSize := n; memCData := M.empty Word8 |}.
 Proof.
   split; trivial; simpl; intros; apply Empty_Map_AbsR. Qed.
 
@@ -158,7 +158,7 @@ Proof.
   pose proof (all_block_maps_are_unique H _ _ H0).
   simpl in *.
   elimtype ((exists size : N, memSize x = size) /\
-            (exists data : M.t Mem.Word8, Map_AbsR eq (memData x) data)).
+            (exists data : M.t Word8, Map_AbsR eq (memData x) data)).
     do 2 destruct 1.
     eexists {| memCSize := x0; memCData := x1 |}.
     constructor; auto.
@@ -214,11 +214,11 @@ Ltac swap_sizes :=
     rewrite <- (proj1 H)
   end.
 
-Definition keep_keys (P : M.key -> bool) : M.t Mem.Word8 -> M.t Mem.Word8 :=
+Definition keep_keys (P : M.key -> bool) : M.t Word8 -> M.t Word8 :=
   P.filter (const ∘ P).
 
-Definition shift_keys (orig_base : N) (new_base : N) (m : M.t Mem.Word8) :
-  M.t Mem.Word8 :=
+Definition shift_keys (orig_base : N) (new_base : N) (m : M.t Word8) :
+  M.t Word8 :=
   M.fold (fun k => M.add (k - orig_base + new_base)) m (M.empty _).
 
 Lemma KeepKeys_Map_AbsR :
@@ -238,7 +238,7 @@ Lemma ShiftKeys_Map_AbsR : forall b d r m,
   ShiftKeys b d r [R Map_AbsR eq] shift_keys b d m.
 Proof.
   unfold ShiftKeys, shift_keys, compose, const; intros.
-  eapply (All_Map_AbsR (A:=Mem.Word8) (B:=Mem.Word8) (R:=eq)
+  eapply (All_Map_AbsR (A:=Word8) (B:=Word8) (R:=eq)
                        (f:=fun k _ => b <= k) (f':=fun k _ => b <=? k)) in H0.
     Focus 2. relational.
     Focus 2. relational. split; nomega.
@@ -281,7 +281,7 @@ Proof.
     simplify_maps.
     exists cblk; simpl.
     intuition.
-    pose proof (Lookup_Map_set (B:=Mem.Word8) (a:=k - b + d) (b:=cblk)
+    pose proof (Lookup_Map_set (B:=Word8) (a:=k - b + d) (b:=cblk)
                                (fun p => (fst p - b + d, snd p))).
     apply H2.
     exists (k, cblk); simpl.

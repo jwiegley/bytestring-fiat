@@ -7,7 +7,7 @@ Require Import
 Require Import
   ByteString.ByteString.
 
-Module ByteStringLib (Mem : Memory).
+Module ByteStringLib (Import Mem : Memory).
 
 Module Import BS := ByteString Mem.
 
@@ -15,7 +15,7 @@ Module Import BS := ByteString Mem.
  ** Semantics of the Haskell ByteString library in Fiat.               **
  ************************************************************************)
 
-Definition singleton_Spec (w : Mem.Word8) : Comp ByteString :=
+Definition singleton_Spec (w : Word8) : Comp ByteString :=
   xs  <- callCons ByteStringSpec emptyS;
   res <- callMeth ByteStringSpec consS xs w;
   ret (fst res).
@@ -29,10 +29,10 @@ Definition snoc (bs : ByteString) (w : Word8) : Comp (ByteString * unit) :=
 Import LeastFixedPointFun.
 
 Definition foldr_Spec {A} :
-  ByteString -> (Mem.Word8 -> A -> A) -> A -> Comp (ByteString * A) :=
-  LeastFixedPoint (fDom := [ByteString; Mem.Word8 -> A -> A; A])
+  ByteString -> (Word8 -> A -> A) -> A -> Comp (ByteString * A) :=
+  LeastFixedPoint (fDom := [ByteString; Word8 -> A -> A; A])
                   (fCod := ByteString * A)
-    (fun rec (bs : ByteString) (f : Mem.Word8 -> A -> A) (z : A) =>
+    (fun rec (bs : ByteString) (f : Word8 -> A -> A) (z : A) =>
        p <- uncons bs;
        Ifopt snd p as w
        Then bs' <- rec (fst p) f z;

@@ -11,7 +11,7 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module HeapFMap (Mem : Memory) (M : WSfun N_as_DT).
+Module HeapFMap (Import Mem : Memory) (M : WSfun N_as_DT).
 
 Module Import Within := Within Mem M.
 Module Import Define := Define_AbsR M.
@@ -152,7 +152,7 @@ Proof.
 
   refine method allocS.
   {
-    unfold Heap_AbsR, alloc.
+    unfold Heap_AbsR, alloc, FindFreeBlock.
     remove_dependency.
     simplify with monad laws; simpl.
 
@@ -201,7 +201,7 @@ Proof.
 
   refine method reallocS.
   {
-    unfold Heap_AbsR, realloc.
+    unfold Heap_AbsR, realloc, FindBlock, FindFreeBlock.
     remove_dependency.
     simplify with monad laws; simpl.
 
@@ -316,15 +316,41 @@ Proof.
 
   refine method peekS.
   {
-    unfold Heap_AbsR, peek.
+    unfold Heap_AbsR, peek, FindBlockThatFits.
     remove_dependency.
     simplify with monad laws; simpl.
 
     refine pick val
       (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
+       Then Some (fst p,
+                  {| memSize := memCSize (snd p)
+                   ; memData := of_map eq (memCData (snd p)) |})
+       Else None).
+      Focus 2.
+      destruct (find_if _ (snd r_n)) eqn:Heqe1; simpl in *.
+        apply find_if_inv in Heqe1; auto.
+        split.
+          destruct H0.
+          eapply Lookup_of_map; eauto.
+          intuition.
+        unfold withinMemBlockC in Heqe1; simpl in Heqe1.
+        nomega.
+      intros ????.
+      apply H0 in H1; destruct H1, H1.
+      apply find_if_not_inv in Heqe1; auto.
+      assert (Proper (eq ==> eq ==> eq) (negb \oo withinMemBlockC d)) by auto.
+      pose proof (proj1 (P.for_all_iff H4 _) Heqe1 a x H1).
+      unfold withinMemBlockC in H5; simpl in H5.
+      rewrite (proj1 H3) in H2.
+      unfold negb in H5.
+      decisions; [discriminate|nomega].
+
+    simplify with monad laws.
+    refine pick val
+      (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
        Then Ifopt M.find (d - fst p) (memCData (snd p)) as v
-            Then v Else Mem.Zero
-       Else Mem.Zero).
+            Then v Else Zero
+       Else Zero).
 
     simplify with monad laws; simpl.
     refine pick val r_n.
@@ -333,14 +359,13 @@ Proof.
 
     AbsR_prep.
     - intros; subst; clear H.
-      pose proof H1 as H4.
-      apply H0 in H1.
-      destruct H1 as [cblk [? ?]].
-      erewrite Peek_in_heap; eauto; simpl.
-      apply H1 in H3.
-      destruct H3 as [mem [? ?]]; subst.
-      apply F.find_mapsto_iff in H3.
-      rewrite H3; reflexivity.
+      destruct (find_if (withinMemBlockC d) (snd r_n)) eqn:Heqe;
+      [|discriminate]; inv H1; simpl in *.
+      apply find_if_inv in Heqe; auto; destruct Heqe.
+      apply of_map_MapsTo in H2.
+      destruct H2 as [cblk [? ?]]; subst.
+      apply F.find_mapsto_iff in H2.
+      rewrite H2; reflexivity.
   }
 
   refine method pokeS.
@@ -367,46 +392,94 @@ Proof.
 
   refine method memcpyS.
   {
-    unfold Heap_AbsR, memcpy.
+    unfold Heap_AbsR, memcpy, FindBlockThatFits.
     remove_dependency.
     simplify with monad laws; simpl.
 
     refine pick val
-      (if 0 <? d1
-       then Ifopt find_if (withinMemBlockC d) (snd r_n) as p
-            Then if Decidable_witness (P:=fits (fst p) (memCSize (snd p)) d d1)
-                 then Some (fst p,
-                            {| memSize := memCSize (snd p)
-                             ; memData := of_map eq (memCData (snd p)) |})
-                 else None
-            Else None
-       else None).
+      (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
+       Then if Decidable_witness (P:=fits (fst p) (memCSize (snd p)) d d1)
+            then Some (fst p,
+                       {| memSize := memCSize (snd p)
+                        ; memData := of_map eq (memCData (snd p)) |})
+            else None
+       Else None).
       Focus 2.
-      intros; decisions; try discriminate. split; [nomega|].
       destruct (find_if _ (snd r_n)) eqn:Heqe1; simpl in *;
-      decisions; inv H1.
-      split; [|nomega].
-      apply find_if_inv in Heqe1; auto.
-      apply H0; exists (snd p); intuition.
+      decisions; simpl.
+          split; [|nomega].
+          apply find_if_inv in Heqe1; auto.
+          apply H0; exists (snd p); intuition.
+        apply find_if_inv in Heqe1; auto.
+        unfold withinMemBlockC in Heqe1;
+        simpl in Heqe1; destruct Heqe1.
+        apply andb_false_iff in Heqe; destruct Heqe.
+          congruence.
+        apply H0 in H1; destruct H1 as [blk [? ?]].
+        intros ????.
+        destruct (fst p =? a) eqn:Heqe.
+          apply Neqb_ok in Heqe; subst.
+          pose proof (allocations_unique (proj2_sig r_o) _ _ H1 _ H5); subst.
+          rewrite (proj1 H4) in H6.
+          nomega.
+        apply N.eqb_neq in Heqe.
+        apply within_reflect in H2.
+        rewrite <- (proj1 H4) in H2.
+        pose proof (allocations_disjoint (proj2_sig r_o)
+                                         _ H1 H2 _ H5 Heqe).
+        nomega.
+      apply find_if_not_inv in Heqe1; auto.
+      assert (Proper (eq ==> eq ==> eq) (negb \oo withinMemBlockC d)) by auto.
+      intros ????.
+      apply H0 in H2; destruct H2 as [cblk [? ?]].
+      pose proof (proj1 (P.for_all_iff H1 _) Heqe1 _ _ H2).
+      unfold withinMemBlockC in H5; simpl in H5.
+      rewrite (proj1 H4) in H3.
+      unfold negb in H5.
+      decisions; [discriminate|nomega].
 
     simplify with monad laws.
     refine pick val
-      (if 0 <? d1
-       then Ifopt find_if (withinMemBlockC d0) (snd r_n) as p
-            Then if Decidable_witness (P:=fits (fst p) (memCSize (snd p)) d0 d1)
-                 then Some (fst p,
-                            {| memSize := memCSize (snd p)
-                             ; memData := of_map eq (memCData (snd p)) |})
-                 else None
-            Else None
-       else None).
+      (Ifopt find_if (withinMemBlockC d0) (snd r_n) as p
+       Then if Decidable_witness (P:=fits (fst p) (memCSize (snd p)) d0 d1)
+            then Some (fst p,
+                       {| memSize := memCSize (snd p)
+                        ; memData := of_map eq (memCData (snd p)) |})
+            else None
+       Else None).
       Focus 2.
-      intros; decisions; try discriminate. split; [nomega|].
       destruct (find_if _ (snd r_n)) eqn:Heqe1; simpl in *;
-      decisions; inv H1.
-      split; [|nomega].
-      apply find_if_inv in Heqe1; auto.
-      apply H0; exists (snd p); intuition.
+      decisions; simpl.
+          split; [|nomega].
+          apply find_if_inv in Heqe1; auto.
+          apply H0; exists (snd p); intuition.
+        apply find_if_inv in Heqe1; auto.
+        unfold withinMemBlockC in Heqe1;
+        simpl in Heqe1; destruct Heqe1.
+        apply andb_false_iff in Heqe; destruct Heqe.
+          congruence.
+        apply H0 in H1; destruct H1 as [blk [? ?]].
+        intros ????.
+        destruct (fst p =? a) eqn:Heqe.
+          apply Neqb_ok in Heqe; subst.
+          pose proof (allocations_unique (proj2_sig r_o) _ _ H1 _ H5); subst.
+          rewrite (proj1 H4) in H6.
+          nomega.
+        apply N.eqb_neq in Heqe.
+        apply within_reflect in H2.
+        rewrite <- (proj1 H4) in H2.
+        pose proof (allocations_disjoint (proj2_sig r_o)
+                                         _ H1 H2 _ H5 Heqe).
+        nomega.
+      apply find_if_not_inv in Heqe1; auto.
+      assert (Proper (eq ==> eq ==> eq) (negb \oo withinMemBlockC d0)) by auto.
+      intros ????.
+      apply H0 in H2; destruct H2 as [cblk [? ?]].
+      pose proof (proj1 (P.for_all_iff H1 _) Heqe1 _ _ H2).
+      unfold withinMemBlockC in H5; simpl in H5.
+      rewrite (proj1 H4) in H3.
+      unfold negb in H5.
+      decisions; [discriminate|nomega].
 
     simplify with monad laws.
     refine pick val
@@ -415,10 +488,8 @@ Proof.
          match (find_if (withinMemBlockC d) (snd r_n),
                 find_if (withinMemBlockC d0) (snd r_n)) with
          | (Some (saddr, src), Some (daddr, dst)) =>
-           if (Decidable_witness
-                 (P:=fits saddr (memCSize src) d d1) &&
-               Decidable_witness
-                 (P:=fits daddr (memCSize dst) d0 d1))%bool
+           if (Decidable_witness (P:=fits saddr (memCSize src) d  d1) &&
+               Decidable_witness (P:=fits daddr (memCSize dst) d0 d1))%bool
            then
              (fst r_n,
               M.add daddr
@@ -478,6 +549,8 @@ Proof.
       * unfold not, compose, KeepKeys, ShiftKeys; intros ????.
         repeat teardown; inv H6.
         apply not_within_reflect in H5; nomega.
+    - discriminate.
+    - discriminate.
     - rewrite <- remove_add.
       apply for_all_add_true; auto.
         simplify_maps.
@@ -502,7 +575,7 @@ Proof.
                  Then {| memCSize := memCSize cblk
                        ; memCData :=
                            let base := d - addr in
-                           N.peano_rect (fun _ => M.t Mem.Word8)
+                           N.peano_rect (fun _ => M.t Word8)
                                         (memCData cblk)
                                         (fun i => M.add (base + i) d1) d0  |}
                  Else cblk) (snd r_n)).

@@ -9,21 +9,194 @@ Require Import
   ByteString.ADTInduction
   ByteString.BindDep
   ByteString.ByteString
+  ByteString.ByteStringHeap
   ByteString.Heap
   ByteString.HeapADT
+  ByteString.HeapFMap
   ByteString.Nomega
   ByteString.Relations
   ByteString.Tactics
   ByteString.TupleEnsembles
   ByteString.Same_set
-  ByteString.Within.
+  ByteString.Within
+  Coq.FSets.FMapFacts
+  Coq.Structures.DecidableTypeEx.
 
 Generalizable All Variables.
 
-Module ByteStringHeap (Import Mem : Memory).
+Module ByteStringFMap (Import Mem : Memory) (M : WSfun N_as_DT).
 
-Module Import BS  := ByteString Mem.
-Module Import Adt := HeapADT Mem.
+Module Import BS := ByteStringHeap Mem.
+
+Import Adt.Heap.
+
+Module Import HF := HeapFMap Mem M.
+
+Import Within.
+Import Within.Block.
+Import Within.Block.Adt.Heap.
+
+Section Refined.
+
+Variable heap : Rep HSpec.
+
+Record PS' := makePS {
+  ps'Heap : ComputationalADT.cRep (projT1 HeapImpl);
+
+  ps'Buffer : N;
+  ps'BufLen : N;
+
+  ps'Offset : N;
+  ps'Length : N
+}.
+
+Variable heap' : ComputationalADT.cRep (projT1 HeapImpl).
+
+(* Strip away the proofy bits. *)
+Lemma ByteStringStrip : { adt : _ & refineADT (ByteStringHeap' heap) adt }.
+Proof.
+  eexists.
+  hone representation using
+       (fun (or : PS) (nr : PS') =>
+          Heap_AbsR (psHeap or) (ps'Heap nr) /\
+          psBuffer or = ps'Buffer nr /\
+          psBufLen or = ps'BufLen nr /\
+          psOffset or = ps'Offset nr /\
+          psLength or = ps'Length nr);
+  try simplify with monad laws; simpl.
+  {
+    refine pick val {| ps'Heap   := ` heap
+                     ; ps'Buffer := 0
+                     ; ps'BufLen := 0
+                     ; ps'Offset := 0
+                     ; ps'Length := 0 |}.
+      finish honing.
+    simpl; firstorder.
+  }
+  {
+    destruct (psHeap r_o); simpl in *.
+    repeat match goal with
+      [ H : _ /\ _ |- _ ] => destruct H
+    end; subst.
+    rewrite H1; clear H1.
+    rewrite H2; clear H2.
+    rewrite H3; clear H3.
+    rewrite refineEquiv_If_Then_Else_Bind.
+    apply refine_If_Then_Else.
+      simplify with monad laws; simpl.
+      unfold poke'.
+      remove_dependency.
+      rewrite H4.
+      finish honing.
+    rewrite refineEquiv_If_Then_Else_Bind.
+    subst H.
+    replace (psLength r_o <? ps'BufLen r_n)
+       with (ps'Length r_n <? ps'BufLen r_n)
+         by (rewrite H4; reflexivity).
+    apply refine_If_Then_Else.
+      simplify with monad laws; simpl.
+      unfold memcpy', poke'.
+      remove_dependency.
+      setoid_rewrite refine_bind_dep_bind_ret.
+      setoid_rewrite refine_bind_dep_ret; simpl.
+      remove_dependency.
+      rewrite H4.
+      finish honing.
+    rewrite refineEquiv_If_Then_Else_Bind.
+    apply refine_If_Then_Else.
+      simplify with monad laws; simpl.
+      unfold alloc', memcpy', poke'.
+      remove_dependency.
+      do 3 setoid_rewrite refine_bind_dep_bind_ret.
+      simpl; remove_dependency.
+      do 3 setoid_rewrite refine_bind_dep_ignore.
+      rewrite H4.
+      unfold BS.buffer_cons_obligation_2.
+      finish honing.
+    unfold allocate_buffer, alloc', poke'.
+    simplify with monad laws; simpl.
+    remove_dependency.
+    setoid_rewrite refine_bind_dep_ret.
+    autorewrite with monad laws; simpl.
+    remove_dependency.
+    unfold BS.buffer_cons_obligation_3.
+    finish honing.
+  }
+  {
+    repeat match goal with
+      [ H : _ /\ _ |- _ ] => destruct H
+    end; subst.
+    rewrite H1, H2, H3, H4.
+    rewrite refineEquiv_If_Then_Else_Bind.
+    subst H.
+    apply refine_If_Then_Else.
+      simplify with monad laws; simpl.
+      unfold peek'.
+      remove_dependency.
+      destruct (psHeap r_o); simpl in *; subst.
+      finish honing.
+    simplify with monad laws; simpl.
+    refine pick val r_n.
+      simplify with monad laws; simpl.
+      finish honing.
+    intuition.
+  }
+  apply reflexivityT.
+Defined.
+
+Definition ByteStringStrip' := Eval simpl in projT1 ByteStringStrip.
+Print ByteStringStrip'.
+
+Lemma ByteStringImpl : FullySharpened ByteStringStrip'.
+Proof.
+  start sharpening ADT.
+  hone representation using eq;
+  try simplify with monad laws; simpl; subst.
+  {
+    refine pick eq.
+    finish honing.
+  }
+  {
+    rewrite refineEquiv_If_Then_Else_Bind.
+    apply refine_If_Then_Else.
+      refine pick eq.
+      simplify with monad laws; simpl.
+      unfold poke'.
+      remove_dependency.
+      unfold Adt.Heap.poke.
+      rewrite refine_bind_dep_ret; simpl.
+      finish honing.
+    rewrite refineEquiv_If_Then_Else_Bind.
+    subst H.
+    apply refine_If_Then_Else.
+      refine pick eq.
+      simplify with monad laws; simpl.
+      unfold memcpy', poke'.
+      remove_dependency.
+      setoid_rewrite refine_bind_dep_bind_ret.
+      unfold Adt.Heap.memcpy, Adt.Heap.poke,
+             Adt.Heap.FindBlockThatFits.
+      setoid_rewrite refine_bind_dep_ret; simpl.
+    refine pick eq.
+    autorewrite with monad laws.
+    unfold poke'.
+    remove_dependency.
+    unfold Adt.Heap.poke.
+    rewrite refine_bind_dep_ret; simpl.
+    finish honing.
+  }
+  {
+    refine pick eq.
+    subst.
+    finish honing.
+  }
+  finish_SharpeningADT_WithoutDelegation.
+Defined.
+  
+
+Module Import BS := ByteString 
+Module Import Adt := HeapADT 
+Import Heap.
 
 Open Scope N_scope.
 
@@ -88,7 +261,7 @@ Program Definition make_room_by_growing_buffer (r : PS) (n : N | 0 < n) :
        ; psBufLen := psLength r + n
        ; psOffset := 0
        ; psLength := psLength r + n |}.
-Obligation 1. nomega. Defined.
+Obligation 1. nomega. Qed.
 
 Program Definition allocate_buffer (r : Rep HSpec) (len : N | 0 < len) :
   Comp PS :=
@@ -121,9 +294,9 @@ Program Definition buffer_cons (r : PS) (d : Word8) : Comp PS :=
         Then make_room_by_growing_buffer r alloc_quantum
         Else allocate_buffer (psHeap r) alloc_quantum;
   poke_at_offset ps d.
-Obligation 1. nomega. Defined.
-Obligation 2. nomega. Defined.
-Obligation 3. nomega. Defined.
+Obligation 1. nomega. Qed.
+Obligation 2. nomega. Qed.
+Obligation 3. nomega. Qed.
 
 Definition buffer_uncons (r : PS) : Comp (PS * option Word8) :=
   If 0 <? psLength r

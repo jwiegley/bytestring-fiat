@@ -7,9 +7,10 @@ Require Import
   ByteString.FromADT
   ByteString.Heap.
 
-Module HeapADT (Mem : Memory).
+Module HeapADT (Import Mem : Memory).
 
-Module Import Heap := Heap Mem.
+Module Heap := Heap Mem.
+Include Heap.
 
 Lemma empty_fromADT r :
   refine (callCons HeapSpec emptyS) (ret r) -> fromADT HeapSpec r.
@@ -61,7 +62,7 @@ Proof. intros; check method (fromMeth HeapSpec memcpyS r (fst v)). Qed.
 
 Lemma memset_fromADT r :
   fromADT HeapSpec r
-    -> forall (addr : N) (len : N) (w : Mem.Word8) v,
+    -> forall (addr : N) (len : N) (w : Word8) v,
          refine (callMeth HeapSpec memsetS r addr len w) (ret v)
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec memsetS r (fst v)). Qed.
