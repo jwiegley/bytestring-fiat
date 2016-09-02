@@ -87,11 +87,8 @@ Qed.
 Lemma refine_set_pair_same : forall A (x z : Comp A) B (y w : B),
   Same_set _ x z -> y = w -> refine (ret (x, y)) (ret (z, w)).
 Proof.
-  intros; subst.
-  f_equiv.
-  f_equal.
-  apply Extensionality_Ensembles.
-  assumption.
+  intros; subst; f_equiv; f_equal.
+  apply Extensionality_Ensembles; assumption.
 Qed.
 
 Theorem Heap_refine_alloc' `(AbsR : Heap_AbsR r_o r_n) d :
