@@ -160,9 +160,11 @@ Theorem refine_If_Then_Else_bool :
       <-> refine (If b Then cpst Else cpse) res.
 Proof. split; intros; destruct b; auto. Qed.
 
-Lemma refine_ret_eq_r : forall A (a b : A), refine (ret a) (ret b) -> a = b.
+Lemma refine_ret_eq_r : forall A (a b : A), refine (ret a) (ret b) <-> a = b.
 Proof.
-  intros.
-  specialize (H b (ReturnComputes b)).
-  apply Return_inv; assumption.
+  split; intros.
+    specialize (H b (ReturnComputes b)).
+    apply Return_inv; assumption.
+  destruct H.
+  reflexivity.
 Qed.
