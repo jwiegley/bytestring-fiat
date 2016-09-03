@@ -355,8 +355,7 @@ Corollary allocations_unique_fits : forall r : Rep HeapSpec, fromADT _ r ->
   forall base blk addr len,
     Lookup base blk r ->
     fits base (memSize blk) addr len ->
-    Unique (fun a' b' =>
-              Decidable_witness (P:=fits a' (memSize b') addr len)) base r.
+    Unique (fun a' b' => fits_bool a' (memSize b') addr len) base r.
 Proof.
   unfold Unique; intros; intros ???.
   apply Lookup_Remove_inv in H2; destruct H2.
@@ -367,8 +366,7 @@ Corollary allocations_unique_within : forall r : Rep HeapSpec, fromADT _ r ->
   forall base blk addr,
     Lookup base blk r ->
     within base (memSize blk) addr ->
-    Unique (fun a' b' =>
-              Decidable_witness (P:=within a' (memSize b') addr)) base r.
+    Unique (fun a' b' => within_bool a' (memSize b') addr) base r.
 Proof.
   unfold Unique; intros; intros ???.
   apply Lookup_Remove_inv in H2; destruct H2.

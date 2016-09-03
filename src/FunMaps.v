@@ -36,7 +36,7 @@ Ltac reduction :=
     let HA := fresh "HA" in
     let HB := fresh "HB" in
     let cblk := fresh "cblk" in
-    destruct (proj1 (proj1 (H1 ADDR (* H *)) BLK) H2) as [cblk [HA HB]];
+    destruct (proj1 (proj1 (H1 ADDR) BLK) H2) as [cblk [HA HB]];
     clear H1 H2
   | [ R : ?A -> ?B -> Prop,
       H1 : Map_AbsR ?R ?X ?Y,
@@ -44,7 +44,7 @@ Ltac reduction :=
     let HC := fresh "HC" in
     let HD := fresh "HD" in
     let blk := fresh "blk" in
-    destruct (proj1 (proj2 (H1 ADDR (* H *)) CBLK) H2) as [blk [HC HD]];
+    destruct (proj1 (proj2 (H1 ADDR) CBLK) H2) as [blk [HC HD]];
     clear H1 H2
   end; auto.
 
@@ -129,51 +129,6 @@ Definition TotalMapRelation_r r :=
 
 Definition SurjectiveMapRelation r :=
   forall k y, exists x, Lookup (A:=M.key) k x r -> R x y.
-
-Definition of_map (x : M.t B) : EMap M.key A :=
-  fun p => exists b : B, R (snd p) b /\ M.MapsTo (fst p) b x.
-
-Lemma of_map_Same : forall r m, Map_AbsR R r m -> Same r (of_map m).
-Proof.
-  unfold of_map; intros.
-  split; intros.
-    apply H in H0.
-    destruct H0.
-    exists x; intuition.
-  apply H.
-  destruct H0.
-  exists x; intuition.
-Qed.
-
-Lemma of_map_MapsTo : forall addr blk m,
-  Lookup addr blk (of_map m)
-    -> exists cblk, M.MapsTo addr cblk m /\ R blk cblk.
-Proof. firstorder. Qed.
-
-Lemma of_map_Lookup : forall addr cblk m,
-   TotalMapRelation_r m
-    -> M.MapsTo addr cblk m
-    -> exists blk, Lookup addr blk (of_map m) /\ R blk cblk.
-Proof.
-  unfold of_map, Lookup, Ensembles.In; intros.
-  destruct (H _ _ H0); firstorder.
-Qed.
-
-Lemma of_map_Map_AbsR : forall m,
-  TotalMapRelation_r m
-    -> FunctionalRelation
-    -> Map_AbsR R (of_map m) m.
-Proof.
-  split; intros; split; intros.
-  - apply of_map_MapsTo; assumption.
-  - firstorder.
-  - apply of_map_Lookup in H1; firstorder.
-  - destruct H1, H1.
-    unfold of_map, Lookup, Ensembles.In in H1.
-    destruct H1, H1; simpl in *.
-    specialize (H0 _ _ _ H1 H2).
-    congruence.
-Qed.
 
 Corollary Map_AbsR_Lookup_R (or : EMap M.key A) (nr : M.t B) :
   Map_AbsR R or nr ->
@@ -646,6 +601,73 @@ Proof.
                      n (Union_introl (M.key * A) A0 _ _ H7)).
     subst.
     contradiction.
+Qed.
+
+Definition of_map (x : M.t B) : EMap M.key A :=
+  fun p => exists b : B, R (snd p) b /\ M.MapsTo (fst p) b x.
+
+Definition to_map (x : EMap M.key A) : M.t B -> Prop :=
+  fun m => Same x (of_map m).
+
+Lemma of_to_map : forall m m', to_map m m' -> Same (of_map m') m.
+Proof.
+  unfold to_map; intros.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Lemma to_of_map : forall m, to_map (of_map m) m.
+Proof.
+  unfold to_map; intros.
+  reflexivity.
+Qed.
+
+Corollary of_map_MapsTo : forall addr blk m,
+  Lookup addr blk (of_map m)
+    -> exists cblk, M.MapsTo addr cblk m /\ R blk cblk.
+Proof. firstorder. Qed.
+
+Corollary of_map_Lookup : forall addr cblk m,
+   TotalMapRelation_r m
+    -> M.MapsTo addr cblk m
+    -> exists blk, Lookup addr blk (of_map m) /\ R blk cblk.
+Proof. intros; destruct (H _ _ H0); firstorder. Qed.
+
+Lemma of_map_Map_AbsR : forall m,
+  TotalMapRelation_r m -> FunctionalRelation
+    -> Map_AbsR R (of_map m) m.
+Proof.
+  split; intros; split; intros.
+  - apply of_map_MapsTo; assumption.
+  - firstorder.
+  - apply of_map_Lookup in H1; firstorder.
+  - destruct H1, H1.
+    unfold of_map, Lookup, Ensembles.In in H1.
+    destruct H1, H1; simpl in *.
+    specialize (H0 _ _ _ H1 H2).
+    congruence.
+Qed.
+
+Lemma of_map_Same : forall r m, Map_AbsR R r m -> Same r (of_map m).
+Proof.
+  split; intros.
+    apply H in H0.
+    destruct H0.
+    exists x; intuition.
+  apply H.
+  destruct H0.
+  exists x; intuition.
+Qed.
+
+Lemma to_map_Map_AbsR : forall r m,
+  TotalMapRelation_r m -> FunctionalRelation
+    -> Map_AbsR R r m <-> to_map r m.
+Proof.
+  split; intros.
+    apply of_map_Same; assumption.
+  unfold to_map in H1.
+  rewrite H1.
+  apply of_map_Map_AbsR; assumption.
 Qed.
 
 End FunMaps_AbsR.

@@ -190,8 +190,14 @@ Definition within_bool (addr : N) (len : N) (a : N) : bool :=
 Definition fits (addr1 len1 addr2 len2 : N) : Prop :=
   within addr1 len1 addr2 /\ addr2 + len2 <= addr1 + len1.
 
+Definition fits_bool (addr1 len1 addr2 len2 : N) : bool :=
+  (within_bool addr1 len1 addr2 && (addr2 + len2 <=? addr1 + len1))%bool.
+
 Definition overlaps (addr len addr2 len2 : N) : Prop :=
   addr < addr2 + len2 /\ addr2 < addr + len.
+
+Definition overlaps_bool (addr len addr2 len2 : N) : bool :=
+  ((addr <? addr2 + len2) && (addr2 <? addr + len))%bool.
 
 (*** tactics ***)
 
@@ -304,7 +310,8 @@ Ltac pre_nomega :=
   [ discriminate
   | tauto
   | congruence
-  | unfold fits, within, within_bool, overlaps in *;
+  | unfold fits, fits_bool, within, within_bool,
+           overlaps, overlaps_bool in *;
     nsimp; intros; norm_N; nsimp;
     repeat
       match goal with

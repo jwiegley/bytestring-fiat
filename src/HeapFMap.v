@@ -37,20 +37,6 @@ Proof.
   - apply allocations_functional; auto.
 Qed.
 
-Ltac apply_for_all :=
-  match goal with
-  | [ H1 : is_true (P.for_all ?P ?m),
-      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
-    let H3 := fresh "H3" in
-    assert (H3 : Proper (eq ==> eq ==> eq) P) by auto;
-    pose proof (proj1 (@P.for_all_iff _ P H3 m) H1 k e H2)
-  | [ H1 : P.for_all ?P ?m = true,
-      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
-    let H3 := fresh "H3" in
-    assert (H3 : Proper (eq ==> eq ==> eq) P) by auto;
-    pose proof (proj1 (@P.for_all_iff _ P H3 m) H1 k e H2)
-  end.
-
 Ltac related_maps' :=
   repeat (
     related_maps; auto with maps;
@@ -71,6 +57,20 @@ Ltac AbsR_prep :=
 
 Require Import Fiat.ADTRefinement Fiat.ADTRefinement.BuildADTRefinements.
 
+Ltac apply_for_all :=
+  match goal with
+  | [ H1 : is_true (P.for_all ?P ?m),
+      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
+    let H3 := fresh "H3" in
+    assert (H3 : Proper (eq ==> eq ==> eq) P) by auto;
+    pose proof (proj1 (@P.for_all_iff _ P H3 m) H1 k e H2)
+  | [ H1 : P.for_all ?P ?m = true,
+      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
+    let H3 := fresh "H3" in
+    assert (H3 : Proper (eq ==> eq ==> eq) P) by auto;
+    pose proof (proj1 (@P.for_all_iff _ P H3 m) H1 k e H2)
+  end.
+
 Lemma Heap_AbsR_outside_mem
       {r_o r_n} (AbsR : Heap_AbsR r_o r_n)
       (d : {len : N | 0 < len}) :
@@ -84,87 +84,144 @@ Proof.
   apply_for_all. nomega.
 Qed.
 
-Theorem Heap_refine_alloc' `(AbsR : Heap_AbsR r_o r_n) d :
- fromADT HeapSpec r_o ->
-  refine
-    (alloc r_o d)
-    (ret (of_map MemoryBlock_AbsR
-                 (M.add (fst r_n)
-                        {| memCSize := proj1_sig d
-                         ; memCData := M.empty _ |} (snd r_n)), fst r_n)).
+Lemma of_map_Heap_AbsR : forall sz m,
+  P.for_all (within_allocated_mem sz) m
+    -> Heap_AbsR (of_map MemoryBlock_AbsR m) (sz, m).
 Proof.
-  intros.
+  split; intros; trivial.
+  apply of_map_Map_AbsR; auto.
+Qed.
+
+Definition wrap A (x : (N * M.t MemoryBlockC) * A) : Comp (Rep HeapSpec * A) :=
+  ret (of_map MemoryBlock_AbsR (snd (fst x)), snd x).
+Arguments wrap {A} x _ /.
+
+Definition FMap_alloc (r_n : N * M.t MemoryBlockC)
+           (len : N | 0 < len) :=
+  ((fst r_n + ` len,
+    M.add (fst r_n) {| memCSize := ` len
+                     ; memCData := M.empty _ |} (snd r_n)),
+   fst r_n).
+
+Theorem Heap_refine_alloc `(AbsR : Heap_AbsR r_o r_n) len :
+ fromADT HeapSpec r_o ->
+  refine (alloc r_o len) (wrap (FMap_alloc r_n len)).
+Proof.
+  unfold wrap, FMap_alloc; intros; simpl.
   unfold alloc, FindFreeBlock.
+
   refine pick val (fst r_n).
     simplify with monad laws; simpl.
     apply refine_ret_ret_fst_Same; auto.
     apply Same_Same_set, of_map_Same.
     destruct AbsR.
     related_maps'.
+
   apply Heap_AbsR_outside_mem; assumption.
 Qed.
 
-Theorem Heap_refine_alloc `(AbsR : Heap_AbsR r_o r_n) d :
- fromADT HeapSpec r_o ->
-  refine
-    (x <- alloc r_o d;
-     r_n' <- {r_n0 : N * M.t MemoryBlockC | Heap_AbsR (fst x) r_n0};
-     ret (r_n', snd x))
-    (ret ((fst r_n + proj1_sig d,
-           M.add (fst r_n)
-                 {| memCSize := proj1_sig d
-                  ; memCData := M.empty _ |} (snd r_n)), fst r_n)).
-Proof.
-  intros.
-  remember (fst r_n + _, _) as r_n'.
-  unfold alloc, FindFreeBlock.
-  simplify with monad laws; simpl.
-  refine pick val (fst r_n).
-    simplify with monad laws; simpl.
-    refine pick val r_n'.
-      simplify with monad laws; simpl.
-      rewrite Heqr_n'.
-      reflexivity.
-    rewrite Heqr_n'.
-    destruct AbsR.
-    AbsR_prep.
-    apply for_all_add_iff; auto.
-      unfold not; intros.
-      apply (proj1 (in_mapsto_iff _ _ _)) in H2.
-      destruct H2.
-      apply_for_all.
-      apply H0 in H2; destruct H2, H2.
-      pose proof (allocations_have_size H _ _ H2).
-      rewrite (proj1 H5) in H6.
-      nomega.
-    split.
-      apply for_all_impl
-       with (P':=within_allocated_mem (fst r_n + ` d)) in H1; auto.
-      nomega.
-    nomega.
-  apply Heap_AbsR_outside_mem; assumption.
-Qed.
+Definition FMap_free (r_n : N * M.t MemoryBlockC) addr :=
+  ((fst r_n, M.remove addr (snd r_n)), tt).
 
-Theorem Heap_refine_free `(AbsR : Heap_AbsR r_o r_n) d :
- fromADT HeapSpec r_o ->
-  refine
-    (x <- free r_o d;
-     r_n' <- {r_n0 : N * M.t MemoryBlockC | Heap_AbsR (fst x) r_n0};
-     ret (r_n', snd x))
-    (ret ((fst r_n, M.remove d (snd r_n)), tt)).
+Theorem Heap_refine_free `(AbsR : Heap_AbsR r_o r_n) addr :
+  fromADT HeapSpec r_o ->
+    refine (free r_o addr) (wrap (FMap_free r_n addr)).
 Proof.
-  intros.
-  remember (fst r_n, _) as r_n'.
-  simplify with monad laws; simpl.
-  refine pick val r_n'.
-    simplify with monad laws.
-    rewrite Heqr_n'.
-    finish honing.
-  rewrite Heqr_n'.
+  unfold wrap, FMap_free; intros; simpl.
+  unfold free, FindBlock.
+  apply refine_ret_ret_fst_Same; trivial.
+  apply Same_Same_set, of_map_Same.
   destruct AbsR.
-  AbsR_prep.
-  apply for_all_remove; auto.
+  related_maps'.
 Qed.
+
+Definition FMap_realloc (r_n : N * M.t MemoryBlockC)
+           addr (len : N | 0 < len) :=
+  match M.find addr (snd r_n) with
+  | Some cblk =>
+    let data := P.filter (fun k _ => k <? ` len) (memCData cblk) in
+    if ` len <=? memCSize cblk
+    then ((fst r_n,
+           M.add addr {| memCSize := ` len
+                       ; memCData := data |} (snd r_n)), addr)
+    else ((fst r_n + ` len,
+           M.add (fst r_n) {| memCSize := ` len
+                            ; memCData := data |}
+                 (M.remove addr (snd r_n))), fst r_n)
+  | None => ((fst r_n + ` len,
+              M.add (fst r_n)
+                    {| memCSize := ` len
+                     ; memCData := M.empty _ |} (snd r_n)), fst r_n)
+  end.
+
+Theorem Heap_refine_realloc `(AbsR : Heap_AbsR r_o r_n) addr len :
+ fromADT HeapSpec r_o ->
+  refine (realloc r_o addr len) (wrap (FMap_realloc r_n addr len)).
+Proof.
+  unfold wrap, FMap_realloc; intros; simpl.
+  unfold realloc, FindBlock, FindFreeBlock.
+
+  refine pick val (option_map to_MemoryBlock (M.find addr (snd r_n))).
+    Focus 2.
+    destruct (M.find _ _) eqn:Heqe; simpl.
+      normalize.
+      apply AbsR.
+      exists m.
+      intuition.
+    unfold not; intros.
+    destruct AbsR.
+    eapply Member_Map_AbsR in H0; eauto.
+    rewrite F.mem_find_b, Heqe in H0.
+    discriminate.
+
+  simplify with monad laws.
+  refine pick val
+    (Ifopt M.find addr (snd r_n) as cblk
+     Then If ` len <=? memCSize cblk
+          Then addr
+          Else fst r_n
+     Else fst r_n).
+    Focus 2.
+    intros ???.
+    repeat teardown.
+    pose proof (allocations_no_overlap H b H1).
+    apply AbsR in H1; do 2 destruct H1.
+    destruct AbsR.
+    apply_for_all.
+    simpl in *.
+    destruct (M.find _ _) eqn:Heqe; simpl.
+      destruct (_ <=? memCSize m) eqn:Heqe1; simpl.
+        normalize.
+        apply_for_all.
+        apply H4 in Heqe; destruct Heqe, H10.
+        specialize (H2 _ _ H10 H0).
+        rewrite <- (proj1 H11) in Heqe1.
+        nomega.
+      swap_sizes; nomega.
+    swap_sizes; nomega.
+
+  simplify with monad laws.
+  destruct (M.find _ (snd r_n)) eqn:Heqe; simpl;
+  [ destruct (_ <=? memCSize m) eqn:Heqe1; simpl | ];
+  apply refine_ret_ret_fst_Same; trivial;
+  apply Same_Same_set, of_map_Same;
+  destruct AbsR.
+  - rewrite <- remove_add.
+    related_maps'; relational.
+      split; nomega.
+    apply of_map_Map_AbsR; auto.
+  - related_maps'; relational.
+      split; nomega.
+    apply of_map_Map_AbsR; auto.
+  - related_maps'.
+Qed.
+
+Definition FMap_peek (r_n : N * M.t MemoryBlockC) addr :=
+  (r_n,
+   Ifopt find_if (withinMemBlockC addr) (snd r_n) as p
+   Then Ifopt M.find (addr - fst p) (memCData (snd p)) as v
+        Then v Else Zero
+   Else Zero).
 
 Theorem Peek_in_heap
         {r_o : { r | fromADT HeapSpec r }}
@@ -193,131 +250,203 @@ Proof.
   tauto.
 Qed.
 
-Theorem Heap_refine_poke `(AbsR : Heap_AbsR r_o r_n) d d0
-        T (k : _ -> Comp T) :
+Theorem Heap_refine_peek `(AbsR : Heap_AbsR r_o r_n) addr :
  fromADT HeapSpec r_o ->
-  refine
-    (a <- poke r_o d d0;
-     r_n' <- {r_n0 : N * M.t MemoryBlockC | Heap_AbsR (fst a) r_n0 };
-     k (r_n', snd a))
-    (k ((fst r_n,
-         M.mapi (fun addr cblk =>
-                   Ifdec within addr (memCSize cblk) d
-                   Then {| memCSize := memCSize cblk
-                         ; memCData := M.add (d - addr) d0
-                                             (memCData cblk) |}
-                   Else cblk) (snd r_n)), tt)).
+  refine (peek r_o addr) (wrap (FMap_peek r_n addr)).
 Proof.
-  intros.
-  remember (fst r_n, _) as r_n'.
+  unfold wrap, FMap_peek; intros; simpl.
+  unfold peek, FindBlockThatFits.
+
+  refine pick val
+    (Ifopt find_if (withinMemBlockC addr) (snd r_n) as p
+     Then Some (fst p, to_MemoryBlock (snd p))
+     Else None).
+    Focus 2.
+    destruct (find_if _ (snd r_n)) eqn:Heqe1; simpl in *.
+      apply find_if_inv in Heqe1; auto.
+      split.
+        destruct AbsR.
+        eapply Lookup_of_map; eauto.
+        intuition.
+      unfold withinMemBlockC in Heqe1; simpl in Heqe1.
+      nomega.
+    intros ????.
+    apply AbsR in H0; destruct H0, H0.
+    apply find_if_not_inv in Heqe1; auto.
+    assert (Proper (eq ==> eq ==> eq)
+                   (negb \oo withinMemBlockC addr)) by auto.
+    pose proof (proj1 (P.for_all_iff H3 _) Heqe1 a x H0).
+    unfold withinMemBlockC in H4; simpl in H4.
+    rewrite (proj1 H2) in H1.
+    unfold negb in H4.
+    decisions; [discriminate|nomega].
+
+  simplify with monad laws.
+  refine pick val
+    (Ifopt find_if (withinMemBlockC addr) (snd r_n) as p
+     Then Ifopt M.find (addr - fst p) (memCData (snd p)) as v
+          Then v Else Zero
+     Else Zero).
+    Focus 2.
+    destruct (find_if _ (snd r_n)) eqn:Heqe; simpl; intros;
+    [|discriminate]; inv H0; simpl in *.
+    apply find_if_inv in Heqe; auto; destruct Heqe.
+    apply of_map_MapsTo in H1.
+    destruct H1 as [cblk [? ?]]; subst.
+    apply F.find_mapsto_iff in H1.
+    rewrite H1; reflexivity.
+
   simplify with monad laws; simpl.
-  refine pick val r_n'.
-    simplify with monad laws.
-    rewrite Heqr_n'.
-    finish honing.
-  rewrite Heqr_n'.
-  destruct AbsR.
-  AbsR_prep; relational.
-    swap_sizes; decisions; auto.
-    destruct H3.
-    related_maps'.
-  unfold P.for_all.
-  apply P.fold_rec_bis; auto; intros.
-  apply F.mapi_mapsto_iff in H2.
-  destruct H2, H2.
-  simpl; intros; subst; auto.
-  unfold within_allocated_mem, Ifdec_Then_Else; simpl.
-  eapply P.for_all_iff in H1; eauto.
-    unfold within_allocated_mem in H1.
-    decisions; simpl in *; auto;
-    congruence; auto.
-  intros; subst; reflexivity.
+  apply refine_ret_ret_fst_Same; trivial;
+  apply Same_Same_set, of_map_Same;
+  destruct AbsR; assumption.
 Qed.
 
-Theorem Heap_refine_memcpy `(AbsR : Heap_AbsR r_o r_n) d d0 d1 :
+Definition FMap_poke (r_n : N * M.t MemoryBlockC) addr w :=
+  ((fst r_n,
+    M.mapi (fun addr' cblk' =>
+              Ifdec within addr' (memCSize cblk') addr
+              Then {| memCSize := memCSize cblk'
+                    ; memCData := M.add (addr - addr') w
+                                        (memCData cblk') |}
+              Else cblk') (snd r_n)), tt).
+
+Theorem Heap_refine_poke `(AbsR : Heap_AbsR r_o r_n) addr w :
  fromADT HeapSpec r_o ->
-  refine
-    (x0 <- memcpy r_o d d0 d1;
-     r_n' <- {r_n0 : N * M.t MemoryBlockC | Heap_AbsR (fst x0) r_n0};
-     ret (r_n', snd x0))
-    (ret ((fst r_n,
-       If 0 <? d1
-       Then
-         Ifopt find_if (fun addr src =>
-                          Decidable_witness (P:=fits addr (memCSize src) d d1))
-                       (snd r_n) as p
-         Then
-           M.mapi (fun daddr dst =>
-             Ifdec fits daddr (memCSize dst) d0 d1
-             Then {| memCSize := memCSize dst
-                   ; memCData :=
-                       let soff := d - fst p in
-                       let doff := d0 - daddr in
-                       let s := keep_keys (within_bool soff d1)
-                                          (memCData (snd p)) in
-                       let d := keep_keys (negb ∘ within_bool doff d1)
-                                          (memCData dst) in
-                       P.update d (shift_keys soff doff s) |}
-             Else dst) (snd r_n)
-         Else snd r_n
-       Else snd r_n), tt)).
+  refine (poke r_o addr w) (wrap (FMap_poke r_n addr w)).
 Proof.
-  intros.
-  remember (fst r_n, If 0 <? d1 Then _ Else _) as r_n'.
+  unfold wrap, FMap_poke; intros; simpl.
+  unfold poke.
+  apply refine_ret_ret_fst_Same; trivial;
+  apply Same_Same_set, of_map_Same;
+  destruct AbsR.
+  related_maps'; relational.
+  swap_sizes.
+  decisions; trivial.
+  destruct H3.
+  related_maps'.
+Qed.
+
+Definition FMap_memcpy (r_n : N * M.t MemoryBlockC) addr1 addr2 len :=
+  ((fst r_n,
+    If 0 <? len
+    Then
+      Ifopt find_if (fun addr src => fits_bool addr (memCSize src) addr1 len)
+                    (snd r_n) as p
+      Then
+        M.mapi (fun daddr dst =>
+                  Ifdec fits daddr (memCSize dst) addr2 len
+                  Then {| memCSize := memCSize dst
+                        ; memCData :=
+                            let soff := addr1 - fst p in
+                            let doff := addr2 - daddr in
+                            copy_block (snd p) soff dst doff len |}
+                  Else dst)
+               (snd r_n)
+      Else snd r_n
+    Else snd r_n), tt).
+
+Theorem Heap_refine_memcpy `(AbsR : Heap_AbsR r_o r_n) addr1 addr2 len :
+ fromADT HeapSpec r_o ->
+  refine (memcpy r_o addr1 addr2 len)
+         (wrap (FMap_memcpy r_n addr1 addr2 len)).
+Proof.
+  unfold wrap, FMap_memcpy; intros; simpl.
   unfold memcpy, FindBlockThatFits.
-  rewrite refineEquiv_Ifdec_Then_Else_Bind.
+
   etransitivity.
     apply refine_Ifdec_Then_Else; intros.
-      simplify with monad laws; simpl.
-
-      refine pick val
-        (Ifopt find_if (fun addr src =>
-                          Decidable_witness (P:=fits addr (memCSize src) d d1))
-                       (snd r_n) as p
-         Then Some (fst p,
-                    {| memSize := memCSize (snd p)
-                     ; memData := of_map eq (memCData (snd p)) |})
-         Else None).
-        Focus 2.
-        destruct AbsR.
-        destruct (find_if _ (snd r_n)) eqn:Heqe1; simpl in *.
-          apply find_if_inv in Heqe1; relational.
-          split.
-            apply Lookup_of_map with (r_n:=snd r_n); intuition.
-          nomega.
-        apply find_if_not_inv in Heqe1; relational.
-        eapply All_Map_AbsR in Heqe1; eauto; relational.
-        swap_sizes.
-        destruct (_ && _ && _) eqn:Heqe2; split; intros; nomega.
-
-      simplify with monad laws.
-      refine pick val r_n'.
-        rewrite Heqr_n'.
-        simplify with monad laws; simpl.
-        finish honing.
-      rewrite Heqr_n'; clear Heqr_n'; simpl.
-      assert (H1 : 0 <? d1) by nomega.
-      rewrite H1; clear H1; simpl.
-      destruct (find_if _ _) eqn:Heqe; simpl.
-      2:(rewrite <- surjective_pairing; assumption).
+    refine pick val
+      (Ifopt find_if (fun addr src =>
+                        fits_bool addr (memCSize src) addr1 len)
+                     (snd r_n) as p
+       Then Some (fst p,
+                  {| memSize := memCSize (snd p)
+                   ; memData := of_map eq (memCData (snd p)) |})
+       Else None).
+      Focus 2.
       destruct AbsR.
-      split; simpl.
-        apply Map_Map_AbsR; auto; relational.
-        swap_sizes.
-        decisions; trivial.
-        related_maps'.
-        eapply CopyBlock_Map_AbsR; eauto.
-      admit.
-    simplify with monad laws; simpl.
-    refine pick val r_n.
+      destruct (find_if _ (snd r_n)) eqn:Heqe1; simpl in *.
+        apply find_if_inv in Heqe1; relational.
+        split.
+          apply Lookup_of_map with (r_n:=snd r_n); intuition.
+        nomega.
+      apply find_if_not_inv in Heqe1; relational.
+      eapply All_Map_AbsR in Heqe1; eauto; relational.
+      swap_sizes.
+      destruct (fits_bool _ _ _)%bool eqn:Heqe2; split; intros; nomega.
       simplify with monad laws.
-      reflexivity.
-    assumption.
-  rewrite Heqr_n'.
-  simpl.
-  rewrite refine_Ifdec_Then_Else_ret.
-  admit.
-Admitted.
+      finish honing.
+    reflexivity.
+
+  destruct AbsR.
+  decisions; simpl;
+  apply refine_ret_ret_fst_Same; trivial;
+  apply Same_Same_set, of_map_Same; trivial.
+
+  destruct (find_if _ _) eqn:Heqe1; simpl; trivial.
+  related_maps'; relational.
+  swap_sizes.
+  decisions; trivial.
+  related_maps'; relational.
+  apply CopyBlock_Map_AbsR; auto.
+Qed.
+
+Definition FMap_memset (r_n : N * M.t MemoryBlockC) addr len w :=
+  ((fst r_n,
+    M.mapi (fun addr' cblk' =>
+              Ifdec fits addr' (memCSize cblk') addr len
+              Then {| memCSize := memCSize cblk'
+                    ; memCData :=
+                        let base := addr - addr' in
+                        N.peano_rect (fun _ => M.t Word8)
+                                     (memCData cblk')
+                                     (fun i => M.add (base + i) w) len |}
+              Else cblk') (snd r_n)), tt).
+
+Theorem Heap_refine_memset `(AbsR : Heap_AbsR r_o r_n) addr len w :
+ fromADT HeapSpec r_o ->
+  refine (memset r_o addr len w) (wrap (FMap_memset r_n addr len w)).
+Proof.
+  unfold wrap, FMap_memset; intros; simpl.
+  unfold memset.
+
+  destruct AbsR.
+  decisions; simpl;
+  apply refine_ret_ret_fst_Same; trivial;
+  apply Same_Same_set, of_map_Same; trivial.
+
+  related_maps'; relational.
+  swap_sizes.
+  decisions; trivial.
+  related_maps'; relational.
+  destruct H3.
+  apply Define_Map_AbsR; auto.
+Qed.
+
+Tactic Notation "refine" "pick" "map" "with" constr(v) :=
+  match goal with
+  | [ |- context[Heap_AbsR (of_map _ ?M) _] ] =>
+    let m := fresh "m" in
+    let Heqm := fresh "Heqm" in
+    remember M as m eqn:Heqm;
+    refine pick val (v, m); rewrite Heqm; clear Heqm;
+    [ simplify with monad laws; simpl
+    | apply of_map_Heap_AbsR ]
+  end.
+
+Ltac sharpen_method H v :=
+  match goal with
+  | [ r_o : { r : EMap N MemoryBlock | fromADT HeapSpec r },
+      AbsR : Heap_AbsR _ _ |- _ ] =>
+    let Hr_o := fresh "Hr_o" in
+    remove_dependency; destruct r_o as [r_o Hr_o];
+    erewrite H with (r_o:=r_o); eauto;
+    simplify with monad laws; simpl;
+    refine pick map with v;
+    [ try simplify with monad laws; simpl; finish honing
+    | destruct AbsR; simpl in * ]
+  end; auto.
 
 Lemma HeapImpl : FullySharpened HeapSpec.
 Proof.
@@ -328,138 +457,63 @@ Proof.
 
   refine method emptyS.
   {
-    unfold empty.
     remove_dependency.
     simplify with monad laws.
-
     refine pick val (0%N, @M.empty _).
       finish honing.
-
     AbsR_prep.
-    - apply P.for_all_iff; auto.
+    apply P.for_all_iff; auto.
   }
 
   refine method allocS.
   {
-    remove_dependency.
-    destruct r_o.
-    eapply Heap_refine_alloc; eauto.
+    sharpen_method @Heap_refine_alloc (fst r_n + ` d).
+    destruct d.
+    apply within_allocated_mem_for_all; auto.
   }
 
   refine method freeS.
   {
-    remove_dependency.
-    destruct r_o.
-    eapply Heap_refine_free; eauto.
+    sharpen_method @Heap_refine_free (fst r_n).
+    apply for_all_remove; auto.
   }
 
   refine method reallocS.
   {
-    unfold Heap_AbsR, realloc, FindBlock, FindFreeBlock.
-    remove_dependency.
-    simplify with monad laws; simpl.
+    sharpen_method @Heap_refine_realloc
+                   (Ifopt M.find d (snd r_n) as cblk
+                    Then If ` d0 <=? memCSize cblk
+                         Then fst r_n
+                         Else fst r_n + ` d0
+                    Else fst r_n + ` d0).
 
-    refine pick val
-      (match M.find d (snd r_n) with
-       | Some cblk =>
-         Some {| memSize := memCSize cblk
-               ; memData := of_map eq (memCData cblk) |}
-       | None => None
-       end).
-      Focus 2.
-      destruct (M.find d (snd r_n)) eqn:Heqe; simpl.
-        destruct H0.
-        normalize.
-        eapply Lookup_of_map; eauto.
-      unfold not; intros.
-      destruct H1.
-      apply H0 in H1.
-      destruct H1, H1.
-      apply F.find_mapsto_iff in H1.
-      congruence.
-
-    simplify with monad laws.
-    refine pick val
-      (Ifopt M.find d (snd r_n) as cblk
-       Then If ` d0 <=? memCSize cblk
-            Then d
-            Else fst r_n
-       Else fst r_n).
-      Focus 2.
-      intros ???.
-      repeat teardown.
-      pose proof (allocations_no_overlap f b H2).
-      apply H0 in H2; do 2 destruct H2.
-      destruct H0.
-      apply_for_all.
-      simpl in *.
-      destruct (M.find d t) eqn:Heqe; simpl.
-        destruct (x <=? memCSize m) eqn:Heqe1; simpl.
-          normalize.
-          apply_for_all.
-          apply H0 in Heqe; destruct Heqe, H10.
-          specialize (H3 _ _ H10 H1).
-          rewrite <- (proj1 H11) in Heqe1.
-          nomega.
-        swap_sizes; nomega.
-      swap_sizes; nomega.
-
-    simplify with monad laws.
-    refine pick val
-      (match M.find d (snd r_n) with
-       | Some cblk =>
-         let data' := P.filter (fun k _ => k <? ` d0) (memCData cblk) in
-         if ` d0 <=? memCSize cblk
-         then (fst r_n,
-               M.add d {| memCSize := ` d0
-                        ; memCData := data' |} (snd r_n))
-         else (fst r_n + ` d0,
-               M.add (fst r_n) {| memCSize := ` d0
-                                ; memCData := data' |} (M.remove d (snd r_n)))
-       | None =>
-         (fst r_n + ` d0,
-          M.add (fst r_n)
-                {| memCSize := ` d0
-                 ; memCData := M.empty _ |} (snd r_n))
-       end).
-      simplify with monad laws.
-      finish honing.
-
-    AbsR_prep; clear H;
-    destruct (M.find d (snd r_n)) eqn:Heqe; simpl;
-    decisions; simpl.
+    unfold FMap_realloc.
+    rename d into addr.
+    destruct d0, (M.find _ (snd r_n)) eqn:Heqe; simpl;
+    [ destruct (_ <=? memCSize _) eqn:Heqe1; simpl | ];
+    rename x into len;
+    normalize; try apply_for_all.
     - rewrite <- remove_add.
-      related_maps'; relational.
-        split; nomega.
-      apply of_map_Map_AbsR; auto.
-    - related_maps'; relational.
-        split; nomega.
-      apply of_map_Map_AbsR; auto.
-    - related_maps'.
-    - normalize.
-      apply_for_all.
-      rewrite <- remove_add.
       apply for_all_add_true; auto.
         simplify_maps.
       split; trivial.
         apply for_all_remove; auto.
+      unfold within_allocated_mem in H2.
       nomega.
-    - normalize.
-      apply_for_all.
-      apply for_all_add_true; auto.
+    - apply for_all_add_true; auto.
         unfold not; destruct 1.
         simplify_maps.
         apply_for_all.
-        apply H0 in H5; destruct H5, H5.
-        pose proof (allocations_have_size (proj2_sig r_o) _ _ H5).
-        rewrite (proj1 H7) in H8.
+        apply H0 in H6; destruct H6, H6.
+        pose proof (allocations_have_size Hr_o _ _ H6).
+        rewrite (proj1 H8) in H9.
+        unfold within_allocated_mem in H7.
         nomega.
       split; trivial.
         apply for_all_remove; auto.
         eapply for_all_impl; eauto; nomega.
       nomega.
-    - normalize.
-      rewrite <- remove_add.
+    - rewrite <- remove_add.
       apply for_all_add_true; auto.
         simplify_maps.
       split; trivial.
@@ -470,103 +524,39 @@ Proof.
 
   refine method peekS.
   {
-    unfold Heap_AbsR, peek, FindBlockThatFits.
-    remove_dependency.
-    simplify with monad laws; simpl.
-
-    refine pick val
-      (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
-       Then Some (fst p,
-                  {| memSize := memCSize (snd p)
-                   ; memData := of_map eq (memCData (snd p)) |})
-       Else None).
-      Focus 2.
-      destruct (find_if _ (snd r_n)) eqn:Heqe1; simpl in *.
-        apply find_if_inv in Heqe1; auto.
-        split.
-          destruct H0.
-          eapply Lookup_of_map; eauto.
-          intuition.
-        unfold withinMemBlockC in Heqe1; simpl in Heqe1.
-        nomega.
-      intros ????.
-      apply H0 in H1; destruct H1, H1.
-      apply find_if_not_inv in Heqe1; auto.
-      assert (Proper (eq ==> eq ==> eq) (negb \oo withinMemBlockC d)) by auto.
-      pose proof (proj1 (P.for_all_iff H4 _) Heqe1 a x H1).
-      unfold withinMemBlockC in H5; simpl in H5.
-      rewrite (proj1 H3) in H2.
-      unfold negb in H5.
-      decisions; [discriminate|nomega].
-
-    simplify with monad laws.
-    refine pick val
-      (Ifopt find_if (withinMemBlockC d) (snd r_n) as p
-       Then Ifopt M.find (d - fst p) (memCData (snd p)) as v
-            Then v Else Zero
-       Else Zero).
-
-    simplify with monad laws; simpl.
-    refine pick val r_n.
-      simplify with monad laws.
-      finish honing.
-
-    AbsR_prep.
-    - intros; subst; clear H.
-      destruct (find_if (withinMemBlockC d) (snd r_n)) eqn:Heqe;
-      [|discriminate]; inv H1; simpl in *.
-      apply find_if_inv in Heqe; auto; destruct Heqe.
-      apply of_map_MapsTo in H2.
-      destruct H2 as [cblk [? ?]]; subst.
-      apply F.find_mapsto_iff in H2.
-      rewrite H2; reflexivity.
+    sharpen_method @Heap_refine_peek (fst r_n).
   }
 
   refine method pokeS.
   {
-    remove_dependency.
-    destruct r_o.
-    erewrite Heap_refine_poke; eauto.
-    finish honing.
+    sharpen_method @Heap_refine_poke (fst r_n).
+
+    eapply P.for_all_iff; auto; intros.
+    do 2 simplify_maps; intros; subst; auto.
+    apply_for_all.
+    decisions; auto.
   }
 
   refine method memcpyS.
   {
-    remove_dependency.
-    destruct r_o.
-    eapply Heap_refine_memcpy; eauto.
+    sharpen_method @Heap_refine_memcpy (fst r_n).
+
+    destruct (0 <? d1) eqn:Heqe; simpl; trivial.
+    destruct (find_if _ _) eqn:Heqe1; simpl; trivial.
+    eapply P.for_all_iff; auto; intros.
+    do 2 simplify_maps; intros; subst; auto.
+    apply_for_all.
+    decisions; auto.
   }
 
   refine method memsetS.
   {
-    unfold memset.
-    remove_dependency.
-    simplify with monad laws; simpl.
+    sharpen_method @Heap_refine_memset (fst r_n).
 
-    refine pick val
-      (fst r_n,
-       M.mapi (fun addr cblk =>
-                 Ifdec fits addr (memCSize cblk) d d0
-                 Then {| memCSize := memCSize cblk
-                       ; memCData :=
-                           let base := d - addr in
-                           N.peano_rect (fun _ => M.t Word8)
-                                        (memCData cblk)
-                                        (fun i => M.add (base + i) d1) d0 |}
-                 Else cblk) (snd r_n)).
-      simplify with monad laws.
-      finish honing.
-
-    AbsR_prep; relational; clear H.
-    - swap_sizes;
-      decisions; auto;
-      related_maps';
-      apply Define_Map_AbsR; auto;
-      exact (proj2 H3).
-    - eapply P.for_all_iff; auto; intros.
-      do 2 simplify_maps; intros; subst; auto.
-      apply_for_all.
-      decisions; auto.
+    eapply P.for_all_iff; auto; intros.
+    do 2 simplify_maps; intros; subst; auto.
+    apply_for_all.
+    decisions; auto.
   }
 
   finish_SharpeningADT_WithoutDelegation.

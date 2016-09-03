@@ -36,9 +36,28 @@ Lemma within_allocated_mem_at_end : forall n x d,
    within_allocated_mem (n + x) n {| memCSize := x; memCData := d |} = true.
 Proof. nomega. Qed.
 
+Lemma within_allocated_mem_for_all : forall n x data m,
+  P.for_all (within_allocated_mem n) m = true ->
+  0 < x ->
+  P.for_all (within_allocated_mem (n + x))
+    (M.add n {| memCSize := x; memCData := data |} m) = true.
+Proof.
+  intros.
+  rewrite <- remove_add.
+  apply for_all_add_true; eauto.
+    simplify_maps.
+  split; auto; [|nomega].
+  apply for_all_remove; auto.
+  apply P.for_all_iff; auto; intros.
+  eapply P.for_all_iff in H; auto.
+    apply within_allocated_mem_add; trivial.
+    exact H.
+  assumption.
+Qed.
+
 Corollary Proper_within : forall pos,
    Proper (eq ==> eq ==> eq)
-          (fun b e => Decidable_witness (P:=within b (memCSize e) pos)).
+          (fun b e => within_bool b (memCSize e) pos).
 Proof. intros; relational; subst; reflexivity. Qed.
 
 Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
@@ -46,7 +65,7 @@ Definition withinMemBlock (pos : N) (b : N) (e : MemoryBlock) : Prop :=
 Arguments withinMemBlock pos b e /.
 
 Definition withinMemBlockC (pos : N) (b : N) (e : MemoryBlockC) : bool :=
-  Decidable_witness (P:=within b (memCSize e) pos).
+  within_bool b (memCSize e) pos.
 Arguments withinMemBlockC pos b e /.
 
 Global Program Instance withinMemBlock_Proper :

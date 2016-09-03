@@ -110,7 +110,7 @@ Arguments alloc_quantum /.
 Program Definition buffer_cons (r : PS) (d : Word8) : Comp PS :=
   ps <- If 0 <? psOffset r
         Then ret (simply_widen_region r)
-        Else If psLength r <? psBufLen r
+        Else If psLength r + alloc_quantum <=? psBufLen r
         Then make_room_by_shifting_up r alloc_quantum
         Else If 0 <? psBufLen r
         Then make_room_by_growing_buffer r alloc_quantum
@@ -174,166 +174,6 @@ Ltac resolve_contention :=
   | [ H : All _ ?R, H0 : Lookup ?A ?B ?R |- _ ] => destruct (H A B)
   end.
 
-Corollary refine_memcpy_zero heap addr1 addr2 :
-  refineEquiv (memcpy heap addr1 addr2 0) (ret (heap, tt)).
-Proof. reflexivity. Qed.
-
-Lemma Map_unique_is_Update heap base blk addr len f :
-  0 < len ->
-  Lookup base blk heap ->
-  fits base (memSize blk) addr len ->
-  Same (Map (fun daddr dblk =>
-               Ifdec fits daddr (memSize dblk) addr len
-               Then f daddr dblk
-               Else dblk) heap)
-       (Update base (f base blk) heap).
-Proof.
-  split; intros; repeat teardown.
-  - destruct (fits_dec a (memSize x) addr len).
-      decisions; [|nomega]; subst.
-      left.
-      admit.
-    apply not_fits in n; [|nomega].
-    decisions; [nomega|]; subst.
-    right.
-    admit.
-  - subst.
-    exists blk.
-    decisions; intuition.
-    nomega.
-  - exists b.
-    destruct (fits_dec a (memSize b) addr len);
-    decisions; intuition.
-      admit.
-    apply not_fits in n; [|nomega].
-    nomega.
-Admitted.
-
-Lemma refine_memcpy_within_block heap base size addr1 addr2 len data :
-  fromADT HeapSpec heap ->
-  0 < len ->
-  Lookup base {| memSize := size; memData := data |} heap ->
-  fits base size addr1 len ->
-  fits base size addr2 len ->
-  refineEquiv
-    (memcpy heap addr1 addr2 len)
-    (ret (Update base
-            {| memSize := size
-             ; memData :=
-                 Union _ (KeepKeys (not ∘ within (addr2 - base) len) data)
-                         (ShiftKeys (addr1 - base) (addr2 - base)
-                                    (KeepKeys (within (addr1 - base) len)
-                                              data)) |} heap, tt)).
-Proof.
-  unfold memcpy; intro HH; intros.
-  unfold Ifdec_Then_Else at 1; simpl.
-  assert (H3 : 0 <? len) by nomega; rewrite H3.
-  unfold FindBlockThatFits.
-  split.
-    refine pick val (Some (base, {| memSize := size; memData := data |})).
-      simplify with monad laws; simpl.
-      apply refine_ret_ret_fst_Same; trivial.
-      (* apply Same_Same_set, Map_unique_is_Update; intuition. *)
-      apply Same_Same_set.
-      rewrite Map_unique_is_Update; eauto.
-      reflexivity.
-    intuition.
-  intros ??.
-  destruct_computations.
-  destruct x; try destruct p; simpl.
-  - destruct H4.
-    competing_lookups (exist _ heap HH) H0 base H4 n.
-    apply eq_ret_compute.
-    f_equal.
-    apply Extensionality_Ensembles, Same_Same_set.
-    symmetry.
-    rewrite Map_unique_is_Update; eauto.
-    reflexivity.
-  - resolve_contention; auto; nomega.
-Qed.
-
-Lemma refine_memcpy_existing_blocks
-      heap base1 size1 base2 size2 addr1 addr2 len data1 data2 :
-  fromADT HeapSpec heap ->
-  0 < len ->
-  Lookup base1 {| memSize := size1; memData := data1 |} heap ->
-  fits base1 size1 addr1 len ->
-  Lookup base2 {| memSize := size2; memData := data2 |} heap ->
-  fits base2 size2 addr2 len ->
-  refineEquiv
-    (memcpy heap addr1 addr2 len)
-    (ret (Update base2
-            {| memSize := size2
-             ; memData :=
-                 Union _ (KeepKeys (not ∘ within (addr2 - base2) len) data2)
-                         (ShiftKeys (addr1 - base1) (addr2 - base2)
-                                    (KeepKeys (within (addr1 - base1) len)
-                                              data1)) |} heap, tt)).
-Proof.
-  unfold memcpy; intro HH; intros.
-  unfold Ifdec_Then_Else at 1; simpl.
-  assert (H4 : 0 <? len) by nomega; rewrite H4.
-  unfold FindBlockThatFits.
-  split.
-    refine pick val (Some (base1, {| memSize := size1; memData := data1 |})).
-      simplify with monad laws; simpl.
-      apply refine_ret_ret_fst_Same; trivial.
-      apply Same_Same_set.
-      rewrite Map_unique_is_Update; eauto.
-      reflexivity.
-    intuition.
-  intros ??.
-  destruct_computations.
-  destruct x; try destruct p; simpl.
-  - destruct H5.
-    competing_lookups (exist _ heap HH) H0 base1 H5 n.
-    apply eq_ret_compute; f_equal.
-    apply Extensionality_Ensembles, Same_Same_set.
-    symmetry.
-    assert (fits base2 (memSize {| memSize := size2; memData := data2 |})
-                 addr2 len) by assumption.
-    rewrite (@Map_unique_is_Update _ _ _ _ _ _ H H2 H7).
-    reflexivity.
-  - clear H2.
-    resolve_contention; auto; nomega.
-Qed.
-
-Lemma refine_local_memcpy heap addr size len data :
-  fromADT HeapSpec heap ->
-  0 < len ->
-  fits addr size (addr + 1) len ->
-  Lookup addr {| memSize := size; memData := data |} heap ->
-  refine
-    (ret (Update addr
-            {| memSize := size
-             ; memData :=
-                 Union _ (KeepKeys (not ∘ within 1 len) data)
-                         (ShiftKeys 0 1 (KeepKeys (within 0 len)
-                                                  data)) |} heap, tt))
-    (memcpy heap addr (addr + 1) len).
-Proof.
-  unfold memcpy; intro HH; intros.
-  unfold Ifdec_Then_Else at 1; simpl.
-  assert (H2 : 0 <? len) by nomega; rewrite H2.
-  intros ??.
-  destruct_computations.
-  destruct x; try destruct p; simpl.
-  - destruct H3.
-    competing_lookups (exist _ heap HH) H1 addr H3 n.
-    replace (n - n) with 0 by nomega.
-    (* replace (n0 + 1 - n0) with 1 by nomega. *)
-    (* constructor. *)
-    admit.
-  - resolve_contention; auto; nomega.
-Admitted.
-
-Lemma simply_within : forall n m A (P Q : A),
-  0 < m -> Ifdec within n m n Then P Else Q = P.
-Proof. intros; decisions; auto; nomega. Qed.
-
-Corollary within_nothing : forall addr p, ~ within addr 0 p.
-Proof. nomega. Qed.
-
 Lemma KeepKeys_nothing : forall P m,
   (forall a, ~ P a) -> KeepKeys P m = Empty.
 Proof.
@@ -360,66 +200,102 @@ Proof.
   teardown; firstorder.
 Qed.
 
-Lemma memcpy_Update_inv :
-  forall r r' base1 addr1 blk1 base2 addr2 blk2 len,
-    memcpy r addr1 addr2 len ↝ r'
-      -> fits base1 (memSize blk1) addr1 len
-      -> fits base2 (memSize blk2) addr2 len
-      -> fromADT HeapSpec r
-      -> Lookup base1 blk1 r
-      -> Lookup base2 blk2 r
-      -> Lookup base2
-           {| memSize := memSize blk2
-            ; memData :=
-                let off1 := addr1 - base1 in
-                let off2 := addr2 - base2 in
-                Union
-                  _ (KeepKeys (not ∘ within off2 len) (memData blk2))
-                    (ShiftKeys off1 off2
-                               (KeepKeys (within off1 len)
-                                         (memData blk1))) |} (fst r').
+Lemma CopyBlock_nothing : forall base1 base2 addr1 addr2 blk1 blk2 len,
+  len = 0 ->
+    CopyBlock blk1 (addr1 - base1) blk2 (addr2 - base2) len = memData blk2.
 Proof.
-(*
-  intros.
+  intros; subst.
+  unfold CopyBlock.
+  unfold not, compose.
+  rewrite KeepKeys_everything; [|nomega].
+  rewrite KeepKeys_nothing; [|nomega].
+  rewrite ShiftKeys_nothing.
+  apply Extensionality_Ensembles.
+  apply Same_Same_set; split; intros.
+    teardown; firstorder.
+  left; assumption.
+Qed.
+
+Corollary refine_memcpy_zero heap addr1 addr2 :
+  refineEquiv (memcpy heap addr1 addr2 0) (ret (heap, tt)).
+Proof. reflexivity. Qed.
+
+Lemma Map_unique_is_Update heap base blk addr len f :
+  fromADT HeapSpec heap ->
+  Lookup base blk heap ->
+  fits base (memSize blk) addr len ->
+  Unique (fun a b => fits_bool a (memSize b) addr len) base heap ->
+  Same (Map (fun daddr dblk =>
+               Ifdec fits daddr (memSize dblk) addr len
+               Then f daddr dblk
+               Else dblk) heap)
+       (Update base (f base blk) heap).
+Proof.
+  intros; apply Unique_Map_Update; eauto.
+  - apply N.eq_dec.
+  - apply allocations_functional; assumption.
+  - nomega.
+Qed.
+
+Lemma refine_memcpy_existing_blocks
+      heap base1 base2 addr1 addr2 len blk1 blk2 :
+  fromADT HeapSpec heap ->
+  Lookup base1 blk1 heap ->
+  fits base1 (memSize blk1) addr1 len ->
+  Lookup base2 blk2 heap ->
+  fits base2 (memSize blk2) addr2 len ->
+  refineEquiv
+    (memcpy heap addr1 addr2 len)
+    (ret (Update base2
+            {| memSize := memSize blk2
+             ; memData :=
+                 CopyBlock blk1 (addr1 - base1)
+                           blk2 (addr2 - base2) len |} heap, tt)).
+Proof.
+  unfold memcpy, FindBlockThatFits; intro HH; intros.
+  unfold Ifdec_Then_Else at 1; simpl.
   destruct (0 <? len) eqn:Heqe.
-  - destruct_computations; simpl.
-    unfold Ifdec_Then_Else; simpl.
-    rewrite Heqe.
-    destruct x, x0;
-    try destruct p;
-    try destruct p0.
-    + assert (base1 = n /\ base2 = n0).
-        repeat teardown.
-        competing_lookups (exist _ r H2) H3 base1 H n.
-        competing_lookups (exist _ r H2) H4 base2 H5 n0.
-      repeat teardown; simpl in *; subst.
-      left; intuition.
-      competing_lookups (exist _ r H2) H n H3 n.
-      competing_lookups (exist _ r H2) H5 n0 H4 n0.
-    + resolve_contention; assumption.
-    + clear H4.
-      resolve_contention; assumption.
-    + resolve_contention; assumption.
-  - assert (len = 0) by nomega.
-    rewrite H5 in *; clear H5.
-    destruct_computations; simpl in *.
-    unfold Ifdec_Then_Else; simpl.
-    rewrite (KeepKeys_nothing _ (memData blk1)),
-            ShiftKeys_nothing,
-            KeepKeys_everything.
-    + destruct blk2; simpl in *.
-      assert (Union (N * Word8) memData Empty = memData).
-        apply Extensionality_Ensembles.
-        split; intros; intros ??.
-          destruct H6; trivial.
-          inv H6.
-        left; assumption.
-      rewrite H6.
-      repeat teardown; assumption.
-    + unfold not, compose; intros; nomega.
-    + nomega.
-*)
-Admitted.
+    split.
+      refine pick val (Some (base1, blk1)).
+        simplify with monad laws; simpl.
+        apply refine_ret_ret_fst_Same; trivial.
+        apply Same_Same_set.
+        rewrite Map_unique_is_Update; eauto.
+          reflexivity.
+        eapply allocations_unique_fits; eauto.
+      intuition.
+    intros ??.
+    destruct_computations.
+    destruct x; try destruct p; simpl.
+      destruct H3.
+      competing_lookups (exist _ heap HH) H base1 H3 n.
+      apply eq_ret_compute; f_equal.
+      apply Extensionality_Ensembles, Same_Same_set.
+      symmetry.
+      rewrite Map_unique_is_Update;
+      [|assumption|exact H1|assumption|].
+        reflexivity.
+      eapply allocations_unique_fits; eauto.
+    clear H1.
+    resolve_contention; auto; nomega.
+  assert (len = 0) by nomega.
+  rewrite CopyBlock_nothing; trivial.
+  destruct blk2; simpl in *.
+  split;
+  apply refine_ret_ret_fst_Same; trivial;
+  apply Same_Same_set;
+  [|symmetry];
+  apply Lookup_Update_idem; auto;
+  try (apply allocations_functional; auto);
+  intros; destruct (N.eq_dec a a'); auto.
+Qed.
+
+Lemma simply_within : forall n m A (P Q : A),
+  0 < m -> Ifdec within n m n Then P Else Q = P.
+Proof. intros; decisions; auto; nomega. Qed.
+
+Corollary within_nothing : forall addr p, ~ within addr 0 p.
+Proof. nomega. Qed.
 
 Theorem buffer_cons_sound
         (r_o : list Word8) (r_n : PS)
@@ -458,7 +334,7 @@ Proof.
   assert (psOffset r_n = 0) by nomega; clear Heqe.
   rewrite refineEquiv_If_Then_Else_Bind in H.
   apply refine_If_Then_Else_bool in H.
-  destruct (psLength r_n <? psBufLen r_n) eqn:Heqe2;
+  destruct (psLength r_n + alloc_quantum <=? psBufLen r_n) eqn:Heqe2;
   [| rewrite refineEquiv_If_Then_Else_Bind in H;
      destruct (0 <? psBufLen r_n) eqn:Heqe3; simpl in H ];
   apply refine_computes_to_ret in H; revert H;
@@ -472,59 +348,53 @@ Proof.
   - simpl; intros; destruct_computations;
     destruct_AbsR AbsR; construct_AbsR;
     (right; split; [nomega|]; split; [nomega|]).
-    eapply refine_local_memcpy in x1; eauto;
-    [|exact (proj2_sig (psHeap r_n))|];
-    destruct (0 <? psLength r_n) eqn:Heqe;
-    try nomega; destruct x1, x3; simpl in *.
-      eexists.
+    rewrite H0, N.add_0_r in *; clear H0.
+    destruct (psLength r_n =? 0) eqn:Heqe.
+      assert (psLength r_n = 0) by nomega.
+      rewrite H in *; clear H.
+      apply refine_memcpy_zero in x1.
+      destruct x1, x3; simpl.
+      exists (Update 0 x data).
+      split.
+        exists {| memSize := psBufLen r_n; memData := data |}; simpl.
+        split; auto.
+        replace (psBuffer r_n - psBuffer r_n) with 0 by nomega.
+        rewrite simply_within; auto.
+        nomega.
+      intros; teardown.
+      destruct i using N.peano_ind.
+        left; nomega.
+      nomega.
+    eapply refine_memcpy_existing_blocks in x1; eauto.
+    + destruct x1, x3; simpl.
+      remember (CopyBlock _ _ _ _ _) as C.
+      exists (Update 0 x C).
       split.
         teardown.
-        exists
-          {| memSize := psBufLen r_n
-           ; memData :=
-               Union _ (KeepKeys (not ∘ within 1 (psLength r_n)) data)
-                       (ShiftKeys 0 1 (KeepKeys (within 0 (psLength r_n))
-                                                data)) |}.
+        exists {| memSize := psBufLen r_n; memData := C |}; simpl.
+        rewrite HeqC; clear HeqC.
         split.
+          replace (psBuffer r_n - psBuffer r_n) with 0 by nomega.
+          replace (psBuffer r_n + 1 - psBuffer r_n) with 1 by nomega.
           rewrite simply_within; nomega.
         teardown.
+      rewrite HeqC; clear HeqC C.
       intros; teardown.
       destruct i using N.peano_ind.
         left; nomega.
       right; split; [nomega|]; clear IHi.
-      simpl; rewrite N2Nat.inj_succ in *; simpl.
-      rewrite H0 in H4; simpl in H4.
-      unfold KeepKeys, ShiftKeys; teardown.
-      destruct (within_dec 0 (N.succ (psLength r_n)) (N.succ i)).
-        right; teardown.
-        exists (i, x0); simpl.
-        split.
-          f_equal; nomega.
-        assert (i < psLength r_n) by nomega.
-        specialize (H4 _ _ H6 H5).
-        teardown; intuition.
-        nomega.
-      left; teardown.
+      rewrite N2Nat.inj_succ in *; simpl.
+      unfold CopyBlock, KeepKeys, ShiftKeys; teardown.
+      assert (i < psLength r_n) by nomega.
+      right; teardown.
+      exists (i, x0); simpl.
       split.
-        apply H4; [nomega|].
-        rewrite N2Nat.inj_succ, nth_overflow; trivial.
-        nomega.
-      unfold not, compose; intros.
-      contradiction n.
+        f_equal; nomega.
+      specialize (H4 _ _ H5 H0).
+      teardown; intuition.
       nomega.
-    eexists.
-    split.
-      teardown.
-      exists {| memSize := psBufLen r_n; memData := data |}.
-      split; auto.
-      rewrite simply_within; nomega.
-    intros; teardown.
-    destruct i using N.peano_ind.
-      left; nomega.
-    right; split; [nomega|].
-    rewrite H0 in H4; simpl in H4; apply H4; [nomega|].
-    simpl; rewrite N2Nat.inj_succ in *; simpl.
-    destruct r_o; simpl in *; auto; nomega.
+    + exact (proj2_sig (psHeap r_n)).
+    + nomega.
   - simpl; intros;
     apply Bind_dep_inv in H;
     destruct H as [? [x1 ?]];
@@ -536,56 +406,30 @@ Proof.
     destruct_AbsR AbsR; construct_AbsR;
     (right; split; [nomega|]; split; [nomega|]).
     rewrite H0, N.add_0_r in *; simpl in *; clear H0.
-    pose proof (@memcpy_Update_inv
-                  (fst x0) x2
-                  (psBuffer r_n) (psBuffer r_n)
-                  {| memSize := psBufLen r_n; memData := data |}
-                  (snd x0) (snd x0 + 1)
-                  {| memSize := psLength r_n + 1; memData := Empty |}
-                  (psLength r_n) x3 H2).
-    simpl in H.
-    unfold alloc, FindFreeBlock in x1.
-    unfold free in x5.
-    destruct_computations; simpl in *; intros.
-    pose proof (H6 _ _ H3); simpl in *.
-    destruct (psLength r_n =? 0) eqn:Heqe.
-      apply Neqb_ok in Heqe.
-      rewrite Heqe in *; clear Heqe; simpl.
-      exists (Update 0 x Empty);
-      split; repeat teardown; subst; simpl; try nomega.
-    assert (0 <? psLength r_n = true) by nomega.
-    eexists; split.
-      apply Lookup_Map.
-      eexists
-        {| memSize := psLength r_n + 1
-         ; memData :=
-             Union _ (KeepKeys (not ∘ within 1 (psLength r_n)) Empty)
-                     (ShiftKeys 0 1 (KeepKeys (within 0 (psLength r_n))
-                                              data)) |}.
+    apply Bind_inv in x1; destruct x1 as [? [? ?]].
+    apply Pick_inv in H0; simpl in *.
+    destruct H5; simpl in *.
+    eapply refine_memcpy_existing_blocks
+      with (base1:=psBuffer r_n) (base2:=x1)
+           (blk1:={| memSize := psBufLen r_n; memData := data |})
+           (blk2:={| memSize := psLength r_n + 1; memData := Empty |})
+        in x3; repeat teardown; eauto; try nomega.
+    destruct_computations; simpl in *; tsubst.
+    remember (CopyBlock _ _ _ _ _) as C.
+    exists (Update 0 x C); split.
+      repeat teardown.
+      eexists {| memSize := psLength r_n + 1; memData := C |}.
       rewrite simply_within; simpl; [|nomega].
       replace (x1 - x1) with 0 by nomega.
-      split.
-        reflexivity.
+      split; trivial.
       apply Lookup_Remove; [|nomega].
-      simpl in *.
-      revert H0.
-      replace (psBuffer r_n - psBuffer r_n) with 0 by nomega.
-      replace (x1 + 1 - x1) with 1 by nomega.
-      intro H0.
-      {
-        apply H0.
-        + nomega.
-        + assumption.
-        + assert (psBuffer r_n <> x1) by nomega.
-          teardown.
-        + teardown.
-      }
+      teardown.
     destruct i using N.peano_ind;
     simpl in *; intros; subst; teardown.
     right; split; [nomega|].
-    unfold ShiftKeys, KeepKeys.
+    unfold CopyBlock, ShiftKeys, KeepKeys.
     teardown; right.
-    teardown; exists (i, x2); split; simpl.
+    teardown; exists (i, x0); split; simpl.
       f_equal; nomega.
     teardown.
     split; [|nomega].

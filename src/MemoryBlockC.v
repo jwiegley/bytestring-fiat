@@ -24,12 +24,27 @@ Record MemoryBlockC := {
 Definition MemoryBlockC_Equal (x y : MemoryBlockC) : Prop :=
   memCSize x = memCSize y /\ M.Equal (memCData x) (memCData y).
 
+Definition to_MemoryBlock (x : MemoryBlockC) : MemoryBlock :=
+  {| memSize := memCSize x
+   ; memData := of_map eq (memCData x) |}.
+
 Global Program Instance MemoryBlockC_Proper :
   Proper (eq ==> @M.Equal _ ==> MemoryBlockC_Equal) Build_MemoryBlockC.
 Obligation 1. relational; split; simpl; subst; auto. Qed.
 
 Definition MemoryBlock_AbsR (o : MemoryBlock) (n : MemoryBlockC) : Prop :=
   memSize o = memCSize n /\ Map_AbsR eq (memData o) (memCData n).
+
+Lemma to_MemoryBlock_Same : forall o n,
+  MemoryBlock_AbsR o n -> MemoryBlock_Same o (to_MemoryBlock n).
+Proof.
+  unfold to_MemoryBlock.
+  split; intros.
+    rewrite (proj1 H); reflexivity.
+  simpl.
+  destruct H.
+  apply of_map_Same; assumption.
+Qed.
 
 Open Scope lsignature_scope.
 
@@ -168,6 +183,23 @@ Qed.
 
 Hint Resolve MemoryBlock_AbsR_TotalMapRelation.
 
+Lemma MemoryBlock_AbsR_TotalMapRelation_r :
+  forall m : M.t MemoryBlockC,
+    TotalMapRelation_r MemoryBlock_AbsR m.
+Proof.
+  intros; intros ???.
+  exists {| memSize := memCSize y
+          ; memData := of_map eq (memCData y) |}.
+  destruct y; simpl.
+  apply MemoryBlock_AbsR_impl; trivial.
+  apply of_map_Map_AbsR; auto.
+  intros ???.
+  exists y.
+  reflexivity.
+Qed.
+
+Hint Resolve MemoryBlock_AbsR_TotalMapRelation_r.
+
 Lemma TotalMapRelation_r_eq : forall elt (m : M.t elt), TotalMapRelation_r eq m.
 Proof. intros ?????; exists y; reflexivity. Qed.
 
@@ -179,6 +211,11 @@ Lemma of_map_MemoryBlock_AbsR : forall x,
 Proof. split; intros; auto; apply of_map_Map_AbsR; auto. Qed.
 
 Hint Resolve of_map_MemoryBlock_AbsR.
+
+Corollary to_MemoryBlock_AbsR : forall m, MemoryBlock_AbsR (to_MemoryBlock m) m.
+Proof. apply of_map_MemoryBlock_AbsR. Qed.
+
+Hint Resolve to_MemoryBlock_AbsR.
 
 Lemma Lookup_of_map : forall addr cblk r_o r_n,
   Map_AbsR MemoryBlock_AbsR r_o r_n
@@ -308,7 +345,7 @@ Definition copy_block sblk soff dblk doff len :=
   let d := keep_keys (negb ∘ within_bool doff len) (memCData dblk) in
   P.update d (shift_keys soff doff s).
 
-Lemma CopyBlock_Map_AbsR `(R : A -> B -> Prop) :
+Lemma CopyBlock_Map_AbsR :
   CopyBlock [R MemoryBlock_AbsR ==> eq ==>
                MemoryBlock_AbsR ==> eq ==> eq ==> Map_AbsR eq] copy_block.
 Proof.

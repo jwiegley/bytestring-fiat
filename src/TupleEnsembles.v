@@ -244,6 +244,21 @@ Proof.
   firstorder.
 Qed.
 
+Lemma Lookup_Update_idem : forall a b r,
+  Functional r ->
+  (forall a a' : A, a = a' \/ a <> a') ->
+    Lookup a b r -> Same r (Update a b r).
+Proof.
+  split; intros.
+    apply Lookup_Update.
+    destruct (H0 a0 a).
+      left; intuition; subst.
+      eapply H; eauto.
+    right; intuition.
+  apply Lookup_Update_inv in H2.
+  firstorder; subst; assumption.
+Qed.
+
 Lemma Lookup_Relate : forall a b c d (f : A -> B -> A -> B -> Prop) r,
   Lookup a b r -> f a b c d -> Lookup c d (Relate f r).
 Proof. firstorder. Qed.
@@ -392,6 +407,10 @@ Lemma Member_Lookup_not : forall a r,
   ~ Member a r -> forall b, ~ Lookup a b r.
 Proof. firstorder. Qed.
 
+Lemma All_Remove : forall a P r,
+  All P r -> All P (Remove a r).
+Proof. firstorder. Qed.
+
 Lemma All_Remove_inv : forall a P r,
   All P (Remove a r) -> ~ Member a r -> All P r.
 Proof.
@@ -527,6 +546,8 @@ Ltac teardown :=
 
   (* | [ H1 : All _ (Remove _ _)   |- _ ] => apply All_Remove_inv in H1 *)
   (* | [ H1 : All _ (Update _ _ _) |- _ ] => apply All_Update_inv in H1 *)
+
+  | [ |- All _ (Remove _ _) ] => apply All_Remove
 
   | [ H1 : All ?P ?R, H2 : Lookup ?X ?Y ?R |- _ ] =>
     specialize (H1 _ _ H2); simpl in H1
