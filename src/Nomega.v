@@ -300,24 +300,28 @@ Ltac norm_N_step :=
 Ltac norm_N := repeat progress (norm_N_step; auto).
 
 Ltac pre_nomega :=
-  unfold fits, within, within_bool, overlaps in *;
-  nsimp; intros; norm_N; nsimp;
-  repeat
-    match goal with
-    | [ H : _ = _          |- _ ] => apply Neq_out in H; nsimp_H H
-    | [ H : _ <> _         |- _ ] => apply Nneq_out in H; nsimp_H H
-    | [ H : _ = _ -> False |- _ ] => apply Nneq_out in H; nsimp_H H
-    | [ H : _ < _          |- _ ] => apply Nlt_out in H; nsimp_H H
-    | [ H : _ <= _         |- _ ] => apply Nle_out in H; nsimp_H H
-    | [ H : _ > _          |- _ ] => apply Ngt_out in H; nsimp_H H
-    | [ H : _ >= _         |- _ ] => apply Nge_out in H; nsimp_H H
+  first
+  [ discriminate
+  | tauto
+  | congruence
+  | unfold fits, within, within_bool, overlaps in *;
+    nsimp; intros; norm_N; nsimp;
+    repeat
+      match goal with
+      | [ H : _ = _          |- _ ] => apply Neq_out in H; nsimp_H H
+      | [ H : _ <> _         |- _ ] => apply Nneq_out in H; nsimp_H H
+      | [ H : _ = _ -> False |- _ ] => apply Nneq_out in H; nsimp_H H
+      | [ H : _ < _          |- _ ] => apply Nlt_out in H; nsimp_H H
+      | [ H : _ <= _         |- _ ] => apply Nle_out in H; nsimp_H H
+      | [ H : _ > _          |- _ ] => apply Ngt_out in H; nsimp_H H
+      | [ H : _ >= _         |- _ ] => apply Nge_out in H; nsimp_H H
 
-    | [ |- _ = _  ] => apply Neq_in; nsimp
-    | [ |- _ < _  ] => apply Nlt_in; nsimp
-    | [ |- _ <= _ ] => apply Nle_in; nsimp
-    | [ |- _ > _  ] => apply Ngt_in; nsimp
-    | [ |- _ >= _ ] => apply Nge_in; nsimp
-    end.
+      | [ |- _ = _  ] => apply Neq_in; nsimp
+      | [ |- _ < _  ] => apply Nlt_in; nsimp
+      | [ |- _ <= _ ] => apply Nle_in; nsimp
+      | [ |- _ > _  ] => apply Ngt_in; nsimp
+      | [ |- _ >= _ ] => apply Nge_in; nsimp
+      end ].
 
 Ltac nomega' :=
   pre_nomega;
@@ -330,7 +334,9 @@ Ltac nomega' :=
                            | solve [ right; nomega' ] ]
   end.
 
-Ltac nomega := solve [ nomega' ].
+Ltac nomega := solve [ abstract nomega' ].
+
+Ltac nomega_ := solve [ nomega' ].
 
 Ltac decisions :=
   repeat
@@ -340,10 +346,10 @@ Ltac decisions :=
     | [ |- context [if ?B then _ else _] ] =>
       let Heqe := fresh "Heqe" in destruct B eqn:Heqe
 
-    | [ H : context[@IfDec_Then_Else _ _ _ _ _] |- _ ] =>
-      unfold IfDec_Then_Else in H; simpl in H
-    | [ |- context[@IfDec_Then_Else _ _ _ _ _] ] =>
-      unfold IfDec_Then_Else; simpl
+    | [ H : context[@Ifdec_Then_Else _ _ _ _ _] |- _ ] =>
+      unfold Ifdec_Then_Else in H; simpl in H
+    | [ |- context[@Ifdec_Then_Else _ _ _ _ _] ] =>
+      unfold Ifdec_Then_Else; simpl
     end.
 
 (*** within ***)
@@ -415,7 +421,7 @@ Proof. nomega. Qed.
 
 Lemma overlaps_within : forall addr1 len1 addr2 len2,
   0 < len1 -> overlaps addr1 len1 addr2 len2
-                <-> IfDec addr1 < addr2
+                <-> Ifdec addr1 < addr2
                     Then within addr1 len1 addr2
                     Else within addr2 len2 addr1.
 Proof. intros; decisions; nomega. Qed.
@@ -423,7 +429,7 @@ Proof. intros; decisions; nomega. Qed.
 Corollary not_overlaps_within : forall addr1 len1 addr2 len2,
   0 < len1
     -> ~ overlaps addr1 len1 addr2 len2
-         <-> IfDec addr1 < addr2
+         <-> Ifdec addr1 < addr2
              Then ~ within addr1 len1 addr2
              Else ~ within addr2 len2 addr1.
 Proof.
@@ -451,3 +457,7 @@ Proof.
   destruct (within_dec n o m);
   [left|right]; assumption.
 Qed.
+
+Lemma fits_dec : forall n o m p,
+  {fits n o m p} + {~ fits n o m p}.
+Proof. nomega. Qed.

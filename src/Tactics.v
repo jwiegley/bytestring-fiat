@@ -36,7 +36,7 @@ Ltac single_reduction :=
   | [ |- Bind ?C ?F ↝ ?V ]       => apply BindComputes
   | [ |- Pick ?S ↝ ?V ]          => apply PickComputes
   | [ |- context [If_Opt_Then_Else ?V ?T ?E] ] => destruct V
-  (* | [ |- context [IfDec_Then_Else ?P ?T ?E] ]  => unfold IfDec_Then_Else *)
+  (* | [ |- context [Ifdec_Then_Else ?P ?T ?E] ]  => unfold Ifdec_Then_Else *)
   end.
 
 Ltac simplify_ensembles :=
@@ -160,11 +160,52 @@ Theorem refine_If_Then_Else_bool :
       <-> refine (If b Then cpst Else cpse) res.
 Proof. split; intros; destruct b; auto. Qed.
 
-Lemma refine_ret_eq_r : forall A (a b : A), refine (ret a) (ret b) <-> a = b.
+Lemma refineEquiv_Ifopt_Then_Else_Bind :
+  forall A B T (i : option T) (t : T -> Comp A) (e : Comp A) (b : A -> Comp B),
+    refineEquiv (a <- Ifopt i as p Then t p Else e; b a)
+                (Ifopt i as p Then a <- t p; b a Else (a <- e; b a)).
+Proof. split; intros; destruct i; reflexivity. Qed.
+
+Require Import ByteString.Decidable.
+
+Lemma refineEquiv_Ifdec_Then_Else_Bind :
+  forall A B `{Decidable i} (t e : Comp A) (b : A -> Comp B),
+    refineEquiv (a <- Ifdec i Then t Else e; b a)
+                (Ifdec i Then a <- t; b a Else (a <- e; b a)).
+Proof.
+  intros.
+  destruct H.
+  unfold Ifdec_Then_Else; simpl.
+  destruct Decidable_witness; reflexivity.
+Qed.
+
+Lemma refine_ret_ret_eq : forall A (a b : A),
+  refine (ret a) (ret b) <-> a = b.
 Proof.
   split; intros.
     specialize (H b (ReturnComputes b)).
     apply Return_inv; assumption.
   destruct H.
   reflexivity.
+Qed.
+
+Require Import ByteString.TupleEnsembles.
+
+Lemma refine_ret_ret_Same : forall A B (a b : EMap A B),
+  refine (ret a) (ret b) <-> Same a b.
+Proof.
+  split; intros.
+    specialize (H b (ReturnComputes b)).
+    destruct H.
+    reflexivity.
+  f_equiv.
+  apply Extensionality_Ensembles, Same_Same_set.
+  assumption.
+Qed.
+
+Lemma refine_ret_ret_fst_Same : forall A (x z : Comp A) B (y w : B),
+  Same_set _ x z -> y = w -> refine (ret (x, y)) (ret (z, w)).
+Proof.
+  intros; subst; f_equiv; f_equal.
+  apply Extensionality_Ensembles; assumption.
 Qed.

@@ -72,6 +72,13 @@ Definition FindBlockThatFits (off len : N) (heap : EMap N MemoryBlock) :
              ~ fits addr' (memSize blk') off len) heap
     end }.
 
+Definition CopyBlock sblk soff dblk doff len :=
+  (* [s] is the source region to copy from *)
+  let s := KeepKeys (within soff len) (memData sblk) in
+  (* [d] is where the region will be copied *)
+  let d := KeepKeys (not ∘ within doff len) (memData dblk) in
+  Union _ d (ShiftKeys soff doff s).
+
 Definition emptyS   := "empty".
 Definition allocS   := "alloc".
 Definition reallocS := "realloc".
@@ -132,7 +139,7 @@ Definition HeapSpec := Def ADT {
   (* Poking an unallocated address is a no-op. *)
   Def Method2 pokeS (r : rep) (addr : N) (w : Word8) : rep * unit :=
     ret (Map (fun base blk =>
-                IfDec within base (memSize blk) addr
+                Ifdec within base (memSize blk) addr
                 Then {| memSize := memSize blk
                       ; memData := Update (addr - base) w (memData blk) |}
                 Else blk) r, tt),
@@ -142,33 +149,27 @@ Definition HeapSpec := Def ADT {
      destination. Otherwise, the operation is a no-op. *)
   Def Method3 memcpyS (r : rep) (addr1 : N) (addr2 : N) (len : N) :
     rep * unit :=
-      ms <- FindBlockThatFits addr1 len r;
-      md <- FindBlockThatFits addr2 len r;
-      ret (match ms, md with
-           | Some (saddr, sblk), Some (daddr, dblk) =>
-             IfDec 0 < len
-             Then (
-               Update daddr
-                 {| memSize := memSize dblk
-                  ; memData :=
-                      let soff := addr1 - saddr in
-                      let doff := addr2 - daddr in
-                      (* [s] is the source region to copy from *)
-                      let s := KeepKeys (within soff len) (memData sblk) in
-                      (* [d] has a hole where the region will be copied to *)
-                      let d := KeepKeys (not ∘ within doff len)
-                                        (memData dblk) in
-                      Union _ d (ShiftKeys soff doff s) |} r
-             )
-             Else r
-           | _, _ => r
-           end, tt),
+      Ifdec 0 < len
+      Then (
+        ms <- FindBlockThatFits addr1 len r;
+        ret (Ifopt ms as s
+             Then
+               Map (fun daddr dblk =>
+                 Ifdec fits daddr (memSize dblk) addr2 len
+                 Then {| memSize := memSize dblk
+                       ; memData :=
+                           let soff := addr1 - fst s in
+                           let doff := addr2 - daddr in
+                           CopyBlock (snd s) soff dblk doff len |}
+                 Else dblk) r
+             Else r, tt))
+      Else ret (r, tt),
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
   Def Method3 memsetS (r : rep) (addr : N) (len : N) (w : Word8) :
     rep * unit :=
     ret (Map (fun base blk =>
-                IfDec fits base (memSize blk) addr len
+                Ifdec fits base (memSize blk) addr len
                 Then {| memSize := memSize blk
                       ; memData := Define (within (addr - base) len) w
                                           (memData blk) |}
@@ -212,7 +213,7 @@ Definition memset (r : Rep HeapSpec) (addr : N) (len : N) (w : Word8) :
  **)
 
 Ltac inspect :=
-  repeat (unfold KeepKeys, ShiftKeys,
+  repeat (unfold KeepKeys, ShiftKeys, CopyBlock,
                  FindFreeBlock, FindBlock, FindBlockThatFits in *;
           destruct_computations; simpl in *;
           repeat teardown; tsubst; simpl in *;
@@ -280,7 +281,7 @@ Ltac check_overlaps :=
     contradiction (overlaps_irr XA H5 H3)
   end.
 
-Theorem allocations_unique : forall r : Rep HeapSpec, fromADT _ r ->
+Theorem allocations_functional : forall r : Rep HeapSpec, fromADT _ r ->
   Functional r.
 Proof.
   unfold Functional; intros.
@@ -295,7 +296,7 @@ Proof.
   check_overlaps.
 Qed.
 
-Theorem all_block_maps_are_unique : forall r : Rep HeapSpec, fromADT _ r ->
+Theorem all_block_maps_are_functional : forall r : Rep HeapSpec, fromADT _ r ->
   All (fun _ blk => Functional (memData blk)) r.
 Proof.
   unfold All, Functional; intros.
@@ -307,8 +308,8 @@ Proof.
   ADT induction r; inspect.
   - unfold compose in *; nomega.
   - unfold compose in *; nomega.
-  - apply N.add_cancel_r in H10.
-    apply Nsub_eq in H10.
+  - apply N.add_cancel_r in H9.
+    apply Nsub_eq in H9.
     + subst.
       clear H4.
       eapply IHfromADT; eauto.
@@ -317,7 +318,7 @@ Proof.
   - inv H3; inv H4; congruence.
 Qed.
 
-Corollary allocations_unique_r : forall r : Rep HeapSpec, fromADT _ r ->
+Corollary allocations_functional_r : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 blk, Lookup addr1 blk r ->
   forall addr2, ~ Member addr2 r -> addr1 <> addr2.
 Proof.
@@ -329,7 +330,7 @@ Qed.
 Ltac lookup_uid H :=
   match goal with
   | [ H1 : Lookup ?A ?X ?R, H2 : Lookup ?A ?Y ?R |- _ ] =>
-    pose proof (allocations_unique H _ _ H1 _ H2); subst
+    pose proof (allocations_functional H _ _ H1 _ H2); subst
   end; inspect; auto.
 
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
@@ -347,7 +348,31 @@ Proof.
   generalize dependent addr1.
   ADT induction r; [inversion H0|..]; complete IHfromADT;
   try lookup_uid H; eapply All_Remove_Lookup_inv in H0'; eauto;
-  try nomega; eapply allocations_unique_r in H0; eauto.
+  try nomega; eapply allocations_functional_r in H0; eauto.
+Qed.
+
+Corollary allocations_unique_fits : forall r : Rep HeapSpec, fromADT _ r ->
+  forall base blk addr len,
+    Lookup base blk r ->
+    fits base (memSize blk) addr len ->
+    Unique (fun a' b' =>
+              Decidable_witness (P:=fits a' (memSize b') addr len)) base r.
+Proof.
+  unfold Unique; intros; intros ???.
+  apply Lookup_Remove_inv in H2; destruct H2.
+  pose proof (allocations_no_overlap H _ H3 _ H0 H2); nomega.
+Qed.
+
+Corollary allocations_unique_within : forall r : Rep HeapSpec, fromADT _ r ->
+  forall base blk addr,
+    Lookup base blk r ->
+    within base (memSize blk) addr ->
+    Unique (fun a' b' =>
+              Decidable_witness (P:=within a' (memSize b') addr)) base r.
+Proof.
+  unfold Unique; intros; intros ???.
+  apply Lookup_Remove_inv in H2; destruct H2.
+  pose proof (allocations_no_overlap H _ H3 _ H0 H2); nomega.
 Qed.
 
 Corollary find_partitions_a_singleton : forall r : Rep HeapSpec, fromADT _ r ->
@@ -359,7 +384,7 @@ Corollary find_partitions_a_singleton : forall r : Rep HeapSpec, fromADT _ r ->
 Proof.
   intros.
   pose proof (allocations_no_overlap H _ H0).
-  pose proof (allocations_unique H _ _ H0).
+  pose proof (allocations_functional H _ _ H0).
   split; intros; inspect;
   destruct (N.eq_dec base a); subst; auto.
   - specialize (H2 _ _ H5 n); nomega.

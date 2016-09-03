@@ -17,7 +17,7 @@ Module Import FunMaps := FunMaps N_as_DT M.
 Import FMapExt.
 
 Lemma find_define : forall Word8 addr len pos v w m,
-  (IfDec within addr len pos
+  (Ifdec within addr len pos
    Then v = w
    Else M.MapsTo pos v m)
     -> M.MapsTo pos v (N.peano_rect (fun _ => M.t Word8) m
@@ -53,7 +53,7 @@ Qed.
 Lemma find_define_inv : forall Word8 addr len pos v w m,
   M.MapsTo pos v (N.peano_rect (fun _ => M.t Word8) m
                                (fun i => M.add (addr + i)%N w) len)
-    -> IfDec within addr len pos
+    -> Ifdec within addr len pos
        Then v = w
        Else M.MapsTo pos v m.
 Proof.
@@ -76,7 +76,7 @@ Proof.
     destruct H0, H0; [inv H1|];
     exists blk; intuition;
     apply find_define;
-    unfold IfDec_Then_Else; simpl.
+    unfold Ifdec_Then_Else; simpl.
       decisions; nomega.
     decisions.
       contradiction H0; nomega.
@@ -101,7 +101,7 @@ Proof.
     right; intuition; nomega.
   - repeat teardown; subst; [inv H2|];
     apply find_define;
-    unfold IfDec_Then_Else; simpl.
+    unfold Ifdec_Then_Else; simpl.
       decisions; nomega.
     apply H in H2.
     decisions.

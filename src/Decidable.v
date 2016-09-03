@@ -246,34 +246,34 @@ Section ListDec.
   Qed.
 End ListDec.
 
-Definition IfDec_Then_Else {A} (P : Prop) `{Decidable P} (t e : A) :=
+Definition Ifdec_Then_Else {A} (P : Prop) `{Decidable P} (t e : A) :=
   if Decidable_witness then t else e.
-Arguments IfDec_Then_Else {A} P {_} t e : simpl never.
+Arguments Ifdec_Then_Else {A} P {_} t e : simpl never.
 
-Notation "'IfDec' P 'Then' t 'Else' e" :=
-  (IfDec_Then_Else P t e) (at level 70).
+Notation "'Ifdec' P 'Then' t 'Else' e" :=
+  (Ifdec_Then_Else P t e) (at level 70).
 
 Require Import Fiat.Common.
 Require Import Fiat.Computation.Core.
 
 Local Ltac t2 p := intros; destruct p; intuition.
 
-Lemma refine_IfDec_true : forall `{Decidable P} ResultT (t e : Comp ResultT),
-  P -> refine (IfDec P Then t Else e) t.
+Lemma refine_Ifdec_true : forall `{Decidable P} ResultT (t e : Comp ResultT),
+  P -> refine (Ifdec P Then t Else e) t.
 Proof.
   intros.
   apply Decidable_spec in H0.
-  unfold IfDec_Then_Else.
+  unfold Ifdec_Then_Else.
   rewrite H0; simpl.
   apply refine_PreOrder.
 Qed.
 
-Lemma refine_IfDec_false : forall `{Decidable P} ResultT (t e : Comp ResultT),
-  ~ P -> refine (IfDec P Then t Else e) e.
+Lemma refine_Ifdec_false : forall `{Decidable P} ResultT (t e : Comp ResultT),
+  ~ P -> refine (Ifdec P Then t Else e) e.
 Proof.
   intros.
   eapply Decidable_sound_alt in H0.
-  unfold IfDec_Then_Else.
+  unfold Ifdec_Then_Else.
   rewrite H0; simpl.
   apply refine_PreOrder.
 Qed.
@@ -281,43 +281,48 @@ Qed.
 Require Import Fiat.Computation.Monad.
 Require Import Fiat.Computation.Refinements.General.
 
-Lemma refine_IfDec_decides :
+Lemma refine_Ifdec_decides :
   forall `{Decidable P} ResultT (t e : Comp ResultT),
-    refineEquiv (IfDec P Then t Else e)
+    refineEquiv (Ifdec P Then t Else e)
                 (b <- {b : bool | decides b P};
                  If b Then t Else e).
 Proof.
   split.
     apply refine_pick_decides.
-      exact (refine_IfDec_true _ _).
-    exact (refine_IfDec_false _ _).
+      exact (refine_Ifdec_true _ _).
+    exact (refine_Ifdec_false _ _).
   refine pick val Decidable_witness.
     rewrite refine_bind_unit.
     apply refine_PreOrder.
   exact Decidable_witness_decides.
 Qed.
 
-Lemma refine_IfDec_Then_Else :
+Lemma refine_Ifdec_Then_Else :
   forall (A : Type) `{Decidable P} (x y : Comp A),
-    refine x y
-      -> forall x0 y0 : Comp A, refine x0 y0
-      -> refine (IfDec P Then x Else x0)
-                (IfDec P Then y Else y0).
+    (P -> refine x y)
+      -> forall x0 y0 : Comp A, (~ P -> refine x0 y0)
+      -> refine (Ifdec P Then x Else x0)
+                (Ifdec P Then y Else y0).
 Proof.
   intros.
-  unfold IfDec_Then_Else.
+  unfold Ifdec_Then_Else.
   rewrite refine_if_If.
-  rewrite H0, H1.
-  apply refine_PreOrder.
+  destruct H, Decidable_witness0; simpl.
+    apply H0, Decidable_spec0.
+    reflexivity.
+  apply H1.
+  unfold not; intros.
+  apply Decidable_spec0 in H.
+  discriminate.
 Qed.
 
-Lemma refine_IfDec_Then_Else_ret :
+Lemma refine_Ifdec_Then_Else_ret :
   forall `{Decidable P} ResultT (t e : ResultT),
-    refine (IfDec P Then ret t Else ret e)
-           (ret (IfDec P Then t Else e)%comp).
+    refine (Ifdec P Then ret t Else ret e)
+           (ret (Ifdec P Then t Else e)%comp).
 Proof.
   intros.
-  unfold IfDec_Then_Else.
+  unfold Ifdec_Then_Else.
   apply refine_If_Then_Else_ret; trivial.
 Qed.
 
@@ -377,3 +382,33 @@ Lemma refine_bind_sumbool :
             | right H => x <- c; g x H
             end).
 Proof. t2 P. Qed.
+
+Lemma Ifdec_true : forall (P : Prop) `{Decidable P} A (t e : A),
+  P -> Ifdec P Then t Else e = t.
+Proof.
+  intros.
+  unfold Ifdec_Then_Else; simpl.
+  destruct H, Decidable_witness0; auto.
+  firstorder.
+Qed.
+
+Lemma Ifdec_false : forall (P : Prop) `{Decidable P} A (t e : A),
+  ~ P -> Ifdec P Then t Else e = e.
+Proof.
+  intros.
+  unfold Ifdec_Then_Else; simpl.
+  destruct H, Decidable_witness0; auto.
+  firstorder.
+Qed.
+
+Ltac simplify_Ifdec :=
+  match goal with
+  | [ H : ?P |- context[Ifdec ?P Then _ Else _] ] =>
+    rewrite Ifdec_true; trivial
+  | [ H : ~ ?P |- context[Ifdec ?P Then _ Else _] ] =>
+    rewrite Ifdec_false; trivial
+  | [ H : ?P |- context[Ifdec ?P Then _ Else _] ] =>
+    erewrite Ifdec_true; eauto
+  | [ H : ~ ?P |- context[Ifdec ?P Then _ Else _] ] =>
+    erewrite Ifdec_false; eauto
+  end.

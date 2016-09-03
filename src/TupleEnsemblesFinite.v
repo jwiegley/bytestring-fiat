@@ -88,7 +88,7 @@ Proof.
      mapping of elements of the type to indices of the list such that if an
      element of the type is in the subset, then it is equal to the element of
      the list at the corresponding index. In this case, everything is
-     constructive, and you shouldn't need either ensemble-extensionality nor
+     constructive, and you shouldn't need either Extensionality_Ensembles nor
      decidable equality. *)
   elim (classic (x = x0)); intros.
     subst; right; constructor.

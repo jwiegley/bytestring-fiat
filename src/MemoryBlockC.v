@@ -108,7 +108,7 @@ Proof.
   intros ?????.
   destruct H, H0, x, y, z; simpl in *.
   subst; f_equal.
-  apply Extensionality_FMap.
+  apply Extensionality_FMap.    (* can we be free of this? *)
   apply F.Equal_mapsto_iff; split; intros.
     apply H2, H1; trivial.
   apply H1, H2; trivial.
@@ -152,7 +152,7 @@ Lemma MemoryBlock_AbsR_TotalMapRelation :
 Proof.
   intros; intros ???.
   pose proof (all_blocks_are_finite H _ _ H0).
-  pose proof (all_block_maps_are_unique H _ _ H0).
+  pose proof (all_block_maps_are_functional H _ _ H0).
   simpl in *.
   elimtype ((exists size : N, memSize x = size) /\
             (exists data : M.t Word8, Map_AbsR eq (memData x) data)).
@@ -299,6 +299,34 @@ Proof.
     apply (proj1 (P.for_all_iff _ _)) with (k0:=n) (e0:=blk) in H3; [|exact H9].
     apply N.add_cancel_r in H4.
     apply Nsub_eq in H4; auto; nomega.
+Qed.
+
+Definition copy_block sblk soff dblk doff len :=
+  (* [s] is the source region to copy from *)
+  let s := keep_keys (within_bool soff len) (memCData sblk) in
+  (* [d] is where the region will be copied *)
+  let d := keep_keys (negb ∘ within_bool doff len) (memCData dblk) in
+  P.update d (shift_keys soff doff s).
+
+Lemma CopyBlock_Map_AbsR `(R : A -> B -> Prop) :
+  CopyBlock [R MemoryBlock_AbsR ==> eq ==>
+               MemoryBlock_AbsR ==> eq ==> eq ==> Map_AbsR eq] copy_block.
+Proof.
+  relational.
+  destruct H, H1.
+  apply Union_Map_AbsR; auto.
+  - apply KeepKeys_Map_AbsR; trivial.
+    apply not_within_AbsR.
+  - apply ShiftKeys_Map_AbsR.
+      constructor; apply KeepKeys_Map_AbsR.
+        apply within_AbsR; try reflexivity.
+      assumption.
+    unfold KeepKeys; intros ???.
+    repeat teardown.
+    nomega.
+  - unfold not, compose, KeepKeys, ShiftKeys; intros ????.
+    repeat teardown; inversion H4; subst; clear H4.
+    apply not_within_reflect in H3; nomega.
 Qed.
 
 End MemoryBlockC.

@@ -61,6 +61,13 @@ Obligation 1. relational; unfold Basics.impl; apply H1. Qed.
 
 Definition Member (a : A) (r : EMap) := exists b, Lookup a b r.
 
+Definition Member_dec (a : A) (r : EMap) : Member a r \/ ~ Member a r.
+Proof.
+  unfold Member.
+  elim (Classical_Prop.classic (exists b, Lookup a b r));
+  intuition.
+Qed.
+
 Definition Insert (a : A) (b : B) (r : EMap)
            (H : forall b' : B, ~ Lookup a b' r) : EMap :=
   Add _ r (a, b).
@@ -419,6 +426,8 @@ Proof.
   right; intuition.
 Qed.
 
+Definition Unique P a r := All (fun a b => P a b = false) (Remove a r).
+
 End TupleEnsemble.
 
 Arguments Functional : default implicits.
@@ -574,4 +583,32 @@ Obligation 1.
   - rewrite <- H0; assumption.
   - rewrite H; reflexivity.
   - rewrite H0; assumption.
+Qed.
+
+Lemma Unique_Map_Update : forall A B (P : A -> B -> bool) a b r f,
+  (forall x y : A, {x = y} + {x <> y}) ->
+  Functional r ->
+  Lookup a b r ->
+  P a b = true ->
+  Unique P a r ->
+  Same (Map (fun k e => if P k e then f k e else e) r) (Update a (f a b) r).
+Proof.
+  intros.
+  split; intros; repeat teardown; subst.
+  - destruct (X a0 a) eqn:Heqe.
+      subst; left.
+      specialize (H _ _ H0 _ H4); subst.
+      rewrite H1.
+      intuition.
+    right.
+    eapply All_Remove_Lookup_inv in H2; eauto.
+    rewrite H2.
+    intuition.
+  - exists b.
+    rewrite H1.
+    intuition.
+  - exists b0.
+    eapply All_Remove_Lookup_inv in H2; eauto.
+    rewrite H2.
+    intuition.
 Qed.
