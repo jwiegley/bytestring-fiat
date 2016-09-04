@@ -1,6 +1,8 @@
 Require Import
   ByteString.Heap
   ByteString.HeapFMap
+  ByteString.ByteString
+  ByteString.ByteStringFMap
   ByteString.Decidable
   Coq.Strings.Ascii
   Coq.Strings.String
@@ -12,16 +14,11 @@ Require Import
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
-Module MemByte <: Memory.
-  Definition Word8 := N.
-  Definition Zero : Word8 := 0%N.
-End MemByte.
-
 Require Import Coq.FSets.FMapList.
 Require Import Coq.Structures.OrderedTypeEx.
 Module Import M := FMapList.Make(N_as_OT).
-Module Import H := HeapFMap MemByte M.
-Import H.Within.Block.Adt.Heap.
+Module Import H := HeapFMap M.
+Module Import BS := ByteStringFMap M.
 
 Definition impl := Eval simpl in projT1 HeapImpl.
 
@@ -37,14 +34,37 @@ Definition freeHeap (r : crep) (addr : N) : crep :=
   Eval compute in fst (CallMethod impl freeS r addr).
 Definition reallocHeap (r : crep) (addr : N) (len : N | 0 < len) : crep * N :=
   Eval compute in CallMethod impl reallocS r addr len.
-Definition peekHeap (r : crep) (addr : N) : crep * N :=
+Definition peekHeap (r : crep) (addr : N) : crep * Word8 :=
   Eval compute in CallMethod impl peekS r addr.
-Definition pokeHeap (r : crep) (addr : N) (w : N) : crep :=
+Definition pokeHeap (r : crep) (addr : N) (w : Word8) : crep :=
   Eval compute in fst (CallMethod impl pokeS r addr w).
 Definition memcpyHeap (r : crep) (addr : N) (addr2 : N) (len : N) : crep :=
   Eval compute in fst (CallMethod impl memcpyS r addr addr2 len).
-Definition memsetHeap (r : crep) (addr : N) (len : N) (w : N) : crep :=
+Definition memsetHeap (r : crep) (addr : N) (len : N) (w : Word8) : crep :=
   Eval compute in fst (CallMethod impl memsetS r addr len w).
+
+Section ByteStringExt.
+
+Variable heap  : Rep ByteStringHeap.HSpec.
+Variable heap' : ComputationalADT.cRep (projT1 HF.HeapImpl).
+
+Variable heap_AbsR : HF.Heap_AbsR (` heap) heap'.
+
+Definition BSimpl :=
+  Eval simpl in projT1 (@ByteStringImpl heap heap' heap_AbsR).
+
+Definition BScrep := ComputationalADT.cRep BSimpl.
+
+Open Scope N_scope.
+
+Definition emptyBS   : BScrep :=
+  Eval compute in CallConstructor BSimpl emptyS.
+Definition consBS (r : BScrep) (w : Word8) : BScrep :=
+  Eval compute in fst (CallMethod BSimpl consS r w).
+Definition unconsBS (r : BScrep) : BScrep * option Word8 :=
+  Eval compute in CallMethod BSimpl unconsS r.
+
+End ByteStringExt.
 
 (** Eq *)
 
@@ -271,7 +291,7 @@ Set Extraction AutoInline.
 Set Extraction Optimize.
 Set Extraction AccessOpaque.
 
-Extraction "HeapFMapExt.hs"
+Extraction "ByteStringExt.hs"
   emptyHeap
   allocHeap
   freeHeap
@@ -281,4 +301,8 @@ Extraction "HeapFMapExt.hs"
   memcpyHeap
   memsetHeap
   N.of_nat
-  N.to_nat.
+  N.to_nat
+
+  emptyBS
+  consBS
+  unconsBS.

@@ -1,3 +1,7 @@
 /Makefile.coq
 .*.aux
 *.v.d
+/extract/ByteStringExt.hs
+/extract/Makefile.coq
+/extract/default.nix
+/extract/result

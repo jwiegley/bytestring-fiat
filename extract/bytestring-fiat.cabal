@@ -21,7 +21,7 @@ executable bytestring-fiat
   -- ghc-options:         -fprof-auto -prof
   other-modules:
     HString
-    HeapFMapExt
+    ByteStringExt
   other-extensions:    StandaloneDeriving
   build-depends:       base >=4.8 && <4.9, ghc-prim
   -- hs-source-dirs:      

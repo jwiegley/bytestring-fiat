@@ -54,10 +54,9 @@ Record PS' := {
   ps'Length : N
 }.
 
-Lemma ByteStringImpl :
-  { adt : _ & refineADT (projT1 (ByteStringHeap heap)) adt }.
+Lemma ByteStringImpl : FullySharpened (projT1 (ByteStringHeap heap)).
 Proof.
-  eexists.
+  start sharpening ADT.
   hone representation using
        (fun (or : PS) (nr : PS') =>
           Heap_AbsR (` (psHeap or)) (ps'Heap nr) /\
@@ -306,7 +305,7 @@ Proof.
       finish honing.
     intuition.
   }
-  apply reflexivityT.
+  finish_SharpeningADT_WithoutDelegation.
 Defined.
 
 (* Strip away the proofy bits. *)
