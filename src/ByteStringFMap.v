@@ -54,9 +54,7 @@ Record PS' := {
   ps'Length : N
 }.
 
-(*
-(* Strip away the proofy bits. *)
-Lemma ByteStringStrip :
+Lemma ByteStringImpl :
   { adt : _ & refineADT (projT1 (ByteStringHeap heap)) adt }.
 Proof.
   eexists.
@@ -100,8 +98,10 @@ Proof.
         simplify with monad laws.
         finish honing.
       intuition.
-      apply of_map_Heap_AbsR.
-      admit.
+      destruct H0.
+      apply of_map_Heap_AbsR; auto.
+      apply for_all_within_allocated_mem_mapi; auto; intros.
+      clear; decisions; nomega.
     rewrite refineEquiv_If_Then_Else_Bind.
     subst H.
     apply refine_If_Then_Else.
@@ -112,26 +112,41 @@ Proof.
       do 2 setoid_rewrite refine_bind_dep_ignore.
       erewrite Heap_refine_memcpy; eauto.
       unfold wrap, FMap_memcpy.
-      rewrite refine_bind_unit.
-      {
-        erewrite Heap_refine_poke; eauto; simpl.
-        - simplify with monad laws; simpl.
-          remember (M.mapi _ _) as M.
-          refine pick val {| ps'Heap   := (fst (ps'Heap r_n), M)
-                           ; ps'Buffer := ps'Buffer r_n
-                           ; ps'BufLen := ps'BufLen r_n
-                           ; ps'Offset := 0
-                           ; ps'Length := ps'Length r_n + 1 |};
-          rewrite HeqM; clear HeqM; simpl.
-            simplify with monad laws.
-            finish honing.
-          intuition.
-          apply of_map_Heap_AbsR.
-          admit.
-        - apply of_map_Heap_AbsR.
-          admit.
-        - admit.
-      }
+      rewrite refine_bind_unit; simpl.
+      erewrite Heap_refine_poke; eauto; simpl.
+        Focus 2.
+        destruct H0.
+        apply of_map_Heap_AbsR; auto.
+        destruct (0 <? ps'Length r_n) eqn:Heqe,
+                 (find_if _ _) eqn:Heqe1; simpl.
+              apply for_all_within_allocated_mem_mapi; auto; intros.
+                exact i.
+              decisions; nomega.
+            auto.
+          auto.
+        auto.
+      simplify with monad laws; simpl.
+      remember (M.mapi _ _) as M.
+      refine pick val {| ps'Heap   := (fst (ps'Heap r_n), M)
+                       ; ps'Buffer := ps'Buffer r_n
+                       ; ps'BufLen := ps'BufLen r_n
+                       ; ps'Offset := 0
+                       ; ps'Length := ps'Length r_n + 1 |};
+      rewrite HeqM; clear HeqM; simpl.
+        simplify with monad laws.
+        finish honing.
+      intuition.
+      destruct H0.
+      apply of_map_Heap_AbsR; auto.
+      apply for_all_within_allocated_mem_mapi; auto; intros.
+        destruct (0 <? ps'Length r_n) eqn:Heqe,
+                 (find_if _ _) eqn:Heqe1; simpl.
+              apply for_all_within_allocated_mem_mapi; auto; intros.
+              decisions; nomega.
+            auto.
+          auto.
+        auto.
+      decisions; nomega.
     rewrite refineEquiv_If_Then_Else_Bind.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
@@ -141,92 +156,125 @@ Proof.
       simpl; remove_dependency.
       do 3 setoid_rewrite refine_bind_dep_ignore.
       unfold ByteStringHeap.buffer_cons_obligation_2.
-      etransitivity.
-        apply refine_under_bind; intros.
-        etransitivity.
-          apply refine_under_bind; intros.
-          etransitivity.
-            apply refine_under_bind; intros.
-            {
-              erewrite Heap_refine_poke; eauto.
-              - simplify with monad laws; simpl.
-                remember (M.mapi _ _) as M.
-                refine pick val {| ps'Heap   := (fst (ps'Heap r_n), M)
-                                 ; ps'Buffer := fst (ps'Heap r_n)
-                                 ; ps'BufLen := ps'Length r_n +1
-                                 ; ps'Offset := 0
-                                 ; ps'Length := ps'Length r_n + 1 |};
-                rewrite HeqM; clear HeqM; simpl.
-                  simplify with monad laws; simpl.
-                  finish honing.
-                intuition.
-                  apply of_map_Heap_AbsR.
-                  admit.
-                admit.
-              - 
-                unfold alloc in H. simpl in *.
-                destruct_computations; simpl in *.
-                eapply free_fromADT.
-                eapply memcpy_fromADT.
-                exact f.
-            etransitivity.
-              apply refine_under_bind; intros.
       erewrite Heap_refine_alloc; eauto.
       unfold wrap, FMap_alloc.
       rewrite refine_bind_unit; simpl.
       erewrite Heap_refine_memcpy; eauto.
-        Focus 3.
-        apply of_map_Heap_AbsR.
-        
-        apply for_all_add_true; eauto.
+        Focus 2.
+        destruct H0.
+        apply of_map_Heap_AbsR; auto.
+        eapply for_all_within_allocated_mem_add
+          with (o:=fst (ps'Heap r_n) + ps'Length r_n + alloc_quantum); auto.
+            exact i.
+          nomega.
+        nomega.
       unfold wrap, FMap_memcpy.
       rewrite refine_bind_unit; simpl.
       erewrite Heap_refine_free; eauto.
+        Focus 2.
+        destruct H0.
+        apply of_map_Heap_AbsR; auto.
+        destruct (0 <? ps'Length r_n) eqn:Heqe,
+                 (find_if _ _) eqn:Heqe1; simpl.
+              apply for_all_within_allocated_mem_mapi; auto; intros.
+                eapply for_all_within_allocated_mem_add
+                  with (o:=fst (ps'Heap r_n) + ps'Length r_n
+                             + alloc_quantum); auto.
+                    exact i.
+                  nomega.
+                nomega.
+              decisions; nomega.
+            eapply for_all_within_allocated_mem_add; eauto; nomega.
+          eapply for_all_within_allocated_mem_add; eauto; nomega.
+        eapply for_all_within_allocated_mem_add.
+            exact i.
+          nomega.
+        nomega.
       unfold wrap, FMap_free.
       rewrite refine_bind_unit; simpl.
       erewrite Heap_refine_poke; eauto.
+        Focus 2.
+        destruct H0.
+        apply of_map_Heap_AbsR; auto.
+        apply for_all_within_allocated_mem_remove.
+        destruct (0 <? ps'Length r_n) eqn:Heqe,
+                 (find_if _ _) eqn:Heqe1; simpl.
+              apply for_all_within_allocated_mem_mapi; auto; intros.
+                eapply for_all_within_allocated_mem_add
+                  with (o:=fst (ps'Heap r_n) + ps'Length r_n
+                             + alloc_quantum); auto.
+                    exact i.
+                  nomega.
+                nomega.
+              decisions; nomega.
+            eapply for_all_within_allocated_mem_add; eauto; nomega.
+          eapply for_all_within_allocated_mem_add; eauto; nomega.
+        eapply for_all_within_allocated_mem_add; eauto; nomega.
       unfold wrap, FMap_poke.
       rewrite refine_bind_unit; simpl.
       remember (M.mapi _ _) as M.
-      refine pick val {| ps'Heap   := (fst (ps'Heap r_n), M)
+      refine pick val {| ps'Heap   := (fst (ps'Heap r_n) + ps'Length r_n
+                                         + alloc_quantum, M)
                        ; ps'Buffer := fst (ps'Heap r_n)
-                       ; ps'BufLen := ps'Length r_n +1
+                       ; ps'BufLen := ps'Length r_n + alloc_quantum
                        ; ps'Offset := 0
-                       ; ps'Length := ps'Length r_n + 1 |};
+                       ; ps'Length := ps'Length r_n + alloc_quantum |};
       rewrite HeqM; clear HeqM; simpl.
         simplify with monad laws.
         finish honing.
       intuition.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
+      destruct H0.
+      apply of_map_Heap_AbsR; auto.
+      apply for_all_within_allocated_mem_mapi; auto; intros.
+        apply for_all_within_allocated_mem_remove; auto; intros.
+        destruct (0 <? ps'Length r_n) eqn:Heqe,
+                 (find_if _ _) eqn:Heqe1; simpl.
+              apply for_all_within_allocated_mem_mapi; auto; intros.
+                eapply for_all_within_allocated_mem_add; eauto; nomega.
+              decisions; nomega.
+            eapply for_all_within_allocated_mem_add; eauto; nomega.
+          eapply for_all_within_allocated_mem_add; eauto; nomega.
+        eapply for_all_within_allocated_mem_add; eauto; nomega.
+      decisions; nomega.
     unfold allocate_buffer, alloc', poke'.
-    simplify with monad laws; simpl.
     remove_dependency; simpl.
-    setoid_rewrite refine_bind_dep_ret.
+    unfold Bind2.
+    rewrite refine_bind_bind.
+    remove_dependency.
+    setoid_rewrite refine_bind_dep_bind_ret.
     autorewrite with monad laws; simpl.
     remove_dependency.
-    unfold ByteStringHeap.buffer_cons_obligation_3.
-    etransitivity.
-      apply refine_under_bind; intros.
-      remember (Map _ _) as M.
-      refine pick val {| ps'Heap   := M
-                       ; ps'Buffer := snd a
-                       ; ps'BufLen := 1
-                       ; ps'Offset := 0
-                       ; ps'Length := 1 |}.
-        simplify with monad laws.
-        rewrite HeqM.
-        finish honing.
-      intuition.
-    unfold alloc; simpl.
-    rewrite H0.
-    finish honing.
+    setoid_rewrite refine_bind_dep_ignore.
+    erewrite Heap_refine_alloc; eauto.
+    unfold wrap, FMap_alloc.
+    rewrite refine_bind_unit; simpl.
+    erewrite Heap_refine_poke; eauto.
+      Focus 2.
+      destruct H0.
+      apply of_map_Heap_AbsR; auto.
+      eapply for_all_within_allocated_mem_add
+        with (o:=fst (ps'Heap r_n) + ps'Length r_n
+                   + alloc_quantum); auto.
+          exact i.
+        nomega.
+      nomega.
+    unfold wrap, FMap_poke.
+    rewrite refine_bind_unit; simpl.
+    remember (M.mapi _ _) as M.
+    refine pick val {| ps'Heap   := (fst (ps'Heap r_n) + 1, M)
+                     ; ps'Buffer := fst (ps'Heap r_n)
+                     ; ps'BufLen := 1
+                     ; ps'Offset := 0
+                     ; ps'Length := 1 |};
+    rewrite HeqM; clear HeqM; simpl.
+      simplify with monad laws.
+      finish honing.
+    intuition.
+    destruct H0.
+    apply of_map_Heap_AbsR; auto.
+    apply for_all_within_allocated_mem_mapi; auto; intros.
+      eapply for_all_within_allocated_mem_add; eauto; intros; nomega.
+    decisions; nomega.
   }
   {
     repeat match goal with
@@ -239,23 +287,20 @@ Proof.
       simplify with monad laws; simpl.
       unfold peek'.
       remove_dependency.
-      rewrite H0.
-      etransitivity.
-        apply refine_under_bind; intros.
-        refine pick val {| ps'Heap   := ps'Heap r_n
-                         ; ps'Buffer := ps'Buffer r_n
-                         ; ps'BufLen := ps'BufLen r_n
-                         ; ps'Offset := if ps'Length r_n =? 1
-                                        then 0
-                                        else ps'Offset r_n + 1
-                         ; ps'Length := ps'Length r_n - 1 |}.
-          simplify with monad laws.
-          finish honing.
-        intuition.
-      simpl.
-      finish honing.
+      erewrite Heap_refine_peek; eauto.
+      unfold wrap, FMap_peek.
+      rewrite refine_bind_unit; simpl.
+      refine pick val {| ps'Heap   := ps'Heap r_n
+                       ; ps'Buffer := ps'Buffer r_n
+                       ; ps'BufLen := ps'BufLen r_n
+                       ; ps'Offset := if ps'Length r_n =? 1
+                                      then 0
+                                      else ps'Offset r_n + 1
+                       ; ps'Length := ps'Length r_n - 1 |}.
+        simplify with monad laws.
+        finish honing.
+      intuition.
     simplify with monad laws; simpl.
-    rewrite H0.
     refine pick val r_n.
       simplify with monad laws; simpl.
       finish honing.
@@ -265,6 +310,7 @@ Proof.
 Defined.
 
 (* Strip away the proofy bits. *)
+(*
 Lemma ByteStringStrip :
   { adt : _ & refineADT (projT1 (ByteStringHeap heap)) adt }.
 Proof.
@@ -480,7 +526,7 @@ Proof.
       intuition; simpl.
       destruct H0.
       apply of_map_Heap_AbsR.
-      admit.
+
     split; simpl.
       split; intros.
       apply Map_Map_AbsR.
@@ -488,13 +534,13 @@ Proof.
     subst H.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
-      admit.
+
     rewrite refineEquiv_If_Then_Else_Bind.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
-      admit.
+
     simplify with monad laws; simpl.
-    admit.
+
   }
   {
     repeat match goal with
@@ -505,7 +551,7 @@ Proof.
     subst H.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
-      admit.
+
     simplify with monad laws; simpl.
     refine pick val r_n.
       simplify with monad laws; simpl.
@@ -513,7 +559,6 @@ Proof.
     intuition.
   }
   apply reflexivityT.
-Admitted.
 *)
 
 End Refined.

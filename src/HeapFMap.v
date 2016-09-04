@@ -104,7 +104,6 @@ Definition FMap_alloc (r_n : N * M.t MemoryBlockC)
    fst r_n).
 
 Theorem Heap_refine_alloc `(AbsR : Heap_AbsR r_o r_n) len :
- fromADT HeapSpec r_o ->
   refine (alloc r_o len) (wrap (FMap_alloc r_n len)).
 Proof.
   unfold wrap, FMap_alloc; intros; simpl.
@@ -124,8 +123,7 @@ Definition FMap_free (r_n : N * M.t MemoryBlockC) addr :=
   ((fst r_n, M.remove addr (snd r_n)), tt).
 
 Theorem Heap_refine_free `(AbsR : Heap_AbsR r_o r_n) addr :
-  fromADT HeapSpec r_o ->
-    refine (free r_o addr) (wrap (FMap_free r_n addr)).
+  refine (free r_o addr) (wrap (FMap_free r_n addr)).
 Proof.
   unfold wrap, FMap_free; intros; simpl.
   unfold free, FindBlock.
@@ -155,10 +153,12 @@ Definition FMap_realloc (r_n : N * M.t MemoryBlockC)
   end.
 
 Theorem Heap_refine_realloc `(AbsR : Heap_AbsR r_o r_n) addr len :
- fromADT HeapSpec r_o ->
+  (forall addr1 blk1, Lookup addr1 blk1 r_o ->
+   forall addr2 blk2, Lookup addr2 blk2 r_o -> addr1 <> addr2 ->
+     ~ overlaps addr1 (memSize blk1) addr2 (memSize blk2)) ->
   refine (realloc r_o addr len) (wrap (FMap_realloc r_n addr len)).
 Proof.
-  unfold wrap, FMap_realloc; intros; simpl.
+  unfold wrap, FMap_realloc; intros H9; simpl.
   unfold realloc, FindBlock, FindFreeBlock.
 
   refine pick val (option_map to_MemoryBlock (M.find addr (snd r_n))).
@@ -172,7 +172,8 @@ Proof.
     destruct AbsR.
     eapply Member_Map_AbsR in H0; eauto.
     rewrite F.mem_find_b, Heqe in H0.
-    discriminate.
+    destruct H0.
+    intuition.
 
   simplify with monad laws.
   refine pick val
@@ -184,8 +185,8 @@ Proof.
     Focus 2.
     intros ???.
     repeat teardown.
-    pose proof (allocations_no_overlap H b H1).
-    apply AbsR in H1; do 2 destruct H1.
+    pose proof (H9 _ b H0).
+    apply AbsR in H0; do 2 destruct H0.
     destruct AbsR.
     apply_for_all.
     simpl in *.
@@ -193,8 +194,8 @@ Proof.
       destruct (_ <=? memCSize m) eqn:Heqe1; simpl.
         normalize.
         apply_for_all.
-        apply H4 in Heqe; destruct Heqe, H10.
-        specialize (H2 _ _ H10 H0).
+        apply H3 in Heqe; destruct Heqe, H10.
+        specialize (H1 _ _ H10 H).
         rewrite <- (proj1 H11) in Heqe1.
         nomega.
       swap_sizes; nomega.
@@ -251,7 +252,6 @@ Proof.
 Qed.
 
 Theorem Heap_refine_peek `(AbsR : Heap_AbsR r_o r_n) addr :
- fromADT HeapSpec r_o ->
   refine (peek r_o addr) (wrap (FMap_peek r_n addr)).
 Proof.
   unfold wrap, FMap_peek; intros; simpl.
@@ -271,14 +271,14 @@ Proof.
       unfold withinMemBlockC in Heqe1; simpl in Heqe1.
       nomega.
     intros ????.
-    apply AbsR in H0; destruct H0, H0.
+    apply AbsR in H; destruct H, H.
     apply find_if_not_inv in Heqe1; auto.
     assert (Proper (eq ==> eq ==> eq)
                    (negb \oo withinMemBlockC addr)) by auto.
-    pose proof (proj1 (P.for_all_iff H3 _) Heqe1 a x H0).
-    unfold withinMemBlockC in H4; simpl in H4.
-    rewrite (proj1 H2) in H1.
-    unfold negb in H4.
+    pose proof (proj1 (P.for_all_iff H2 _) Heqe1 a x H).
+    unfold withinMemBlockC in H3; simpl in H3.
+    rewrite (proj1 H1) in H0.
+    unfold negb in H3.
     decisions; [discriminate|nomega].
 
   simplify with monad laws.
@@ -289,12 +289,12 @@ Proof.
      Else Zero).
     Focus 2.
     destruct (find_if _ (snd r_n)) eqn:Heqe; simpl; intros;
-    [|discriminate]; inv H0; simpl in *.
+    [|discriminate]; inv H; simpl in *.
     apply find_if_inv in Heqe; auto; destruct Heqe.
-    apply of_map_MapsTo in H1.
-    destruct H1 as [cblk [? ?]]; subst.
-    apply F.find_mapsto_iff in H1.
-    rewrite H1; reflexivity.
+    apply of_map_MapsTo in H0.
+    destruct H0 as [cblk [? ?]]; subst.
+    apply F.find_mapsto_iff in H0.
+    rewrite H0; reflexivity.
 
   simplify with monad laws; simpl.
   apply refine_ret_ret_fst_Same; trivial;
@@ -312,7 +312,6 @@ Definition FMap_poke (r_n : N * M.t MemoryBlockC) addr w :=
               Else cblk') (snd r_n)), tt).
 
 Theorem Heap_refine_poke `(AbsR : Heap_AbsR r_o r_n) addr w :
- fromADT HeapSpec r_o ->
   refine (poke r_o addr w) (wrap (FMap_poke r_n addr w)).
 Proof.
   unfold wrap, FMap_poke; intros; simpl.
@@ -323,7 +322,7 @@ Proof.
   related_maps'; relational.
   swap_sizes.
   decisions; trivial.
-  destruct H3.
+  destruct H2.
   related_maps'.
 Qed.
 
@@ -347,7 +346,6 @@ Definition FMap_memcpy (r_n : N * M.t MemoryBlockC) addr1 addr2 len :=
     Else snd r_n), tt).
 
 Theorem Heap_refine_memcpy `(AbsR : Heap_AbsR r_o r_n) addr1 addr2 len :
- fromADT HeapSpec r_o ->
   refine (memcpy r_o addr1 addr2 len)
          (wrap (FMap_memcpy r_n addr1 addr2 len)).
 Proof.
@@ -405,7 +403,6 @@ Definition FMap_memset (r_n : N * M.t MemoryBlockC) addr len w :=
               Else cblk') (snd r_n)), tt).
 
 Theorem Heap_refine_memset `(AbsR : Heap_AbsR r_o r_n) addr len w :
- fromADT HeapSpec r_o ->
   refine (memset r_o addr len w) (wrap (FMap_memset r_n addr len w)).
 Proof.
   unfold wrap, FMap_memset; intros; simpl.
@@ -420,7 +417,7 @@ Proof.
   swap_sizes.
   decisions; trivial.
   related_maps'; relational.
-  destruct H3.
+  destruct H2.
   apply Define_Map_AbsR; auto.
 Qed.
 
@@ -441,11 +438,12 @@ Ltac sharpen_method H v :=
       AbsR : Heap_AbsR _ _ |- _ ] =>
     let Hr_o := fresh "Hr_o" in
     remove_dependency; destruct r_o as [r_o Hr_o];
-    erewrite H with (r_o:=r_o); eauto;
-    simplify with monad laws; simpl;
-    refine pick map with v;
-    [ try simplify with monad laws; simpl; finish honing
-    | destruct AbsR; simpl in * ]
+    erewrite H with (r_o:=r_o) || erewrite H; eauto;
+    try (
+      simplify with monad laws; simpl;
+      refine pick map with v;
+      [ try simplify with monad laws; simpl; finish honing
+      | destruct AbsR; simpl in * ])
   end; auto.
 
 Lemma HeapImpl : FullySharpened HeapSpec.
@@ -462,21 +460,16 @@ Proof.
     refine pick val (0%N, @M.empty _).
       finish honing.
     AbsR_prep.
-    apply P.for_all_iff; auto.
   }
 
   refine method allocS.
   {
     sharpen_method @Heap_refine_alloc (fst r_n + ` d).
-    destruct d.
-    apply within_allocated_mem_for_all; auto.
+    eapply for_all_within_allocated_mem_add; eauto; nomega.
   }
 
   refine method freeS.
-  {
     sharpen_method @Heap_refine_free (fst r_n).
-    apply for_all_remove; auto.
-  }
 
   refine method reallocS.
   {
@@ -487,76 +480,37 @@ Proof.
                          Else fst r_n + ` d0
                     Else fst r_n + ` d0).
 
-    unfold FMap_realloc.
-    rename d into addr.
-    destruct d0, (M.find _ (snd r_n)) eqn:Heqe; simpl;
-    [ destruct (_ <=? memCSize _) eqn:Heqe1; simpl | ];
-    rename x into len;
-    normalize; try apply_for_all.
-    - rewrite <- remove_add.
-      apply for_all_add_true; auto.
-        simplify_maps.
-      split; trivial.
-        apply for_all_remove; auto.
-      unfold within_allocated_mem in H2.
-      nomega.
-    - apply for_all_add_true; auto.
-        unfold not; destruct 1.
-        simplify_maps.
-        apply_for_all.
-        apply H0 in H6; destruct H6, H6.
-        pose proof (allocations_have_size Hr_o _ _ H6).
-        rewrite (proj1 H8) in H9.
-        unfold within_allocated_mem in H7.
-        nomega.
-      split; trivial.
-        apply for_all_remove; auto.
-        eapply for_all_impl; eauto; nomega.
-      nomega.
-    - rewrite <- remove_add.
-      apply for_all_add_true; auto.
-        simplify_maps.
-      split; trivial.
-        apply for_all_remove; auto.
-        eapply for_all_impl; eauto; nomega.
-      nomega.
+    - unfold FMap_realloc.
+      destruct (M.find _ (snd r_n)) eqn:Heqe; simpl;
+      [ destruct (_ <=? memCSize _) eqn:Heqe1; simpl | ];
+      normalize; try apply_for_all;
+      eapply for_all_within_allocated_mem_add; eauto; simpl; nomega.
+    - apply allocations_no_overlap; assumption.
   }
 
   refine method peekS.
-  {
     sharpen_method @Heap_refine_peek (fst r_n).
-  }
 
   refine method pokeS.
   {
     sharpen_method @Heap_refine_poke (fst r_n).
-
-    eapply P.for_all_iff; auto; intros.
-    do 2 simplify_maps; intros; subst; auto.
-    apply_for_all.
-    decisions; auto.
+    apply for_all_within_allocated_mem_mapi; auto; intros.
+    decisions; nomega.
   }
 
   refine method memcpyS.
   {
     sharpen_method @Heap_refine_memcpy (fst r_n).
-
-    destruct (0 <? d1) eqn:Heqe; simpl; trivial.
-    destruct (find_if _ _) eqn:Heqe1; simpl; trivial.
-    eapply P.for_all_iff; auto; intros.
-    do 2 simplify_maps; intros; subst; auto.
-    apply_for_all.
-    decisions; auto.
+    destruct (0 <? d1) eqn:Heqe, (find_if _ _) eqn:Heqe1; simpl; auto.
+    apply for_all_within_allocated_mem_mapi; auto; intros.
+    decisions; nomega.
   }
 
   refine method memsetS.
   {
     sharpen_method @Heap_refine_memset (fst r_n).
-
-    eapply P.for_all_iff; auto; intros.
-    do 2 simplify_maps; intros; subst; auto.
-    apply_for_all.
-    decisions; auto.
+    apply for_all_within_allocated_mem_mapi; auto; intros.
+    decisions; nomega.
   }
 
   finish_SharpeningADT_WithoutDelegation.
