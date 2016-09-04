@@ -215,36 +215,33 @@ Ltac norm_N_step :=
   match goal with
   | [ |- ~ _ ] => unfold not; intros
 
-  | [ H : is_true (_ <? _)  |- _ ] => apply N.ltb_lt in H
+  | [ H : is_true _ |- _ ] => unfold is_true in H
+  | [ |- is_true _ ] => unfold is_true
+
+  | [ H : negb _ = true |- _ ] => apply Bool.negb_true_iff in H
+  | [ |- negb _ = true ] => apply Bool.negb_true_iff
+
   | [ H : (_ <? _) = true   |- _ ] => apply N.ltb_lt in H
   | [ H : (_ <? _) = false  |- _ ] => apply N.ltb_ge in H
-  | [ H : is_true (_ <=? _) |- _ ] => apply N.leb_le in H
   | [ H : (_ <=? _) = true  |- _ ] => apply N.leb_le in H
   | [ H : (_ <=? _) = false |- _ ] => apply N.leb_gt in H
-  | [ H : is_true (_ =? _)  |- _ ] => apply N.eqb_eq in H; subst
   | [ H : (_ =? _) = true   |- _ ] => apply N.eqb_eq in H; subst
   | [ H : (_ =? _) = false  |- _ ] => apply N.eqb_neq in H
 
-  | [ |- is_true (_ <? _)  ] => apply N.ltb_lt
   | [ |- (_ <? _) = true   ] => apply N.ltb_lt
   | [ |- (_ <? _) = false  ] => apply N.ltb_ge
-  | [ |- is_true (_ <=? _) ] => apply N.leb_le
   | [ |- (_ <=? _) = true  ] => apply N.leb_le
   | [ |- (_ <=? _) = false ] => apply N.leb_gt
-  | [ |- is_true (_ =? _)  ] => apply N.eqb_eq
   | [ |- (_ =? _) = true   ] => apply N.eqb_eq
   | [ |- (_ =? _) = false  ] => apply N.eqb_neq
 
   | [ H : _ /\ _ |- _ ] => destruct H
 
-  | [ H : is_true ((_ && _)%bool) |- _ ] =>
-    apply Bool.andb_true_iff in H; destruct H
   | [ H : (_ && _)%bool = true |- _ ] =>
     apply Bool.andb_true_iff in H; destruct H
   | [ H : (_ && _)%bool = false |- _ ] =>
     apply Bool.andb_false_iff in H; destruct H
 
-  | [ |- is_true ((_ && _)%bool)  ] => apply Bool.andb_true_iff; split
   | [ |- (_ && _)%bool = true  ] => apply Bool.andb_true_iff; split
   | [ |- (_ && _)%bool = false ] => apply Bool.andb_false_iff
 

@@ -9,7 +9,8 @@ Require Import
   ByteString.ADTInduction
   ByteString.BindDep
   ByteString.ByteString
-  ByteString.Heap
+  ByteString.HeapEns
+  ByteString.HeapEnsADT
   ByteString.Nomega
   ByteString.Relations
   ByteString.Tactics
@@ -17,9 +18,6 @@ Require Import
   ByteString.Same_set
   ByteString.Within.
 
-(** jww (2016-09-04): This is the next bit of work to be redone. *)
-
-(*
 Generalizable All Variables.
 
 Open Scope N_scope.
@@ -63,8 +61,8 @@ Definition simply_widen_region (r : PS) : PS :=
    ; psLength := psLength r + 1 |}.
 
 Program Definition make_room_by_shifting_up (r : PS) (n : N | 0 < n) :
-  (* We could maybe be smarter by shifting the block so it sits mid-way within
-     the buffer. *)
+  (* We could be smarter by shifting the block so it sits mid-way within the
+     buffer. *)
   Comp PS :=
   res <- memcpy' (psHeap r) (psBuffer r) (psBuffer r + n) (psLength r);
   ret {| psHeap   := fst res
@@ -589,7 +587,8 @@ Proof.
       apply refine_under_bind; intros; simpl.
       pose proof H1.
       eapply buffer_uncons_impl in H1; eauto.
-      rewrite fst_match_list, snd_match_list, <- H1.
+      rewrite fst_match_list, snd_match_list.
+      setoid_rewrite <- H1.
       refine pick val (fst a).
         simplify with monad laws.
         rewrite <- surjective_pairing.
@@ -603,4 +602,3 @@ Proof.
 Defined.
 
 End Refined.
-*)

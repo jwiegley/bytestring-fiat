@@ -8,11 +8,6 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Require Import
-  ByteString.Relations
-  ByteString.Same_set
-  Coq.Structures.DecidableTypeEx.
-
 Generalizable All Variables.
 
 Module FunMaps (E : DecidableType) (M : WSfun E).

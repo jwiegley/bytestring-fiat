@@ -11,8 +11,6 @@ Require Import
   ByteString.ByteString
   ByteString.ByteStringHeap
   ByteString.Heap
-  ByteString.HeapADT
-  ByteString.HeapFMap
   ByteString.Nomega
   ByteString.Relations
   ByteString.Tactics
@@ -22,9 +20,10 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
+(*
 Generalizable All Variables.
 
-Module ByteStringFMap (M : WSfun N_as_DT).
+Module ByteStringCanon (M : WSfun N_as_DT).
 
 Module Import HF := HeapFMap M.
 
@@ -483,7 +482,7 @@ Record CPS := {
 Variable cheap : ComputationalADT.cRep (projT1 HeapImpl).
 Variable AbsR : Heap_AbsR (` heap) cheap.
 
-Lemma ByteStringFMap : { adt : _ & refineADT (projT1 ByteStringStrip) adt }.
+Lemma ByteStringCanon : { adt : _ & refineADT (projT1 ByteStringStrip) adt }.
 Proof.
   eexists.
   hone representation using
@@ -562,4 +561,5 @@ Proof.
 
 End Refined.
 
-End ByteStringFMap.
+End ByteStringCanon.
+*)

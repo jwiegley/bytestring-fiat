@@ -5,7 +5,7 @@ Require Import
   Fiat.ADTNotation
   ByteString.ADTInduction
   ByteString.FromADT
-  ByteString.Heap.
+  ByteString.HeapEns.
 
 Open Scope N_scope.
 

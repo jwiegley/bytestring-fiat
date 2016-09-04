@@ -5,8 +5,8 @@ Require Import
   ByteString.BindDep
   ByteString.ADTInduction
   ByteString.Tactics
-  ByteString.Heap
-  ByteString.HeapADT
+  ByteString.HeapEns
+  ByteString.HeapEnsADT
   ByteString.Within
   ByteString.DefineAbsR
   ByteString.Same_set

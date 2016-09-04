@@ -3,8 +3,8 @@ Require Import
   ByteString.TupleEnsembles
   ByteString.FunMaps
   ByteString.Relations
-  ByteString.Heap
-  ByteString.HeapADT
+  ByteString.HeapEns
+  ByteString.HeapEnsADT
   ByteString.FMapExt
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.

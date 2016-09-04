@@ -1,7 +1,7 @@
 Require Import
   ByteString.Nomega
-  ByteString.Heap
-  ByteString.HeapADT
+  ByteString.HeapEns
+  ByteString.HeapEnsADT
   ByteString.FMapExt
   ByteString.Relations
   ByteString.MemoryBlockC

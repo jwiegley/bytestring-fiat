@@ -243,6 +243,26 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma remove_associative : forall (x y : M.key) elt (m : M.t elt),
+  M.Equal (M.remove x (M.remove y m)) (M.remove y (M.remove x m)).
+Proof.
+  intros.
+  apply F.Equal_mapsto_iff; split; intros;
+  repeat simplify_maps; intuition.
+Qed.
+
+Theorem add_remove_neq_commutative {elt}
+        (k : M.key) (e : elt) (k0 : M.key) (z : M.t elt) :
+  ~ E.eq k k0
+    -> M.Equal (M.add k e (M.remove k0 z)) (M.remove k0 (M.add k e z)).
+Proof.
+  intros.
+  apply F.Equal_mapsto_iff; split; intros;
+  repeat simplify_maps; intuition.
+  rewrite <- H0 in H1.
+  contradiction.
+Qed.
+
 Section for_all.
 
 Variable elt : Type.
@@ -367,6 +387,25 @@ Proof.
   - exact H.
   - exact P_Proper.
   - tauto.
+Qed.
+
+Lemma for_all_remove_inv : forall (m : M.t elt) (k : M.key),
+  P.for_all P (M.remove k m) = true
+    -> ~ M.In k m -> P.for_all P m = true.
+Proof.
+  intros.
+  apply P.for_all_iff; trivial; intros.
+  eapply P.for_all_iff in H.
+  - exact H.
+  - exact P_Proper.
+  - simplify_maps.
+    split; trivial.
+    unfold not; intros.
+    rewrite <- H3 in H1.
+    contradiction H0.
+    apply in_mapsto_iff.
+    exists e.
+    assumption.
 Qed.
 
 Lemma for_all_impl : forall (P' : M.key -> elt -> bool) m,

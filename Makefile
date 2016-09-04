@@ -1,10 +1,10 @@
-MISSING	 =								\
-	find src \( \( -name coq-haskell -o -name fiat \) -prune \)	\
-	    -o \( -name '*.v'						\
-		! -name fiat						\
-		! -name coq-haskell -print \)			|	\
-		xargs egrep -i -Hn '(abort|admit|undefined)'	|	\
-		      egrep -v 'Definition undefined'		|	\
+MISSING	 =									\
+	find src \( \( -name coq-haskell -o -name fiat \) -prune \)		\
+	    -o \( -name '*.v'							\
+		! -name fiat							\
+		! -name coq-haskell -print \)				|	\
+		xargs egrep -i -Hn '(abort|admit|undefined|jww)'	|	\
+		      egrep -v 'Definition undefined'			|	\
 		      egrep -v '(old|new|research)/'
 
 all: bstring
