@@ -96,19 +96,3 @@ Tactic Notation "ADT" "induction" ident(r) :=
     | [ midx : MethodIndex _      |- _ ] => clear midx
     end
   end.
-
-Lemma ADT_ind {sig} (adt : ADT sig) :
-  forall (P : Ensemble (Rep adt))
-         (PC : forall cidx r, fromConstructor (Constructors adt cidx) r -> P r)
-         (PM : forall midx r r', fromMethod' (Methods adt midx r) r' -> P r'),
-         forall r : Rep adt, fromADT adt r -> P r.
-Proof.
-  intros.
-  induction H.
-    eapply PC.
-    exact H.
-  eapply PM.
-  exact H0.
-Qed.
-
-Definition ARep {sig} (adt : ADT sig) := { r : Rep adt | fromADT adt r }.

@@ -2,7 +2,7 @@ Require Import
   ByteString.Memory
   ByteString.Heap
   ByteString.ByteString
-  ByteString.ByteStringFMap
+  ByteString.ByteStringCanon
   ByteString.Fiat
   ByteString.Nomega
   Coq.Strings.Ascii
@@ -50,7 +50,7 @@ Variable heap' : ComputationalADT.cRep (projT1 HeapCanonical).
 Variable heap_AbsR : Heap_AbsR heap heap'.
 
 Definition BSimpl :=
-  Eval simpl in projT1 (@ByteStringImpl heap heap' heap_AbsR).
+  Eval simpl in projT1 (@ByteStringCanonical heap heap' heap_AbsR).
 
 Definition BScrep := ComputationalADT.cRep BSimpl.
 

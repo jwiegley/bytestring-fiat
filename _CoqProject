@@ -1,13 +1,16 @@
 -R fiat/src Fiat
 -R src ByteString
-src/ADTInduction.v
-src/ByteString.v
-src/ByteStringFMap.v
-src/ByteStringHeap.v
-src/FMapExt.v
-src/FromADT.v
-src/Heap.v
-src/Memory.v
-src/Nomega.v
 src/Tactics.v
+src/Nomega.v
+src/FMapExt.v
+src/ADTInduction.v
+src/FromADT.v
 src/Fiat.v
+src/Memory.v
+src/HeapState.v
+src/Heap.v
+src/HeapADT.v
+src/HeapCanon.v
+src/ByteString.v
+src/ByteStringHeap.v
+src/ByteStringCanon.v

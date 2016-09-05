@@ -54,7 +54,7 @@ Lemma refineEquiv_If_Then_Else_Bind :
                 (If i Then a <- t; b a Else (a <- e; b a)).
 Proof. split; intros; destruct i; reflexivity. Qed.
 
-Theorem refine_If_Then_Else_bool :
+Lemma refine_If_Then_Else_bool :
   forall (b : bool) A cpst cpse (res : Comp A),
     (if b then refine cpst res else refine cpse res)
       <-> refine (If b Then cpst Else cpse) res.

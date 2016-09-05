@@ -23,13 +23,13 @@ Section N_theory.
 
 Variables n m : N.
 
-Theorem Neq_in : nat_of_N n = nat_of_N m -> n = m.
+Lemma Neq_in : nat_of_N n = nat_of_N m -> n = m.
 Proof.
   intros H; apply (f_equal N_of_nat) in H;
   autorewrite with N in *; assumption.
 Qed.
 
-Theorem Neq_out : n = m -> nat_of_N n = nat_of_N m.
+Lemma Neq_out : n = m -> nat_of_N n = nat_of_N m.
 Proof.
   intros H; apply (f_equal N.to_nat) in H;
   autorewrite with N in *; assumption.
@@ -38,70 +38,63 @@ Qed.
 Corollary Nneq_in : nat_of_N n <> nat_of_N m -> n <> m.
 Proof. congruence. Qed.
 
-Theorem Nneq_out : n <> m -> nat_of_N n <> nat_of_N m.
+Lemma Nneq_out : n <> m -> nat_of_N n <> nat_of_N m.
 Proof. intuition; apply Neq_in in H0; tauto. Qed.
 
-Theorem Nlt_in : (nat_of_N n < nat_of_N m)%nat -> n < m.
+Lemma Nlt_in : (nat_of_N n < nat_of_N m)%nat -> n < m.
 Proof.
   unfold Nlt; intros.
   rewrite nat_of_Ncompare.
   apply (proj1 (nat_compare_lt _ _)); assumption.
 Qed.
 
-Theorem Nlt_out : n < m -> (nat_of_N n < nat_of_N m)%nat.
+Lemma Nlt_out : n < m -> (nat_of_N n < nat_of_N m)%nat.
 Proof.
   unfold Nlt; intros.
   rewrite nat_of_Ncompare in H.
   apply nat_compare_Lt_lt; assumption.
 Qed.
 
-Theorem Nle_in : (nat_of_N n <= nat_of_N m)%nat -> n <= m.
+Lemma Nle_in : (nat_of_N n <= nat_of_N m)%nat -> n <= m.
 Proof.
   unfold Nle; intros.
   rewrite nat_of_Ncompare.
   apply (proj1 (nat_compare_le _ _)); assumption.
 Qed.
 
-Theorem Nle_out : n <= m -> (nat_of_N n <= nat_of_N m)%nat.
+Lemma Nle_out : n <= m -> (nat_of_N n <= nat_of_N m)%nat.
 Proof.
   unfold Nle; intros.
   rewrite nat_of_Ncompare in H.
   apply nat_compare_le; assumption.
 Qed.
 
-Theorem Ngt_out : n > m -> (nat_of_N n > nat_of_N m)%nat.
+Lemma Ngt_out : n > m -> (nat_of_N n > nat_of_N m)%nat.
 Proof.
   unfold Ngt; intros.
   rewrite nat_of_Ncompare in H.
   apply nat_compare_gt; assumption.
 Qed.
 
-Theorem Ngt_in : (nat_of_N n > nat_of_N m)%nat -> n > m.
+Lemma Ngt_in : (nat_of_N n > nat_of_N m)%nat -> n > m.
 Proof.
   unfold Ngt; intros.
   rewrite nat_of_Ncompare.
   apply nat_compare_gt; assumption.
 Qed.
 
-Theorem Nge_out : n >= m -> (nat_of_N n >= nat_of_N m)%nat.
+Lemma Nge_out : n >= m -> (nat_of_N n >= nat_of_N m)%nat.
 Proof.
   unfold Nge; intros.
   rewrite nat_of_Ncompare in H.
   apply nat_compare_ge; assumption.
 Qed.
 
-Theorem Nge_in : (nat_of_N n >= nat_of_N m)%nat -> n >= m.
+Lemma Nge_in : (nat_of_N n >= nat_of_N m)%nat -> n >= m.
 Proof.
   unfold Nge; intros.
   rewrite nat_of_Ncompare.
   apply nat_compare_ge; assumption.
-Qed.
-
-Theorem Nle_add_plus : forall o, 0 < o -> n <= m -> n <= m + o.
-Proof.
-  intros.
-  rewrite <- (N.add_0_r n).
-  apply N.add_le_mono; congruence.
 Qed.
 
 Lemma Nsub_eq : forall o, o <= n -> o <= m -> n - o = m - o -> n = m.
@@ -157,25 +150,6 @@ Proof.
 Qed.
 
 End N_theory.
-
-Theorem Nle_impossible : forall n m, 0 < m -> n + m <= n -> False.
-Proof.
-  intros.
-  rewrite <- (N.add_0_r n) in H0 at 2.
-  apply N.add_le_mono_l in H0.
-  apply Nlt_out in H.
-  apply Nle_out in H0.
-  omega.
-Qed.
-
-Theorem Nadd_minus : forall n m, n <= m -> n + (m - n) = m.
-Proof.
-  intros.
-  apply Nle_out in H.
-  apply Neq_in.
-  autorewrite with N.
-  omega.
-Qed.
 
 (*** definitions ***)
 
@@ -351,33 +325,7 @@ Ltac decisions :=
       let Heqe := fresh "Heqe" in destruct B eqn:Heqe
     end.
 
-(*** within ***)
-
-Lemma within_refl : forall addr len,
-  0 < len -> within addr len addr.
-Proof. nomega. Qed.
-
-Lemma within_reflect : forall x y a,
-  within x y a <-> ((x <=? a) && (a <? x + y) = true)%bool.
-Proof. nomega. Qed.
-
-Lemma not_within_reflect : forall x y a,
-  ~ within x y a <-> ((x <=? a) && (a <? x + y) = false)%bool.
-Proof. nomega. Qed.
-
-Lemma within_dec : forall a l x,
-  {within a l x} + {~ within a l x}.
-Proof. nomega. Qed.
-
 (*** overlaps ***)
-
-Lemma overlaps_sym : forall addr1 len1 addr2 len2,
-  overlaps addr1 len1 addr2 len2 <-> overlaps addr2 len2 addr1 len1.
-Proof. nomega. Qed.
-
-Lemma overlaps_trans : forall a b x y z,
-  y < z -> overlaps a b x y -> overlaps a b x z.
-Proof. nomega. Qed.
 
 Lemma not_overlaps_sym : forall addr1 len1 addr2 len2,
   ~ overlaps addr1 len1 addr2 len2 <-> ~ overlaps addr2 len2 addr1 len1.
@@ -385,27 +333,4 @@ Proof. nomega. Qed.
 
 Corollary not_overlaps_trans : forall a b x y z,
   z < y -> ~ overlaps a b x y -> ~ overlaps a b x z.
-Proof. nomega. Qed.
-
-Lemma overlaps_irr : forall addr len1 len2,
-  0 < len1 -> 0 < len2 -> overlaps addr len1 addr len2.
-Proof. nomega. Qed.
-
-(*** other theorems ***)
-
-Theorem Nlt_plus_1 : forall n : N, 0 < n + 1.
-Proof. nomega. Qed.
-
-Lemma not_fits : forall n o m p, 0 < p ->
-  ~ fits n o m p -> m < n \/ n + o < m + p.
-Proof.
-  intros.
-  apply Decidable.not_and in H0.
-    nomega.
-  destruct (within_dec n o m);
-  [left|right]; assumption.
-Qed.
-
-Lemma fits_dec : forall n o m p,
-  {fits n o m p} + {~ fits n o m p}.
 Proof. nomega. Qed.

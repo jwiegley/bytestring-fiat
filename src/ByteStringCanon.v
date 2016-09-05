@@ -16,11 +16,10 @@ Module ByteStringFMap (M : WSfun N_as_DT).
 Module Import ByteStringHeap := ByteStringHeap M.
 
 Import HeapCanonical.
-Import HeapCanonical.HeapADT.
-Import HeapCanonical.HeapADT.Heap.
-Import HeapCanonical.HeapADT.Heap.FMapExt.
-Import HeapCanonical.HeapADT.Heap.FMapExt.P.
-Import HeapCanonical.HeapADT.Heap.FMapExt.F.
+Import HeapADT.
+Import Heap.
+Import HeapState.
+Import FMapExt.
 
 Section Refined.
 
@@ -53,7 +52,7 @@ Record PS' := {
 
 Require Import ByteString.FromADT.
 
-Lemma ByteStringImpl : FullySharpened (projT1 (ByteStringHeap heap)).
+Theorem ByteStringCanonical : FullySharpened (projT1 (ByteStringHeap heap)).
 Proof.
   start sharpening ADT.
 
@@ -100,7 +99,7 @@ Proof.
       destruct H0, H5.
       split; simpl; trivial.
       split; trivial.
-      apply add_m; eauto.
+      apply F.add_m; eauto.
     rewrite refineEquiv_If_Then_Else_Bind.
     subst H.
     apply refine_If_Then_Else.
@@ -125,7 +124,7 @@ Proof.
       destruct H0, H0.
       split; simpl; trivial.
       split; trivial.
-      apply add_m; auto.
+      apply F.add_m; auto.
       rewrite H0; reflexivity.
     rewrite refineEquiv_If_Then_Else_Bind.
     apply refine_If_Then_Else.

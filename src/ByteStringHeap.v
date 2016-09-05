@@ -3,6 +3,8 @@ Require Import
   ByteString.Memory
   ByteString.Nomega
   ByteString.Heap
+  ByteString.HeapADT
+  ByteString.HeapCanon
   ByteString.ByteString
   ByteString.Fiat
   Coq.FSets.FMapFacts
@@ -16,8 +18,10 @@ Module ByteStringHeap (M : WSfun N_as_DT).
 
 Module Import HeapCanonical := HeapCanonical M.
 
-Import HeapADT.Heap.
-Import HeapADT.Heap.FMapExt.
+Import HeapADT.
+Import Heap.
+Import HeapState.
+Import FMapExt.
 
 Record PS := makePS {
   psHeap : Rep HeapSpec;
@@ -133,9 +137,9 @@ Ltac destruct_AbsR H :=
 
 Ltac construct_AbsR := split; try split; simpl; try nomega.
 
-Theorem buffer_cons_sound
-        (r_o : list Word) (r_n : PS)
-        (AbsR : ByteString_list_AbsR r_o r_n) :
+Lemma buffer_cons_sound
+      (r_o : list Word) (r_n : PS)
+      (AbsR : ByteString_list_AbsR r_o r_n) :
   forall x r_n' (H : buffer_cons r_n x ↝ r_n'),
     ByteString_list_AbsR (x :: r_o) r_n'.
 Proof.
@@ -245,7 +249,7 @@ Proof.
     nomega.
 Qed.
 
-Theorem buffer_uncons_sound : forall r_o r_n a,
+Lemma buffer_uncons_sound : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
     -> buffer_uncons r_n ↝ a
     -> ByteString_list_AbsR (match r_o with
@@ -292,7 +296,7 @@ Proof.
   right; intuition.
 Qed.
 
-Theorem buffer_uncons_impl : forall r_o r_n a,
+Lemma buffer_uncons_impl : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
     -> buffer_uncons r_n ↝ a
     -> snd a = match r_o with
@@ -331,7 +335,7 @@ Section Refined.
 
 Variable heap : Rep HeapSpec.
 
-Lemma ByteStringHeap  : { adt : _ & refineADT ByteStringSpec adt }.
+Theorem ByteStringHeap  : { adt : _ & refineADT ByteStringSpec adt }.
 Proof.
   eexists.
   hone representation using ByteString_list_AbsR.
