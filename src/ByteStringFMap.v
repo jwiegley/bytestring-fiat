@@ -59,6 +59,19 @@ Record PS' := {
   ps'Length : N
 }.
 
+Lemma If_Then_Else_fst : forall p A B (a b : A * B),
+  fst (If p Then a Else b) = If p Then (fst a) Else (fst b).
+Proof. intros; destruct p; trivial. Qed.
+
+Lemma If_Then_Else_snd : forall p A B (a b : A * B),
+  snd (If p Then a Else b) = If p Then (snd a) Else (snd b).
+Proof. intros; destruct p; trivial. Qed.
+
+Lemma If_Then_Else_pair : forall p A (a b : A) B (c d : B),
+  (If p Then a Else b, If p Then c Else d)
+    = If p Then (a, c) Else (b, d).
+Proof. intros; destruct p; trivial. Qed.
+
 Lemma ByteStringImpl : FullySharpened (projT1 (ByteStringHeap heap)).
 Proof.
   start sharpening ADT.
@@ -126,7 +139,7 @@ Proof.
                   (fst (ps'Heap r_n),
                    {| resvs := resvs (snd (ps'Heap r_n))
                     ; bytes :=
-                        M.add (ps'Buffer r_n + 0) d
+                        M.add (ps'Buffer r_n) d
                               (copy_bytes (ps'Buffer r_n) (ps'Buffer r_n + 1)
                                           (ps'Length r_n)
                                           (bytes (snd (ps'Heap r_n)))) |})
@@ -136,6 +149,7 @@ Proof.
               ; ps'Length := ps'Length r_n + 1 |}.
         simplify with monad laws.
         finish honing.
+      rewrite !N.add_0_r.
       simpl in *; intuition.
       destruct H0, H0.
       split; simpl; trivial.
@@ -164,7 +178,7 @@ Proof.
                                           (ps'Length r_n + 1)
                                           (resvs (snd (ps'Heap r_n))))
                       ; bytes :=
-                          M.add (fst (ps'Heap r_n) + 0) d
+                          M.add (fst (ps'Heap r_n)) d
                                 (copy_bytes (ps'Buffer r_n)
                                             (fst (ps'Heap r_n) + 1)
                                             (ps'Length r_n)
@@ -175,6 +189,7 @@ Proof.
                 ; ps'Length := ps'Length r_n + alloc_quantum |}.
           simplify with monad laws.
           finish honing.
+        rewrite N.add_0_r.
         simpl in *; intuition.
         destruct H0, H0.
         split; simpl.
@@ -217,7 +232,7 @@ Proof.
                   (fst (ps'Heap r_n) + 1,
                    {| resvs := M.add (fst (ps'Heap r_n)) 1
                                      (resvs (snd (ps'Heap r_n)))
-                    ; bytes := M.add (fst (ps'Heap r_n) + 0) d
+                    ; bytes := M.add (fst (ps'Heap r_n)) d
                                      (bytes (snd (ps'Heap r_n))) |})
               ; ps'Buffer := fst (ps'Heap r_n)
               ; ps'BufLen := 1
@@ -225,6 +240,7 @@ Proof.
               ; ps'Length := 1 |}.
         simplify with monad laws.
         finish honing.
+      rewrite N.add_0_r.
       simpl in *; intuition.
       destruct H0, H0.
       split; simpl.
@@ -291,6 +307,42 @@ Proof.
       finish honing.
     intuition.
   }
+
+  hone representation using eq.
+  {
+    simplify with monad laws.
+    finish honing.
+  }
+  {
+    rewrite !refine_If_Then_Else_ret.
+    simplify with monad laws.
+    refine pick eq.
+    simplify with monad laws.
+    rewrite !If_Then_Else_fst, !If_Then_Else_snd; simpl.
+    replace (If 0 <? ps'Offset r_o
+             Then ()
+             Else (If ps'Length r_o + 1 <=? ps'BufLen r_o
+                   Then ()
+                   Else (If 0 <? ps'BufLen r_o
+                         Then ()
+                         Else ()))) with ().
+      subst.
+      finish honing.
+    destruct (0 <? _); trivial; simpl.
+    destruct (_ + 1 <=? _); trivial; simpl.
+    destruct (0 <? _); trivial.
+  }
+  {
+    rewrite refine_If_Then_Else_ret.
+    simplify with monad laws.
+    refine pick eq.
+    simplify with monad laws.
+    rewrite !If_Then_Else_fst, !If_Then_Else_snd; simpl.
+    rewrite If_Then_Else_pair.
+    subst.
+    finish honing.
+  }
+
   finish_SharpeningADT_WithoutDelegation.
 Defined.
 
