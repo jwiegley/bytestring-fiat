@@ -9,50 +9,58 @@ Require Import
   ByteString.ADTInduction
   ByteString.BindDep
   ByteString.ByteString
+  ByteString.Memory
   ByteString.Heap
   ByteString.Nomega
   ByteString.Relations
   ByteString.Tactics
   ByteString.TupleEnsembles
   ByteString.Same_set
-  ByteString.Within.
+  ByteString.Within
+  Coq.FSets.FMapFacts
+  Coq.Structures.DecidableTypeEx.
 
-(** jww (2016-09-04): This is the next bit of work to be redone. *)
-
-(*
 Generalizable All Variables.
 
 Open Scope N_scope.
 
+Module ByteStringHeap (M : WSfun N_as_DT).
+
+Module Import HeapCanonical := HeapCanonical M.
+Import HeapADT.
+Import HeapADT.Heap.
+Import HeapADT.Heap.FMapExt.
+Import HeapADT.Heap.FMapExt.P.
+Import HeapADT.Heap.FMapExt.F.
+
 Definition HSpec := projT1 HeapSpecADT.
 
-Definition memcpy' (r : Rep HSpec) (addr : N) (addr2 : N) (len : N) :
+Definition memcpy' (r : Rep HSpec) (addr : Ptr) (addr2 : Ptr) (len : Size) :
   Comp (Rep HSpec * unit) :=
   Eval simpl in callMeth HSpec memcpyS r addr addr2 len.
 
-Definition alloc' (r : Rep HSpec) (len : N | 0 < len) :
-  Comp (Rep HSpec * N) :=
+Definition alloc' (r : Rep HSpec) (len : Size | 0 < len) :
+  Comp (Rep HSpec * Ptr) :=
   Eval simpl in callMeth HSpec allocS r len.
 
-Definition free' (r : Rep HSpec) (addr : N) : Comp (Rep HSpec * unit) :=
+Definition free' (r : Rep HSpec) (addr : Ptr) : Comp (Rep HSpec * unit) :=
   Eval simpl in callMeth HSpec freeS r addr.
 
-Definition peek' (r : Rep HSpec) (addr : N) :
-  Comp (Rep HSpec * Word8) :=
+Definition peek' (r : Rep HSpec) (addr : Ptr) : Comp (Rep HSpec * Word) :=
   Eval simpl in callMeth HSpec peekS r addr.
 
-Definition poke' (r : Rep HSpec) (addr : N) (w : Word8) :
+Definition poke' (r : Rep HSpec) (addr : Ptr) (w : Word) :
   Comp (Rep HSpec * unit) :=
   Eval simpl in callMeth HSpec pokeS r addr w.
 
 Record PS := makePS {
   psHeap : Rep HSpec;
 
-  psBuffer : N;
-  psBufLen : N;
+  psBuffer : Ptr;
+  psBufLen : Size;
 
-  psOffset : N;
-  psLength : N
+  psOffset : Size;
+  psLength : Size
 }.
 
 Definition simply_widen_region (r : PS) : PS :=
@@ -96,7 +104,7 @@ Program Definition allocate_buffer (r : Rep HSpec) (len : N | 0 < len) :
        ; psOffset := 0
        ; psLength := len |}.
 
-Definition poke_at_offset (r : PS) (d : Word8) : Comp PS :=
+Definition poke_at_offset (r : PS) (d : Word) : Comp PS :=
   res <- poke' (psHeap r) (psBuffer r + psOffset r) d;
   ret {| psHeap   := fst res
        ; psBuffer := psBuffer r
@@ -109,7 +117,7 @@ Definition poke_at_offset (r : PS) (d : Word8) : Comp PS :=
 Definition alloc_quantum := 1.
 Arguments alloc_quantum /.
 
-Program Definition buffer_cons (r : PS) (d : Word8) : Comp PS :=
+Program Definition buffer_cons (r : PS) (d : Word) : Comp PS :=
   ps <- If 0 <? psOffset r
         Then ret (simply_widen_region r)
         Else If psLength r + alloc_quantum <=? psBufLen r
@@ -122,7 +130,7 @@ Obligation 1. nomega. Defined.
 Obligation 2. nomega. Defined.
 Obligation 3. nomega. Defined.
 
-Definition buffer_uncons (r : PS) : Comp (PS * option Word8) :=
+Definition buffer_uncons (r : PS) : Comp (PS * option Word) :=
   If 0 <? psLength r
   Then (
     w <- peek' (psHeap r) (psBuffer r + psOffset r);
@@ -139,15 +147,13 @@ Definition ByteString_list_AbsR (or : Rep ByteStringSpec) (nr : PS) :=
   length or = N.to_nat (psLength nr) /\
   IF psBufLen nr = 0
   then psOffset nr = 0 /\ psLength nr = 0
-  else
-    fits (psBuffer nr) (psBufLen nr)
-         (psBuffer nr + psOffset nr) (psLength nr) /\
-    exists data,
-      Lookup (psBuffer nr) {| memSize := psBufLen nr; memData := data |}
-             (` (psHeap nr)) /\
-      (forall i x, i < psLength nr
-                     -> nth (N.to_nat i) or x = x
-                     -> Lookup (psOffset nr + i) x data).
+  else fits (psBuffer nr) (psBufLen nr)
+            (psBuffer nr + psOffset nr) (psLength nr) /\
+       M.MapsTo (psBuffer nr) (psBufLen nr) (resvs (` (psHeap nr))) /\
+       (forall i x, i < psLength nr
+          -> nth (N.to_nat i) or x = x
+          -> M.MapsTo (psBuffer nr + psOffset nr + i) x
+                      (bytes (` (psHeap nr)))).
 
 Ltac destruct_AbsR H :=
   let H1 := fresh "H1" in
@@ -156,11 +162,12 @@ Ltac destruct_AbsR H :=
   let H3 := fresh "H3" in
   let H4 := fresh "H4" in
   let data := fresh "data" in
-  destruct H2 as [[H [H2 H3]]|[H [H2 [data [H3 H4]]]]];
+  destruct H2 as [[H [H2 H3]]|[H [H2 [H3 H4]]]];
   [ rewrite ?H, ?H2 in * | ].
 
 Ltac construct_AbsR := split; try split; simpl; try nomega.
 
+(*
 Ltac competing_lookups R H A1 H0 A2 :=
   let Heqe := fresh "Heqe" in
   destruct (A1 =? A2) eqn:Heqe;
@@ -170,12 +177,14 @@ Ltac competing_lookups R H A1 H0 A2 :=
     | apply N.eqb_neq in Heqe;
       pose proof (allocations_no_overlap (proj2_sig R) _ H _ H0 Heqe);
       try nomega ].
+*)
 
 Ltac resolve_contention :=
   match goal with
   | [ H : All _ ?R, H0 : Lookup ?A ?B ?R |- _ ] => destruct (H A B)
   end.
 
+(*
 Lemma KeepKeys_nothing : forall P m,
   (forall a, ~ P a) -> KeepKeys P m = Empty.
 Proof.
@@ -217,10 +226,29 @@ Proof.
     teardown; firstorder.
   left; assumption.
 Qed.
+*)
 
+Axiom Extensionality_FMap : forall (elt : Type) (A B : M.t elt),
+  M.Equal (elt:=elt) A B -> A = B.
+
+Lemma refine_ret_ret_fst_Equal : forall A (x z : M.t A) B (y w : B),
+  M.Equal x z -> y = w -> refine (ret (x, y)) (ret (z, w)).
+Proof.
+  intros; subst; f_equiv; f_equal.
+  apply Extensionality_FMap; assumption.
+Qed.
+
+(*
 Corollary refine_memcpy_zero heap addr1 addr2 :
   refineEquiv (memcpy heap addr1 addr2 0) (ret (heap, tt)).
-Proof. reflexivity. Qed.
+Proof.
+  unfold memcpy; split;
+  destruct heap;
+  apply refine_ret_eq; do 3 f_equal;
+  apply Extensionality_FMap;
+  rewrite copy_bytes_zero; simpl;
+  reflexivity.
+Qed.
 
 Lemma Map_unique_is_Update heap base blk addr len f :
   fromADT HeapSpec heap ->
@@ -291,6 +319,7 @@ Proof.
   try (apply allocations_functional; auto);
   intros; destruct (N.eq_dec a a'); auto.
 Qed.
+*)
 
 Lemma simply_within : forall n m A (P Q : A),
   0 < m -> Ifdec within n m n Then P Else Q = P.
@@ -300,7 +329,7 @@ Corollary within_nothing : forall addr p, ~ within addr 0 p.
 Proof. nomega. Qed.
 
 Theorem buffer_cons_sound
-        (r_o : list Word8) (r_n : PS)
+        (r_o : list Word) (r_n : PS)
         (AbsR : ByteString_list_AbsR r_o r_n) :
   forall x r_n' (H : buffer_cons r_n x ↝ r_n'),
     ByteString_list_AbsR (x :: r_o) r_n'.
@@ -312,21 +341,20 @@ Proof.
   destruct (0 <? psOffset r_n) eqn:Heqe.
     apply refine_computes_to_ret in H.
     {
-      destruct_computations; simpl.
+      destruct_computations; simpl in *.
       destruct_AbsR AbsR; construct_AbsR.
-      right; intuition; [nomega|].
-      exists (Update (psOffset r_n - 1) x data).
-      split; intros; teardown.
-        destruct_computations; tsubst; teardown.
-        exists {| memSize := psBufLen r_n; memData := data |}; simpl.
-        decisions; intuition.
-          f_equal; f_equal; nomega.
-        destruct H2; nomega.
+      right; split; trivial; split; [nomega|].
+      split; intros; teardown;
+      destruct_computations; tsubst;
+      simpl; trivial.
+      simplify_maps.
       destruct i using N.peano_ind.
         left; nomega.
       right; split; [nomega|].
+      rewrite <- N.add_assoc.
       rewrite <- N.add_sub_swap; [|nomega].
       rewrite <- N.add_sub_assoc; [|nomega].
+      rewrite N.add_assoc.
       apply H4; [nomega|].
       rewrite N2Nat.inj_sub.
       replace (N.to_nat 1) with 1%nat; [|nomega].
@@ -354,49 +382,27 @@ Proof.
     destruct (psLength r_n =? 0) eqn:Heqe.
       assert (psLength r_n = 0) by nomega.
       rewrite H in *; clear H.
-      apply refine_memcpy_zero in x1.
       destruct x1, x3; simpl.
-      exists (Update 0 x data).
-      split.
-        exists {| memSize := psBufLen r_n; memData := data |}; simpl.
-        split; auto.
-        replace (psBuffer r_n - psBuffer r_n) with 0 by nomega.
-        rewrite simply_within; auto.
-        nomega.
-      intros; teardown.
+      split; trivial.
+      intros; simplify_maps.
       destruct i using N.peano_ind.
         left; nomega.
       nomega.
-    eapply refine_memcpy_existing_blocks in x1; eauto.
-    + destruct x1, x3; simpl.
-      remember (CopyBlock _ _ _ _ _) as C.
-      exists (Update 0 x C).
-      split.
-        teardown.
-        exists {| memSize := psBufLen r_n; memData := C |}; simpl.
-        rewrite HeqC; clear HeqC.
-        split.
-          replace (psBuffer r_n - psBuffer r_n) with 0 by nomega.
-          replace (psBuffer r_n + 1 - psBuffer r_n) with 1 by nomega.
-          rewrite simply_within; nomega.
-        teardown.
-      rewrite HeqC; clear HeqC C.
-      intros; teardown.
-      destruct i using N.peano_ind.
-        left; nomega.
-      right; split; [nomega|]; clear IHi.
-      rewrite N2Nat.inj_succ in *; simpl.
-      unfold CopyBlock, KeepKeys, ShiftKeys; teardown.
-      assert (i < psLength r_n) by nomega.
-      right; teardown.
-      exists (i, x0); simpl.
-      split.
-        f_equal; nomega.
-      specialize (H4 _ _ H5 H0).
-      teardown; intuition.
+    destruct x1, x3; simpl.
+    split; trivial.
+    intros; simplify_maps.
+    destruct i using N.peano_ind.
+      left; nomega.
+    right; split; [nomega|].
+    rewrite N2Nat.inj_succ in *; simpl.
+    apply copy_bytes_mapsto.
+    destruct (within_bool (psBuffer r_n + 1) (psLength r_n)
+                          (psBuffer r_n + N.succ i)) eqn:Heqe1; simpl.
+      replace (psBuffer r_n + N.succ i - (psBuffer r_n + 1) + psBuffer r_n)
+         with (psBuffer r_n + i) by nomega.
+      apply H4; trivial.
       nomega.
-    + exact (proj2_sig (psHeap r_n)).
-    + nomega.
+    nomega.
   - simpl; intros;
     apply Bind_dep_inv in H;
     destruct H as [? [x1 ?]];
@@ -411,49 +417,41 @@ Proof.
     apply Bind_inv in x1; destruct x1 as [? [? ?]].
     apply Pick_inv in H0; simpl in *.
     destruct H5; simpl in *.
-    eapply refine_memcpy_existing_blocks
-      with (base1:=psBuffer r_n) (base2:=x1)
-           (blk1:={| memSize := psBufLen r_n; memData := data |})
-           (blk2:={| memSize := psLength r_n + 1; memData := Empty |})
-        in x3; repeat teardown; eauto; try nomega.
     destruct_computations; simpl in *; tsubst.
-    remember (CopyBlock _ _ _ _ _) as C.
-    exists (Update 0 x C); split.
-      repeat teardown.
-      eexists {| memSize := psLength r_n + 1; memData := C |}.
-      rewrite simply_within; simpl; [|nomega].
-      replace (x1 - x1) with 0 by nomega.
-      split; trivial.
-      apply Lookup_Remove; [|nomega].
-      teardown.
-    destruct i using N.peano_ind;
-    simpl in *; intros; subst; teardown.
+    split.
+      simplify_maps.
+      split.
+        apply_for_all; relational.
+        nomega.
+      simplify_maps.
+    intros.
+    simplify_maps.
+    destruct i using N.peano_ind.
+      left; nomega.
     right; split; [nomega|].
-    unfold CopyBlock, ShiftKeys, KeepKeys.
-    teardown; right.
-    teardown; exists (i, x0); split; simpl.
-      f_equal; nomega.
-    teardown.
-    split; [|nomega].
-    apply H4; [nomega|].
     rewrite N2Nat.inj_succ in *; simpl.
-    assumption.
+    apply copy_bytes_mapsto.
+    destruct (within_bool (x1 + 1) (psLength r_n)
+                          (x1 + N.succ i)) eqn:Heqe1; simpl.
+      replace (x1 + N.succ i - (x1 + 1) + psBuffer r_n)
+         with (psBuffer r_n + i) by nomega.
+      apply H4; trivial.
+      nomega.
+    nomega.
   - simpl; intros; destruct_computations;
     destruct_AbsR AbsR; construct_AbsR;
     (right; split; [nomega|]; split; [nomega|]).
-    unfold alloc, FindFreeBlock in x1.
     destruct_computations; simpl in *.
     rewrite H3, ?N.add_0_r in *; simpl.
-    repeat teardown; subst; simpl; try nomega;
-    exists (Update 0 x Empty);
-    split; repeat teardown;
-    try exists {| memSize := 1; memData := Empty |};
-    try split; repeat teardown;
-    decisions; simpl; auto;
-    replace (x1 - x1) with 0 by nomega; auto;
-    try nomega; simpl; intros;
-    try (destruct i using N.peano_ind; simpl in *; subst;
-         [ teardown | nomega ]).
+    split.
+      simplify_maps.
+    intros.
+    simplify_maps.
+    destruct i using N.peano_ind.
+      left; nomega.
+    right; split; [nomega|].
+    rewrite N2Nat.inj_succ in *; simpl.
+    nomega.
 Qed.
 
 Theorem buffer_uncons_sound : forall r_o r_n a,
@@ -472,10 +470,10 @@ Proof.
     unfold peek'.
     rewrite refine_bind_dep_bind_ret; simpl.
     rewrite refine_bind_dep_ignore.
-    unfold peek, FindBlockThatFits.
+    unfold peek.
     autorewrite with monad laws; simpl; intros.
     apply refine_computes_to_ret in H0.
-    destruct_computations.
+    destruct_computations; simpl.
     destruct_AbsR H; construct_AbsR;
     destruct x; try destruct p; simpl in *;
     destruct r_o; simpl in *;
@@ -483,23 +481,28 @@ Proof.
     split; try nomega; split;
     destruct (psLength r_n =? 1) eqn:Heqe2;
     try nomega;
-    try (eexists; split; [exact H4|]; nomega);
-    (eexists;
-     split; [exact H4|];
-     intros;
-     rewrite <- N.add_assoc;
-     apply H5;
-     [ apply N.lt_add_lt_sub_l
-     | rewrite N.add_1_l, N2Nat.inj_succ ];
-     trivial).
+    try (eexists; split; [exact H4|]; nomega).
+    split.
+      assumption.
+    intros.
+    destruct i using N.peano_ind.
+      rewrite N.add_0_r, N.add_assoc.
+      apply H4; trivial.
+      nomega.
+    replace (psBuffer r_n + (psOffset r_n + 1) + N.succ i)
+       with (psBuffer r_n + psOffset r_n + (N.succ i + 1)) by nomega.
+    apply H4.
+      nomega.
+    rewrite N.add_succ_l.
+    rewrite N2Nat.inj_succ in *; simpl.
+    rewrite N2Nat.inj_add, Nat.add_1_r.
+    assumption.
   apply refine_computes_to_ret in H0.
   destruct_computations.
   destruct_AbsR H; construct_AbsR;
   destruct r_o; simpl in *; auto; try nomega.
-  - left; intuition.
-  - right; intuition.
-    eexists; intuition.
-    exact H3.
+    left; intuition.
+  right; intuition.
 Qed.
 
 Theorem buffer_uncons_impl : forall r_o r_n a,
@@ -518,24 +521,18 @@ Proof.
     unfold peek'.
     rewrite refine_bind_dep_bind_ret; simpl.
     rewrite refine_bind_dep_ignore.
-    unfold peek, FindBlockThatFits.
+    unfold peek.
     autorewrite with monad laws; simpl; intros.
     apply refine_computes_to_ret in H0.
     destruct_computations.
     destruct_AbsR H; simpl;
     destruct r_o; simpl in *; try nomega.
     f_equal.
-    destruct x; tsubst; simpl in *.
-      destruct p.
-      specialize (H1 w _ _ eq_refl); simpl in *.
-      apply H1.
-      destruct H0.
-      competing_lookups (psHeap r_n) H4 (psBuffer r_n) H0 n.
-      simpl in *.
-      replace (psBuffer r_n + psOffset r_n - psBuffer r_n)
-         with (psOffset r_n + 0) by nomega.
-      apply H5; nomega.
-    resolve_contention; trivial; nomega.
+    apply H0.
+    replace (psBuffer r_n + psOffset r_n)
+       with (psBuffer r_n + psOffset r_n + 0) by nomega.
+    apply H4; trivial.
+    nomega.
   apply refine_computes_to_ret in H0.
   apply Return_inv in H0.
   destruct a; tsubst; simpl in *.
@@ -603,4 +600,5 @@ Proof.
 Defined.
 
 End Refined.
-*)
+
+End ByteStringHeap.

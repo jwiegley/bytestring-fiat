@@ -26,4 +26,5 @@ src/ByteStringLib.v
 src/ByteStringEnsHeap.v
 src/ByteStringEnsFMap.v
 src/ByteStringHeap.v
+src/ByteStringFMap.v
 src/ByteStringCanon.v

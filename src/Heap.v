@@ -36,6 +36,30 @@ Record HeapState := {
   bytes : M.t Word
 }.
 
+Definition HeapState_Equal (x y : HeapState) : Prop :=
+  M.Equal (resvs x) (resvs y) /\ M.Equal (bytes x) (bytes y).
+
+Global Program Instance Build_HeapState_Proper :
+  Proper (M.Equal ==> M.Equal ==> HeapState_Equal) Build_HeapState.
+Obligation 1.
+  relational.
+  unfold HeapState_Equal; simpl.
+  intuition.
+Qed.
+
+Ltac tsubst :=
+  repeat
+    match goal with
+    | [ H : (_, _) = (_, _) |- _ ] => inv H
+    | [ H : (_, _, _) = (_, _, _) |- _ ] => inv H
+    | [ H : (_, _, _, _) = (_, _, _, _) |- _ ] => inv H
+    | [ H : {| resvs := _
+             ; bytes := _ |} =
+            {| resvs := _
+             ; bytes := _ |} |- _ ] => inv H
+    end;
+  subst.
+
 Definition newHeapState :=
   {| resvs := M.empty _
    ; bytes := M.empty _ |}.
@@ -52,79 +76,102 @@ Definition keep_range (addr : Ptr) (len : Size) : M.t Word -> M.t Word :=
 Definition drop_range (addr : Ptr) (len : Size) : M.t Word -> M.t Word :=
   keep_keys (fun p => negb (within_bool addr len p)).
 
-Definition shift_keys (orig_base : N) (new_base : N) (m : M.t Word) :
-  M.t Word :=
-  M.fold (fun k e rest =>
-            If orig_base <=? k
-            Then M.add (k - orig_base + new_base) e rest
-            Else rest) m (M.empty _).
-
 Definition copy_bytes (from to len : Ptr) (bytes : M.t Word) : M.t Word :=
   P.update (drop_range to len bytes)
-           (shift_keys from to (keep_range from len bytes)).
+           (M.fold (fun k e rest =>
+                      If within_bool from len k
+                      Then M.add (k - from + to) e rest
+                      Else rest)
+                   bytes (M.empty _)).
 
 Program Instance copy_bytes_Proper :
   Proper (eq ==> eq ==> eq ==> M.Equal ==> M.Equal) copy_bytes.
 Obligation 1.
   relational.
-  unfold copy_bytes, drop_range, keep_range, shift_keys, keep_keys.
+  unfold copy_bytes, drop_range, keep_range, keep_keys.
   apply P.update_m; trivial.
     rewrite H2; reflexivity.
   apply P.fold_Equal; eauto; relational.
-  - destruct (y <=? y3); simpl.
-      rewrite H1; reflexivity.
-    assumption.
+  - destruct (within_bool y y1 y3); simpl;
+    rewrite H1; reflexivity.
   - intros ??????.
-    destruct (y <=? k) eqn:Heqe; simpl;
-    destruct (y <=? k') eqn:Heqe1; simpl;
+    destruct (within_bool y y1 k) eqn:Heqe; simpl;
+    destruct (within_bool y y1 k') eqn:Heqe1; simpl;
     try reflexivity.
     rewrite add_associative.
       reflexivity.
     intros.
     apply N.add_cancel_r in H0.
     apply Nsub_eq in H0; try tauto; nomega.
-  - rewrite H2; reflexivity.
 Qed.
 
-Lemma copy_bytes_idem d len m : M.Equal (copy_bytes d d len m) m.
+Lemma copy_bytes_mapsto : forall k e addr1 addr2 len m,
+  M.MapsTo k e (copy_bytes addr1 addr2 len m)
+    <-> (If within_bool addr2 len k
+         Then M.MapsTo ((k - addr2) + addr1) e m
+         Else M.MapsTo k e m).
 Proof.
-  unfold copy_bytes, drop_range, keep_range,
-         shift_keys, keep_keys, const, not, compose.
-  apply F.Equal_mapsto_iff; split; intros.
+  unfold copy_bytes, drop_range, keep_range, keep_keys,
+         const, not, compose.
+  split; intros.
     apply P.update_mapsto_iff in H.
     destruct H.
       revert H.
       apply P.fold_rec_bis; simpl; intros; intuition.
-      destruct (d <=? k0); simpl in *.
-        do 2 simplify_maps; relational.
-        rewrite N.sub_add; trivial.
-        nomega.
+        destruct (within_bool addr2 len k) eqn:Heqe; simpl in *;
+        rewrite <- H; assumption.
+      destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
+        destruct (within_bool addr1 len k0) eqn:Heqe1; simpl in *.
+          simplify_maps.
+            simplify_maps.
+            nomega.
+          simplify_maps; right; split; [nomega|intuition].
+        simplify_maps; right; split; [nomega|intuition].
+      destruct (within_bool addr1 len k0) eqn:Heqe1; simpl in *.
+        simplify_maps.
+          simplify_maps.
+          nomega.
+        simplify_maps.
+        right.
+        split.
+          specialize (H1 H6).
+          unfold not; intros; subst.
+          contradiction H0.
+          apply in_mapsto_iff.
+          exists e.
+          assumption.
+        intuition.
+      simplify_maps.
+      right.
+      split.
+        specialize (H1 H2).
+        unfold not; intros; subst.
+        contradiction H0.
+        apply in_mapsto_iff.
+        exists e.
+        assumption.
       intuition.
     destruct H.
+    destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
+      simplify_maps; relational.
+      nomega.
     simplify_maps; relational.
   apply P.update_mapsto_iff.
-  destruct (within_bool d len k) eqn:Heqe.
+  destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
     left.
-    remember (fun _ _ => within_bool _ _ _) as f.
-    assert (Proper (eq ==> eq ==> eq) f) by relational.
-    rewrite Heqf in H0.
-    simpl in H0.
-    assert ((fun H _ => within_bool d len H) k e = true).
-      nomega.
-    pose proof (proj2 (P.filter_iff H0 m k e) (conj H H1)).
-    revert H2.
-    rewrite <- Heqf.
+    revert H.
     apply P.fold_rec_bis; simpl; intros; intuition.
-      rewrite <- H2 in H4.
+      rewrite <- H in H1.
       intuition.
-    destruct (d <=? k0) eqn:Heqe1; simpl.
-      rewrite N.sub_add; trivial.
+    destruct (within_bool addr1 len k0) eqn:Heqel; simpl.
+      simplify_maps.
         simplify_maps.
-          do 2 simplify_maps.
-        simplify_maps; relational.
-        simplify_maps; relational.
-      nomega.
-    apply H4.
+        nomega.
+      simplify_maps.
+      right.
+      split.
+        nomega.
+      intuition.
     simplify_maps.
     nomega.
   right.
@@ -135,17 +182,34 @@ Proof.
   apply P.fold_rec_bis; simpl; intros; intuition.
     inversion H0.
     simplify_maps.
-  destruct (d <=? k0) eqn:Heqe1; simpl in H3.
+  destruct (within_bool addr1 len k0) eqn:Heqel; simpl in *.
     apply (proj1 (in_mapsto_iff _ _ _)) in H3.
     destruct H3.
     simplify_maps.
-      simplify_maps; relational.
       nomega.
     contradiction H2.
     apply in_mapsto_iff.
     exists x.
     assumption.
   contradiction.
+Qed.
+
+Lemma copy_bytes_zero addr1 addr2 m : M.Equal (copy_bytes addr1 addr2 0 m) m.
+Proof.
+  apply F.Equal_mapsto_iff; split; intros;
+  [ apply copy_bytes_mapsto in H
+  | apply copy_bytes_mapsto ];
+  destruct (within_bool addr2 0 k) eqn:Heqe; simpl in *; trivial;
+  nomega.
+Qed.
+
+Lemma copy_bytes_idem d len m : M.Equal (copy_bytes d d len m) m.
+Proof.
+  apply F.Equal_mapsto_iff; split; intros;
+  [ apply copy_bytes_mapsto in H
+  | apply copy_bytes_mapsto ];
+  destruct (within_bool d len k) eqn:Heqe; simpl in *; trivial;
+  revert H; replace (k - d + d) with k by nomega; trivial.
 Qed.
 
 Definition HeapSpec := Def ADT {
@@ -250,13 +314,11 @@ Definition memset (r : Rep HeapSpec) (addr : Ptr) (len : Ptr) (w : Word) :
  **)
 
 Ltac inspect :=
-  unfold find_free_block, copy_bytes,
-         keep_keys, shift_keys, newHeapState in *;
+  unfold find_free_block, copy_bytes, keep_keys, newHeapState in *;
   destruct_computations; simpl in *;
   repeat breakdown;
   repeat (simplify_maps; simpl in *;
-          unfold find_free_block, copy_bytes,
-                 keep_keys, shift_keys, newHeapState in *;
+          unfold find_free_block, copy_bytes, keep_keys, newHeapState in *;
           destruct_computations; simpl in *;
           repeat breakdown).
 

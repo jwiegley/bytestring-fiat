@@ -85,8 +85,8 @@ Ltac shatter :=
     end;
   simpl in *.
 
-(** jww (2016-04-05): Until the FunctorLaws are expressed in terms of some
-    arbitrary equivalence, we need to use functional and propositional
+(** Until the FunctorLaws are expressed in terms of some arbitrary
+    equivalence, we need to use functional and propositional
     extensionality. *)
 
 Ltac simplify_comp :=
