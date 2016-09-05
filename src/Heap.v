@@ -1,6 +1,10 @@
 Require Import
+  ByteString.Tactics
+  ByteString.Nomega
   ByteString.Memory
   ByteString.FMapExt
+  ByteString.Fiat
+  ByteString.FromADT
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
@@ -11,14 +15,6 @@ Module Heap (M : WSfun N_as_DT).
 Module Import FMapExt := FMapExt N_as_DT M.
 Module P := FMapExt.P.
 Module F := P.F.
-
-Require Import
-  Fiat.ADT
-  Fiat.ADTNotation
-  ByteString.LibExt
-  ByteString.Nomega
-  ByteString.BindDep
-  ByteString.ADTInduction.
 
 Open Scope string_scope.
 
@@ -41,11 +37,7 @@ Definition HeapState_Equal (x y : HeapState) : Prop :=
 
 Global Program Instance Build_HeapState_Proper :
   Proper (M.Equal ==> M.Equal ==> HeapState_Equal) Build_HeapState.
-Obligation 1.
-  relational.
-  unfold HeapState_Equal; simpl.
-  intuition.
-Qed.
+Obligation 1. relational; unfold HeapState_Equal; simpl; intuition. Qed.
 
 Ltac tsubst :=
   repeat
@@ -314,11 +306,9 @@ Definition memset (r : Rep HeapSpec) (addr : Ptr) (len : Ptr) (w : Word) :
  **)
 
 Ltac inspect :=
-  unfold find_free_block, copy_bytes, keep_keys, newHeapState in *;
   destruct_computations; simpl in *;
   repeat breakdown;
   repeat (simplify_maps; simpl in *;
-          unfold find_free_block, copy_bytes, keep_keys, newHeapState in *;
           destruct_computations; simpl in *;
           repeat breakdown).
 
@@ -343,29 +333,6 @@ Proof.
   generalize dependent addr.
   ADT induction r; complete IHfromADT.
 Qed.
-
-Definition does_not_overlap addr len :=
-  fun a sz => negb (overlaps_bool a sz addr len).
-
-Corollary negb_overlaps_bool_Proper addr len :
-  Proper (eq ==> eq ==> eq) (does_not_overlap addr len).
-Proof. relational. Qed.
-
-Ltac apply_for_all :=
-  try match goal with
-  | [ H1 : is_true (P.for_all ?P ?m),
-      H2 : M.MapsTo ?k ?e ?m |- _ ] => unfold is_true in H1
-  end;
-  match goal with
-  | [ H1 : P.for_all ?P ?m = true,
-      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
-    cut (Proper (eq ==> eq ==> eq) P);
-    [ let HP := fresh "HP" in
-      intro HP;
-      let H := fresh "H" in
-      pose proof (proj1 (@P.for_all_iff _ P HP m) H1 k e H2) as H;
-      simpl in H | ]
-  end.
 
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr1 sz1, M.MapsTo addr1 sz1 (resvs r) ->
@@ -447,13 +414,6 @@ Proof.
     nomega.
 Qed.
 
-Definition unique {A : Type} (P : M.key -> A -> bool) a r :=
-  P.for_all (fun a b => negb (P a b)) (M.remove a r).
-
-Corollary negb_fits_bool_Proper addr len :
-  Proper (eq ==> eq ==> eq) (fun a b => negb (fits_bool a b addr len)).
-Proof. relational. Qed.
-
 Corollary allocations_unique_fits : forall r : Rep HeapSpec, fromADT _ r ->
   forall base sz addr len,
     M.MapsTo base sz (resvs r) ->
@@ -461,19 +421,10 @@ Corollary allocations_unique_fits : forall r : Rep HeapSpec, fromADT _ r ->
     unique (fun a' b' => fits_bool a' b' addr len) base (resvs r).
 Proof.
   unfold unique; intros.
-  apply P.for_all_iff; intros.
-    apply negb_fits_bool_Proper.
+  apply P.for_all_iff; relational; intros.
   simplify_maps.
   pose proof (allocations_no_overlap H H0 H4 H3); nomega.
 Qed.
-
-Corollary within_bool_Proper addr :
-  Proper (eq ==> eq ==> eq) (fun a b => within_bool a b addr).
-Proof. relational. Qed.
-
-Corollary negb_within_bool_Proper addr :
-  Proper (eq ==> eq ==> eq) (fun a b => negb (within_bool a b addr)).
-Proof. relational. Qed.
 
 Corollary allocations_unique_within : forall r : Rep HeapSpec, fromADT _ r ->
   forall base sz addr,
@@ -482,8 +433,7 @@ Corollary allocations_unique_within : forall r : Rep HeapSpec, fromADT _ r ->
     unique (fun a' b' => within_bool a' b' addr) base (resvs r).
 Proof.
   unfold unique; intros.
-  apply P.for_all_iff; intros.
-    apply negb_within_bool_Proper.
+  apply P.for_all_iff; relational; intros.
   simplify_maps.
   pose proof (allocations_no_overlap H H0 H4 H3); nomega.
 Qed.
@@ -500,20 +450,18 @@ Proof.
   apply F.Equal_mapsto_iff; intros.
   split; intros.
     unfold singleton.
+    simplify_maps; relational.
     simplify_maps.
-      simplify_maps.
-      destruct (N.eq_dec base k); subst.
-        pose proof (F.MapsTo_fun H4 H0); subst.
-        left; intuition.
-      right; intuition.
-      specialize (H2 _ _ H4 n).
-      contradiction H2.
-      nomega.
-    apply within_bool_Proper.
+    destruct (N.eq_dec base k); subst.
+      pose proof (F.MapsTo_fun H4 H0); subst.
+      left; intuition.
+    right; intuition.
+    specialize (H2 _ _ H4 n).
+    contradiction H2.
+    nomega.
   unfold singleton in H3.
   simplify_maps.
-  simplify_maps.
-    apply within_bool_Proper.
+  simplify_maps; relational.
   intuition; nomega.
 Qed.
 
@@ -531,71 +479,60 @@ Module HeapADT (M : WSfun N_as_DT).
 
 Module Import Heap := Heap M.
 
-Require Import
-  Coq.NArith.NArith
-  Fiat.ADT
-  Fiat.ADTNotation
-  ByteString.ADTInduction
-  ByteString.FromADT.
-
 Open Scope N_scope.
 
 Lemma empty_fromADT r :
-  refine (callCons HeapSpec emptyS) (ret r) -> fromADT HeapSpec r.
+  callCons HeapSpec emptyS ↝ r -> fromADT HeapSpec r.
 Proof. check constructor (fromCons HeapSpec emptyS r). Qed.
 
 Lemma alloc_fromADT r :
   fromADT HeapSpec r
     -> forall (len : Size | 0 < len) v,
-         refine (callMeth HeapSpec allocS r len) (ret v)
+         callMeth HeapSpec allocS r len ↝ v
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec allocS r (fst v)). Qed.
 
 Lemma free_fromADT r :
   fromADT HeapSpec r
     -> forall (addr : Ptr) v,
-         refine (callMeth HeapSpec freeS r addr) (ret v)
+         callMeth HeapSpec freeS r addr ↝ v
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec freeS r (fst v)). Qed.
 
 Lemma realloc_fromADT r :
   fromADT HeapSpec r
     -> forall (addr : Ptr) (len : Size | 0 < len) v,
-         refine (callMeth HeapSpec reallocS r addr len) (ret v)
+         callMeth HeapSpec reallocS r addr len ↝ v
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec reallocS r (fst v)). Qed.
 
 Lemma peek_fromADT r :
   fromADT HeapSpec r
     -> forall (addr : Ptr) v,
-         refine (callMeth HeapSpec peekS r addr) (ret v)
+         callMeth HeapSpec peekS r addr ↝ v
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec peekS r (fst v)). Qed.
 
 Lemma poke_fromADT r :
   fromADT HeapSpec r
     -> forall (addr : Ptr) w v,
-         refine (callMeth HeapSpec pokeS r addr w) (ret v)
+         callMeth HeapSpec pokeS r addr w ↝ v
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec pokeS r (fst v)). Qed.
 
 Lemma memcpy_fromADT r :
   fromADT HeapSpec r
     -> forall (addr : Ptr) (addr2 : Ptr) (len : Size) v,
-         refine (callMeth HeapSpec memcpyS r addr addr2 len) (ret v)
+         callMeth HeapSpec memcpyS r addr addr2 len ↝ v
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec memcpyS r (fst v)). Qed.
 
 Lemma memset_fromADT r :
   fromADT HeapSpec r
     -> forall (addr : Ptr) (len : Size) (w : Word) v,
-         refine (callMeth HeapSpec memsetS r addr len w) (ret v)
+         callMeth HeapSpec memsetS r addr len w ↝ v
     -> fromADT HeapSpec (fst v).
 Proof. intros; check method (fromMeth HeapSpec memsetS r (fst v)). Qed.
-
-Require Import
-  Fiat.ADTRefinement
-  Fiat.ADTRefinement.BuildADTRefinements.
 
 Theorem HeapSpecADT : { adt : _ & refineADT HeapSpec adt }.
 Proof.
@@ -631,23 +568,7 @@ Import Heap.FMapExt.
 Module P := FMapExt.P.
 Module F := P.F.
 
-Require Import
-  Coq.NArith.NArith
-  Fiat.ADT
-  Fiat.ADTNotation
-  Fiat.ADTRefinement
-  Fiat.ADTRefinement.BuildADTRefinements
-  ByteString.ADTInduction
-  ByteString.FromADT
-  ByteString.BindDep
-  ByteString.Nomega
-  ByteString.Tactics.
-
 Open Scope N_scope.
-
-Definition within_allocated_mem (n : Ptr) :=
-  fun (addr : M.key) (sz : Size) => addr + sz <=? n.
-Arguments within_allocated_mem n addr sz /.
 
 (** In order to refine to a computable heap, we have to add the notion of
     "free memory", from which addresses may be allocated. A further
@@ -665,12 +586,12 @@ Proof.
        (fun or nr =>
           M.Equal (resvs (` or)) (resvs (snd nr)) /\
           M.Equal (bytes (` or)) (bytes (snd nr)) /\
-          P.for_all (within_allocated_mem (fst nr)) (resvs (snd nr))).
+          P.for_all (fun addr sz => addr + sz <=? fst nr)
+                    (resvs (snd nr))).
 
   refine method emptyS.
   {
-    remove_dependency.
-    simplify with monad laws.
+    remove_dependency (empty_fromADT (ReturnComputes _)).
     refine pick val (0%N, newHeapState).
       finish honing.
     intuition; simpl.
@@ -679,9 +600,8 @@ Proof.
 
   refine method allocS.
   {
-    remove_dependency.
-    unfold alloc, find_free_block.
-    simplify with monad laws; simpl.
+    unfold find_free_block.
+    remove_dependency alloc_fromADT.
 
     refine pick val (fst r_n).
     {
@@ -702,11 +622,9 @@ Proof.
           exact (proj2_sig r_o).
         rewrite H1.
         eapply for_all_impl; eauto; relational; intros.
-        unfold within_allocated_mem in H2.
         nomega.
       split.
         eapply for_all_impl; eauto; relational; intros.
-        unfold within_allocated_mem in *.
         nomega.
       nomega.
     }
@@ -719,9 +637,7 @@ Proof.
 
   refine method freeS.
   {
-    remove_dependency.
-    unfold free.
-    simplify with monad laws; simpl.
+    remove_dependency free_fromADT.
 
     refine pick val (fst r_n,
                      {| resvs := M.remove d (resvs (snd r_n))
@@ -736,9 +652,8 @@ Proof.
 
   refine method reallocS.
   {
-    remove_dependency.
-    unfold realloc, find_free_block.
-    simplify with monad laws; simpl.
+    unfold find_free_block.
+    remove_dependency realloc_fromADT.
 
     refine pick val (Ifopt M.find d (resvs (snd r_n)) as sz
                      Then If ` d0 <=? sz Then d Else fst r_n
@@ -836,9 +751,7 @@ Proof.
 
   refine method peekS.
   {
-    remove_dependency.
-    unfold peek.
-    simplify with monad laws; simpl.
+    remove_dependency peek_fromADT.
 
     refine pick val (Ifopt M.find d (bytes (snd r_n)) as v
                      Then v
@@ -863,9 +776,7 @@ Proof.
 
   refine method pokeS.
   {
-    remove_dependency.
-    unfold poke.
-    simplify with monad laws; simpl.
+    remove_dependency poke_fromADT.
 
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
@@ -880,9 +791,7 @@ Proof.
 
   refine method memcpyS.
   {
-    remove_dependency.
-    unfold memcpy.
-    simplify with monad laws; simpl.
+    remove_dependency memcpy_fromADT.
 
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
@@ -896,9 +805,7 @@ Proof.
 
   refine method memsetS.
   {
-    remove_dependency.
-    unfold memset.
-    simplify with monad laws; simpl.
+    remove_dependency memset_fromADT.
 
     refine pick val
        (fst r_n,
@@ -920,23 +827,5 @@ Proof.
 
   finish_SharpeningADT_WithoutDelegation.
 Defined.
-
-(*
- /\
-          (* Every reservation is under the free marker *)
-          P.for_all (fun a sz => a + sz <=? fst nr) (resvs (snd nr))
-
-      - apply for_all_add_true; relational.
-          unfold not; intros.
-          destruct (proj1 (in_mapsto_iff _ _ _) H2).
-          rewrite <- H1 in H4.
-          pose proof (allocations_have_size (proj2_sig r_o) H4).
-          rewrite H1 in H4.
-          apply_for_all; relational.
-          nomega.
-        split; [|nomega].
-        eapply for_all_impl; eauto;
-        relational; nomega.
-*)
 
 End HeapCanonical.

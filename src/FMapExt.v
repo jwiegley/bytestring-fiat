@@ -1,5 +1,4 @@
 Require Import
-  ByteString.Relations
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
@@ -80,6 +79,13 @@ Hint Extern 5 =>
 Global Program Instance MapsTo_Proper {elt} :
   Proper (E.eq ==> eq ==> M.Equal ==> iff) (@M.MapsTo elt) :=
   (@F.MapsTo_m_Proper elt).
+
+Ltac relational :=
+  repeat match goal with
+  | [ |- Proper _ _ ] => intros ???
+  | [ |- respectful _ _ _ _ ] => intros ???
+  | [ |- iff _ _ ] => split; intro
+  end; subst; auto.
 
 Global Program Instance find_Proper {elt} :
   Proper (E.eq ==> eq ==> M.Equal ==> iff)
@@ -506,6 +512,54 @@ Definition take_first {elt} (f : M.key -> elt -> bool) (k : M.key) (e : elt)
   | None => if f k e then Some (k, e) else None
   end.
 
+Definition optionP {A} (P : relation A) : relation (option A) :=
+  fun x y => match x, y with
+             | Some x', Some y' => P x' y'
+             | None, None => True
+             | _, _ => False
+             end.
+
+Program Instance optionP_Equivalence {A} (P : relation A) :
+  Equivalence P -> Equivalence (optionP P).
+Obligation 1.
+  intro x.
+  destruct x; simpl; trivial.
+  reflexivity.
+Qed.
+Obligation 2.
+  intros x y Heq.
+  destruct x, y; simpl in *; trivial.
+  intuition.
+Qed.
+Obligation 3.
+  intros x y z Heq1 Heq2.
+  destruct x, y, z; simpl in *; auto;
+  firstorder.
+Qed.
+
+Definition pairP {A B} (P : relation A) (Q : relation B) : relation (A * B) :=
+  fun p p' => match p, p' with
+              | (x, y), (x', y') => P x x' /\ Q y y'
+              end.
+
+Program Instance pairP_Equivalence {A B} (P : relation A) (Q : relation B) :
+  Equivalence P -> Equivalence Q -> Equivalence (pairP P Q).
+Obligation 1.
+  intro x.
+  destruct x; simpl.
+  intuition.
+Qed.
+Obligation 2.
+  intros x y Heq.
+  destruct x, y; simpl in *.
+  intuition.
+Qed.
+Obligation 3.
+  intros x y z Heq1 Heq2.
+  destruct x, y, z; simpl in *.
+  firstorder.
+Qed.
+
 Program Instance take_first_Proper {elt} :
   Proper ((E.eq ==> eq ==> eq)
             ==> E.eq
@@ -629,6 +683,9 @@ Proof.
   apply filter_idempotent; assumption.
 Qed.
 
+Definition unique {A : Type} (P : M.key -> A -> bool) a r :=
+  P.for_all (fun a b => negb (P a b)) (M.remove a r).
+
 Lemma Oeq_neq_sym : forall x y, ~ E.eq x y -> ~ E.eq y x.
 Proof.
   intros.
@@ -662,6 +719,22 @@ Proof.
   rewrite H0.
   reflexivity.
 Qed.
+
+Ltac apply_for_all :=
+  try match goal with
+  | [ H1 : is_true (P.for_all ?P ?m),
+      H2 : M.MapsTo ?k ?e ?m |- _ ] => unfold is_true in H1
+  end;
+  match goal with
+  | [ H1 : P.for_all ?P ?m = true,
+      H2 : M.MapsTo ?k ?e ?m |- _ ] =>
+    cut (Proper (eq ==> eq ==> eq) P);
+    [ let HP := fresh "HP" in
+      intro HP;
+      let H := fresh "H" in
+      pose proof (proj1 (@P.for_all_iff _ P HP m) H1 k e H2) as H;
+      simpl in H | ]
+  end.
 
 Lemma filter_singleton_inv : forall elt k (e : elt) m P,
   Proper (E.eq ==> eq ==> eq) P

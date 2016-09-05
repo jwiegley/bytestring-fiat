@@ -3,16 +3,12 @@ Require Import
   ByteString.Heap
   ByteString.ByteString
   ByteString.ByteStringFMap
-  ByteString.Decidable
+  ByteString.Fiat
+  ByteString.Nomega
   Coq.Strings.Ascii
   Coq.Strings.String
-  Coq.NArith.NArith
   Coq.FSets.FMapList
-  Coq.Structures.OrderedTypeEx
-  Fiat.ADT
-  Fiat.ADTNotation
-  Fiat.ADTRefinement
-  Fiat.ADTRefinement.BuildADTRefinements.
+  Coq.Structures.OrderedTypeEx.
 
 Module Import M  := FMapList.Make(N_as_OT).
 Module Import BS := ByteStringFMap M.
@@ -48,10 +44,10 @@ Definition memsetHeap (r : crep) (addr : Ptr) (len : Size) (w : Word) : crep :=
 
 Section ByteStringExt.
 
-Variable heap  : Rep ByteStringHeap.HSpec.
+Variable heap  : Rep HeapSpec.
 Variable heap' : ComputationalADT.cRep (projT1 HeapCanonical).
 
-Variable heap_AbsR : Heap_AbsR (` heap) heap'.
+Variable heap_AbsR : Heap_AbsR heap heap'.
 
 Definition BSimpl :=
   Eval simpl in projT1 (@ByteStringImpl heap heap' heap_AbsR).
@@ -282,8 +278,6 @@ Extract Inlined Constant ascii_of_pos => "Data.Char.chr".
 
 Extract Constant Common.If_Then_Else     => "\c t e -> if c then t else e".
 Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
-
-Extract Inlined Constant Decidable_witness => "".
 
 (** Final extraction *)
 

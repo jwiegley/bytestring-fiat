@@ -1,20 +1,11 @@
 Require Import
-  Coq.Lists.List
-  Coq.Arith.Arith
-  Coq.NArith.NArith
-  Fiat.ADT
-  Fiat.ADTNotation
-  Fiat.ADTRefinement
-  Fiat.ADTRefinement.BuildADTRefinements
-  ByteString.ADTInduction
-  ByteString.BindDep
+  ByteString.Tactics
+  ByteString.Memory
+  ByteString.Nomega
+  ByteString.Heap
   ByteString.ByteString
   ByteString.ByteStringHeap
-  ByteString.Memory
-  ByteString.Heap
-  ByteString.Nomega
-  ByteString.Relations
-  ByteString.Tactics
+  ByteString.Fiat
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
@@ -23,6 +14,7 @@ Generalizable All Variables.
 Module ByteStringFMap (M : WSfun N_as_DT).
 
 Module Import ByteStringHeap := ByteStringHeap M.
+
 Import HeapCanonical.
 Import HeapCanonical.HeapADT.
 Import HeapCanonical.HeapADT.Heap.
@@ -34,15 +26,15 @@ Section Refined.
 
 Definition cHeapRep := ComputationalADT.cRep (projT1 HeapCanonical).
 
-Variable heap  : Rep HSpec.
+Variable heap  : Rep HeapSpec.
 Variable heap' : cHeapRep.
 
 Definition Heap_AbsR (or : Rep HeapSpec) nr :=
   M.Equal (resvs or) (resvs (snd nr)) /\
   M.Equal (bytes or) (bytes (snd nr)) /\
-  P.for_all (within_allocated_mem (fst nr)) (resvs (snd nr)).
+  P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr)).
 
-Variable heap_AbsR : Heap_AbsR (` heap) heap'.
+Variable heap_AbsR : Heap_AbsR heap heap'.
 
 (* This style of computational refinement makes use of a separately refined
    heap. Another approach is to refine the heap methods directly, which would
@@ -59,18 +51,7 @@ Record PS' := {
   ps'Length : N
 }.
 
-Lemma If_Then_Else_fst : forall p A B (a b : A * B),
-  fst (If p Then a Else b) = If p Then (fst a) Else (fst b).
-Proof. intros; destruct p; trivial. Qed.
-
-Lemma If_Then_Else_snd : forall p A B (a b : A * B),
-  snd (If p Then a Else b) = If p Then (snd a) Else (snd b).
-Proof. intros; destruct p; trivial. Qed.
-
-Lemma If_Then_Else_pair : forall p A (a b : A) B (c d : B),
-  (If p Then a Else b, If p Then c Else d)
-    = If p Then (a, c) Else (b, d).
-Proof. intros; destruct p; trivial. Qed.
+Require Import ByteString.FromADT.
 
 Lemma ByteStringImpl : FullySharpened (projT1 (ByteStringHeap heap)).
 Proof.
@@ -78,7 +59,7 @@ Proof.
 
   hone representation using
        (fun (or : PS) (nr : PS') =>
-          Heap_AbsR (` (psHeap or)) (ps'Heap nr) /\
+          Heap_AbsR (psHeap or) (ps'Heap nr) /\
           psBuffer or = ps'Buffer nr /\
           psBufLen or = ps'BufLen nr /\
           psOffset or = ps'Offset nr /\
@@ -103,10 +84,6 @@ Proof.
     rewrite refineEquiv_If_Then_Else_Bind.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
-      unfold poke'; simpl.
-      remove_dependency; simpl.
-      unfold poke.
-      simplify with monad laws; simpl.
       refine pick val
              {| ps'Heap   :=
                   (fst (ps'Heap r_n),
@@ -127,12 +104,6 @@ Proof.
     rewrite refineEquiv_If_Then_Else_Bind.
     subst H.
     apply refine_If_Then_Else.
-      simplify with monad laws; simpl.
-      unfold memcpy', poke'; simpl.
-      remove_dependency; simpl.
-      setoid_rewrite refine_bind_dep_bind_ret; simpl.
-      do 2 setoid_rewrite refine_bind_dep_ignore.
-      unfold memcpy, poke.
       simplify with monad laws; simpl.
       refine pick val
              {| ps'Heap   :=
@@ -159,14 +130,7 @@ Proof.
     rewrite refineEquiv_If_Then_Else_Bind.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
-      unfold alloc', memcpy', poke'.
-      remove_dependency; simpl.
-      do 3 setoid_rewrite refine_bind_dep_bind_ret.
-      simpl; remove_dependency.
-      do 3 setoid_rewrite refine_bind_dep_ignore.
-      unfold ByteStringHeap.buffer_cons_obligation_2.
-      unfold alloc, memcpy, free, poke, find_free_block.
-      simplify with monad laws; simpl.
+      unfold find_free_block, ByteStringHeap.buffer_cons_obligation_2.
       refine pick val (fst (ps'Heap r_n)).
         simplify with monad laws; simpl.
         refine pick val
@@ -205,26 +169,18 @@ Proof.
           eapply for_all_impl; auto; relational.
             exact H5.
           intros.
-          unfold within_allocated_mem in *.
           nomega.
         nomega.
       destruct H0, H0.
       rewrite H.
       eapply for_all_impl; eauto; relational.
       intros.
-      unfold within_allocated_mem in *.
       nomega.
-    unfold allocate_buffer, alloc', poke'.
-    remove_dependency; simpl.
+    unfold allocate_buffer.
     unfold Bind2.
     rewrite refine_bind_bind.
-    remove_dependency.
-    setoid_rewrite refine_bind_dep_bind_ret.
-    autorewrite with monad laws; simpl.
-    remove_dependency.
-    setoid_rewrite refine_bind_dep_ignore.
     unfold alloc, find_free_block.
-    simplify with monad laws; simpl.
+    autorewrite with monad laws; simpl.
     refine pick val (fst (ps'Heap r_n)).
       simplify with monad laws; simpl.
       refine pick val
@@ -255,14 +211,12 @@ Proof.
         eapply for_all_impl; auto; relational.
           exact H5.
         intros.
-        unfold within_allocated_mem in *.
         nomega.
       nomega.
     destruct H0, H0.
     rewrite H.
     eapply for_all_impl; eauto; relational.
     intros.
-    unfold within_allocated_mem in *.
     nomega.
   }
   {
@@ -273,10 +227,6 @@ Proof.
     rewrite refineEquiv_If_Then_Else_Bind.
     subst H.
     apply refine_If_Then_Else.
-      simplify with monad laws; simpl.
-      unfold peek'.
-      remove_dependency.
-      unfold peek.
       simplify with monad laws; simpl.
       refine pick val (Ifopt M.find (ps'Buffer r_n + ps'Offset r_n)
                                     (bytes (snd (ps'Heap r_n))) as v

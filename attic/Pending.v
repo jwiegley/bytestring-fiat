@@ -124,3 +124,27 @@ Proof.
     repeat simplify_maps.
     right; intuition.
 Qed.
+
+Lemma overlaps_within : forall addr1 len1 addr2 len2,
+  0 < len1 -> overlaps addr1 len1 addr2 len2
+                <-> Ifdec addr1 < addr2
+                    Then within addr1 len1 addr2
+                    Else within addr2 len2 addr1.
+Proof. intros; decisions; nomega. Qed.
+
+Corollary not_overlaps_within : forall addr1 len1 addr2 len2,
+  0 < len1
+    -> ~ overlaps addr1 len1 addr2 len2
+         <-> Ifdec addr1 < addr2
+             Then ~ within addr1 len1 addr2
+             Else ~ within addr2 len2 addr1.
+Proof.
+  split; intros.
+    decisions;
+    unfold not; intros;
+    apply H0, overlaps_within; trivial;
+    decisions; firstorder.
+  unfold not; intros;
+  apply overlaps_within in H1; trivial;
+  decisions; firstorder.
+Qed.

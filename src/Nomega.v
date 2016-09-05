@@ -1,9 +1,7 @@
 Require Export
   Coq.Arith.Arith
-  Coq.omega.Omega
   Coq.NArith.NArith
-  ByteString.Decidable
-  ByteString.Relations.
+  Coq.omega.Omega.
 
 Open Scope N_scope.
 
@@ -211,6 +209,13 @@ Hint Extern 3 (Decidable.decidable (_ = _)) => apply N.eq_decidable.
 Hint Extern 3 (Decidable.decidable (_ < _)) => apply N.lt_decidable.
 Hint Extern 3 (Decidable.decidable (_ <= _)) => apply N.le_decidable.
 
+Lemma not_and_implication :
+  forall (P Q: Prop),
+    ( ~ (P /\ Q) ) <-> (P -> ~ Q).
+Proof.
+  firstorder.
+Qed.
+
 Ltac norm_N_step :=
   match goal with
   | [ |- ~ _ ] => unfold not; intros
@@ -277,14 +282,10 @@ Ltac norm_N_step :=
   | [ H : ~ (?x <  ?y /\ ?w <= ?z) |- _ ] => apply Decidable.not_and in H
   | [ H : ~ (?x <= ?y /\ ?w <= ?z) |- _ ] => apply Decidable.not_and in H
 
-  | [ |- ~ (?x <  ?y /\ ?w <  ?z) ] =>
-    apply LogicFacts.not_and_implication; intros
-  | [ |- ~ (?x <= ?y /\ ?w <  ?z) ] =>
-    apply LogicFacts.not_and_implication; intros
-  | [ |- ~ (?x <  ?y /\ ?w <= ?z) ] =>
-    apply LogicFacts.not_and_implication; intros
-  | [ |- ~ (?x <= ?y /\ ?w <= ?z) ] =>
-    apply LogicFacts.not_and_implication; intros
+  | [ |- ~ (?x <  ?y /\ ?w <  ?z) ] => apply not_and_implication; intros
+  | [ |- ~ (?x <= ?y /\ ?w <  ?z) ] => apply not_and_implication; intros
+  | [ |- ~ (?x <  ?y /\ ?w <= ?z) ] => apply not_and_implication; intros
+  | [ |- ~ (?x <= ?y /\ ?w <= ?z) ] => apply not_and_implication; intros
 
   | [ |- _ <  _ <  _ ] => split
   | [ |- _ <= _ <  _ ] => split
@@ -338,8 +339,7 @@ Ltac nomega' :=
                            | solve [ right; nomega' ] ]
   end.
 
-Ltac nomega := solve [ abstract nomega' ].
-
+Ltac nomega  := solve [ abstract nomega' ].
 Ltac nomega_ := solve [ nomega' ].
 
 Ltac decisions :=
@@ -349,11 +349,6 @@ Ltac decisions :=
       let Heqe := fresh "Heqe" in destruct B eqn:Heqe
     | [ |- context [if ?B then _ else _] ] =>
       let Heqe := fresh "Heqe" in destruct B eqn:Heqe
-
-    | [ H : context[@Ifdec_Then_Else _ _ _ _ _] |- _ ] =>
-      unfold Ifdec_Then_Else in H; simpl in H
-    | [ |- context[@Ifdec_Then_Else _ _ _ _ _] ] =>
-      unfold Ifdec_Then_Else; simpl
     end.
 
 (*** within ***)
@@ -373,33 +368,6 @@ Proof. nomega. Qed.
 Lemma within_dec : forall a l x,
   {within a l x} + {~ within a l x}.
 Proof. nomega. Qed.
-
-Local Open Scope lsignature_scope.
-
-Lemma within_AbsR :
-  within [R N.eq ==> N.eq ==> N.eq ==> boolR] within_bool.
-Proof.
-  intros.
-  relational; unfold Basics.compose, negb; split; intros.
-    rewrite H, H0, H1 in H2.
-    decisions; auto; nomega.
-  rewrite <- H, <- H0, <- H1 in H2.
-  decisions; auto; nomega.
-Qed.
-
-Lemma not_within_AbsR : forall b l,
-  (Basics.compose not (within b l))
-    [R N.eq ==> boolR] (Basics.compose negb (within_bool b l)).
-Proof.
-  intros.
-  relational; unfold Basics.compose, negb; split; intros.
-    rewrite H in H0.
-    decisions; auto; nomega.
-  rewrite <- H in H0.
-  decisions; auto.
-    discriminate.
-  nomega.
-Qed.
 
 (*** overlaps ***)
 
@@ -422,30 +390,6 @@ Proof. nomega. Qed.
 Lemma overlaps_irr : forall addr len1 len2,
   0 < len1 -> 0 < len2 -> overlaps addr len1 addr len2.
 Proof. nomega. Qed.
-
-Lemma overlaps_within : forall addr1 len1 addr2 len2,
-  0 < len1 -> overlaps addr1 len1 addr2 len2
-                <-> Ifdec addr1 < addr2
-                    Then within addr1 len1 addr2
-                    Else within addr2 len2 addr1.
-Proof. intros; decisions; nomega. Qed.
-
-Corollary not_overlaps_within : forall addr1 len1 addr2 len2,
-  0 < len1
-    -> ~ overlaps addr1 len1 addr2 len2
-         <-> Ifdec addr1 < addr2
-             Then ~ within addr1 len1 addr2
-             Else ~ within addr2 len2 addr1.
-Proof.
-  split; intros.
-    decisions;
-    unfold not; intros;
-    apply H0, overlaps_within; trivial;
-    decisions; firstorder.
-  unfold not; intros;
-  apply overlaps_within in H1; trivial;
-  decisions; firstorder.
-Qed.
 
 (*** other theorems ***)
 
