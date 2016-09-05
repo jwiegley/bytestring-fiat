@@ -425,9 +425,6 @@ Corollary MapsTo_singleton : forall k elt (e : elt),
   M.MapsTo k e (singleton k e).
 Proof. unfold singleton; intros; simplify_maps. Qed.
 
-Definition unique {A : Type} (P : M.key -> A -> bool) a r :=
-  P.for_all (fun a b => negb (P a b)) (M.remove a r).
-
 Lemma Oeq_neq_sym : forall x y, ~ E.eq x y -> ~ E.eq y x.
 Proof.
   intros.
