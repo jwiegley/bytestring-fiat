@@ -52,17 +52,45 @@ Record PS' := {
 
 Require Import ByteString.FromADT.
 
+Record ByteString_Heap_AbsR or nr := {
+  heap_match   : Heap_AbsR (psHeap or) (ps'Heap nr);
+  buffer_match : psBuffer or = ps'Buffer nr;
+  buflen_match : psBufLen or = ps'BufLen nr;
+  offset_match : psOffset or = ps'Offset nr;
+  length_match : psLength or = ps'Length nr
+}.
+
+Lemma ByteString_Heap_AbsR_equiv : forall heap heap' b b' bl bl' o o' l l',
+  Heap_AbsR heap heap' -> b = b' -> bl = bl' -> o = o' -> l = l' ->
+  ByteString_Heap_AbsR
+    {| psHeap := heap
+     ; psBuffer := b
+     ; psBufLen := bl
+     ; psOffset := o
+     ; psLength := l |}
+    {| ps'Heap := heap'
+     ; ps'Buffer := b'
+     ; ps'BufLen := bl'
+     ; ps'Offset := o'
+     ; ps'Length := l' |}.
+Proof. firstorder. Qed.
+
+Lemma refine_ByteString_Heap_AbsR : forall h h',
+  ByteString_Heap_AbsR h h' ->
+  refine {r_n0 : PS' | ByteString_Heap_AbsR h r_n0} (ret h').
+Proof.
+  intros; subst.
+  intros ??.
+  destruct H0.
+  apply PickComputes.
+  assumption.
+Qed.
+
 Theorem ByteStringCanonical : FullySharpened (projT1 (ByteStringHeap heap)).
 Proof.
   start sharpening ADT.
 
-  hone representation using
-       (fun (or : PS) (nr : PS') =>
-          Heap_AbsR (psHeap or) (ps'Heap nr) /\
-          psBuffer or = ps'Buffer nr /\
-          psBufLen or = ps'BufLen nr /\
-          psOffset or = ps'Offset nr /\
-          psLength or = ps'Length nr);
+  hone representation using ByteString_Heap_AbsR.
 
   try simplify with monad laws; simpl.
   {
@@ -72,15 +100,14 @@ Proof.
                      ; ps'Offset := 0
                      ; ps'Length := 0 |}.
       finish honing.
-    simpl; intuition.
+    apply ByteString_Heap_AbsR_equiv; trivial.
   }
   {
-    repeat match goal with
-      [ H : _ /\ _ |- _ ] => destruct H
-    end; subst.
-    destruct r_o, psHeap; simpl in *.
-    rewrite H1, H2, H3, H4.
-    rewrite refineEquiv_If_Then_Else_Bind.
+    destruct H0, heap_match0, H1.
+    destruct r_o; simpl in *.
+    rewrite buffer_match0, buflen_match0, offset_match0, length_match0.
+
+    rewrite !refineEquiv_If_Then_Else_Bind.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
       refine pick val
@@ -95,12 +122,10 @@ Proof.
               ; ps'Length := ps'Length r_n + 1 |}.
         simplify with monad laws.
         finish honing.
-      simpl in *; intuition.
-      destruct H0, H5.
+      apply ByteString_Heap_AbsR_equiv; trivial.
       split; simpl; trivial.
       split; trivial.
       apply F.add_m; eauto.
-    rewrite refineEquiv_If_Then_Else_Bind.
     subst H.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
@@ -119,17 +144,16 @@ Proof.
               ; ps'Length := ps'Length r_n + 1 |}.
         simplify with monad laws.
         finish honing.
+      apply ByteString_Heap_AbsR_equiv; trivial.
       rewrite !N.add_0_r.
       simpl in *; intuition.
-      destruct H0, H0.
       split; simpl; trivial.
       split; trivial.
       apply F.add_m; auto.
-      rewrite H0; reflexivity.
-    rewrite refineEquiv_If_Then_Else_Bind.
+      rewrite H1; reflexivity.
     apply refine_If_Then_Else.
       simplify with monad laws; simpl.
-      unfold find_free_block, ByteStringHeap.buffer_cons_obligation_2.
+      unfold find_free_block.
       refine pick val (fst (ps'Heap r_n)).
         simplify with monad laws; simpl.
         refine pick val
@@ -152,13 +176,13 @@ Proof.
                 ; ps'Length := ps'Length r_n + alloc_quantum |}.
           simplify with monad laws.
           finish honing.
+        apply ByteString_Heap_AbsR_equiv; trivial.
         rewrite N.add_0_r.
         simpl in *; intuition.
-        destruct H0, H0.
         split; simpl.
-           rewrite H; reflexivity.
+           rewrite H0; reflexivity.
         split.
-          rewrite H0; reflexivity.
+          rewrite H1; reflexivity.
         rewrite <- remove_add.
         apply for_all_remove; relational.
         apply for_all_add_true; relational.
@@ -166,12 +190,11 @@ Proof.
         split.
           apply for_all_remove; relational.
           eapply for_all_impl; auto; relational.
-            exact H5.
+            exact H2.
           intros.
           nomega.
         nomega.
-      destruct H0, H0.
-      rewrite H.
+      rewrite H0.
       eapply for_all_impl; eauto; relational.
       intros.
       nomega.
@@ -179,7 +202,7 @@ Proof.
     unfold Bind2.
     rewrite refine_bind_bind.
     unfold alloc, find_free_block.
-    autorewrite with monad laws; simpl.
+    simplify with monad laws; simpl.
     refine pick val (fst (ps'Heap r_n)).
       simplify with monad laws; simpl.
       refine pick val
@@ -196,33 +219,32 @@ Proof.
         simplify with monad laws.
         finish honing.
       rewrite N.add_0_r.
+      apply ByteString_Heap_AbsR_equiv; trivial.
       simpl in *; intuition.
-      destruct H0, H0.
       split; simpl.
-        rewrite H; reflexivity.
-      split.
         rewrite H0; reflexivity.
+      split.
+        rewrite H1; reflexivity.
       rewrite <- remove_add.
       apply for_all_add_true; relational.
         simplify_maps.
       split.
         apply for_all_remove; relational.
         eapply for_all_impl; auto; relational.
-          exact H5.
+          exact H2.
         intros.
         nomega.
       nomega.
-    destruct H0, H0.
-    rewrite H.
+    rewrite H0.
     eapply for_all_impl; eauto; relational.
     intros.
     nomega.
   }
   {
-    repeat match goal with
-      [ H : _ /\ _ |- _ ] => destruct H
-    end; subst.
-    rewrite H1, H2, H3, H4.
+    destruct H0, heap_match0, H1.
+    destruct r_o; simpl in *.
+    rewrite buffer_match0, buflen_match0, offset_match0, length_match0.
+
     rewrite refineEquiv_If_Then_Else_Bind.
     subst H.
     apply refine_If_Then_Else.
@@ -241,11 +263,11 @@ Proof.
                          ; ps'Length := ps'Length r_n - 1 |}.
           simplify with monad laws.
           finish honing.
-        simpl in *; intuition.
+        apply ByteString_Heap_AbsR_equiv; trivial.
+        split; trivial; split; trivial.
       intros.
-      destruct H0, H5.
       destruct (M.find _ _) eqn:Heqe; simpl.
-        rewrite H5 in H.
+        rewrite H1 in H.
         normalize.
         eapply F.MapsTo_fun; eauto.
       apply F.find_mapsto_iff in H.
@@ -254,7 +276,9 @@ Proof.
     refine pick val r_n.
       simplify with monad laws; simpl.
       finish honing.
-    intuition.
+    destruct r_n.
+    apply ByteString_Heap_AbsR_equiv; trivial.
+    split; trivial; split; trivial.
   }
 
   hone representation using eq.
