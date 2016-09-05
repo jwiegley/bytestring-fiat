@@ -14,8 +14,9 @@ Module Import M  := FMapList.Make(N_as_OT).
 Module Import BS := ByteStringFMap M.
 
 Import ByteStringHeap.
-Import ByteStringHeap.HeapCanonical.
-Import ByteStringHeap.HeapCanonical.HeapADT.Heap.
+Import HeapCanonical.
+Import HeapADT.
+Import Heap.
 
 Definition impl := Eval simpl in projT1 HeapCanonical.
 
