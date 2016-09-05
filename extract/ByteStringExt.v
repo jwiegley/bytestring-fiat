@@ -1,6 +1,6 @@
 Require Import
+  ByteString.Memory
   ByteString.Heap
-  ByteString.HeapFMap
   ByteString.ByteString
   ByteString.ByteStringFMap
   ByteString.Decidable
@@ -14,13 +14,14 @@ Require Import
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
-Require Import Coq.FSets.FMapList.
-Require Import Coq.Structures.OrderedTypeEx.
-Module Import M := FMapList.Make(N_as_OT).
-Module Import H := HeapFMap M.
+Module Import M  := FMapList.Make(N_as_OT).
 Module Import BS := ByteStringFMap M.
 
-Definition impl := Eval simpl in projT1 HeapImpl.
+Import ByteStringHeap.
+Import ByteStringHeap.HeapCanonical.
+Import ByteStringHeap.HeapCanonical.HeapADT.Heap.
+
+Definition impl := Eval simpl in projT1 HeapCanonical.
 
 Definition crep := ComputationalADT.cRep impl.
 
@@ -28,27 +29,29 @@ Open Scope N_scope.
 
 Definition emptyHeap   : crep :=
   Eval compute in CallConstructor impl emptyS.
-Definition allocHeap (r : crep) (len : N | 0 < len) : crep * N :=
+Definition allocHeap (r : crep) (len : Size | 0 < len) : crep * Ptr :=
   Eval compute in CallMethod impl allocS r len.
-Definition freeHeap (r : crep) (addr : N) : crep :=
+Definition freeHeap (r : crep) (addr : Ptr) : crep :=
   Eval compute in fst (CallMethod impl freeS r addr).
-Definition reallocHeap (r : crep) (addr : N) (len : N | 0 < len) : crep * N :=
+Definition reallocHeap (r : crep) (addr : Ptr) (len : Size | 0 < len) :
+  crep * Ptr :=
   Eval compute in CallMethod impl reallocS r addr len.
-Definition peekHeap (r : crep) (addr : N) : crep * Word8 :=
+Definition peekHeap (r : crep) (addr : Ptr) : crep * Word :=
   Eval compute in CallMethod impl peekS r addr.
-Definition pokeHeap (r : crep) (addr : N) (w : Word8) : crep :=
+Definition pokeHeap (r : crep) (addr : Ptr) (w : Word) : crep :=
   Eval compute in fst (CallMethod impl pokeS r addr w).
-Definition memcpyHeap (r : crep) (addr : N) (addr2 : N) (len : N) : crep :=
+Definition memcpyHeap (r : crep) (addr : Ptr) (addr2 : Ptr) (len : Size) :
+  crep :=
   Eval compute in fst (CallMethod impl memcpyS r addr addr2 len).
-Definition memsetHeap (r : crep) (addr : N) (len : N) (w : Word8) : crep :=
+Definition memsetHeap (r : crep) (addr : Ptr) (len : Size) (w : Word) : crep :=
   Eval compute in fst (CallMethod impl memsetS r addr len w).
 
 Section ByteStringExt.
 
 Variable heap  : Rep ByteStringHeap.HSpec.
-Variable heap' : ComputationalADT.cRep (projT1 HF.HeapImpl).
+Variable heap' : ComputationalADT.cRep (projT1 HeapCanonical).
 
-Variable heap_AbsR : HF.Heap_AbsR (` heap) heap'.
+Variable heap_AbsR : Heap_AbsR (` heap) heap'.
 
 Definition BSimpl :=
   Eval simpl in projT1 (@ByteStringImpl heap heap' heap_AbsR).
@@ -59,9 +62,9 @@ Open Scope N_scope.
 
 Definition emptyBS   : BScrep :=
   Eval compute in CallConstructor BSimpl emptyS.
-Definition consBS (r : BScrep) (w : Word8) : BScrep :=
+Definition consBS (r : BScrep) (w : Word) : BScrep :=
   Eval compute in fst (CallMethod BSimpl consS r w).
-Definition unconsBS (r : BScrep) : BScrep * option Word8 :=
+Definition unconsBS (r : BScrep) : BScrep * option Word :=
   Eval compute in CallMethod BSimpl unconsS r.
 
 End ByteStringExt.
