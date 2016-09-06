@@ -35,9 +35,6 @@ Proof.
   autorewrite with N in *; assumption.
 Qed.
 
-Corollary Nneq_in : nat_of_N n <> nat_of_N m -> n <> m.
-Proof. congruence. Qed.
-
 Lemma Nneq_out : n <> m -> nat_of_N n <> nat_of_N m.
 Proof. intuition; apply Neq_in in H0; tauto. Qed.
 
@@ -96,26 +93,6 @@ Proof.
   rewrite nat_of_Ncompare.
   apply nat_compare_ge; assumption.
 Qed.
-
-Lemma Nsub_eq : forall o, o <= n -> o <= m -> n - o = m - o -> n = m.
-Proof.
-  intros.
-  apply N2Z.inj_iff in H1.
-  rewrite !N2Z.inj_sub in H1; auto.
-  rewrite N2Z.inj_le in H, H0.
-  apply N2Z.inj_iff.
-  omega.
-Qed.
-
-Corollary Neq_impl_eq : n = m <-> n = m.
-Proof. split; intros; assumption. Qed.
-
-Hint Resolve Neq_impl_eq.
-
-Corollary Nneq_impl_neq : n <> m <-> n <> m.
-Proof. split; intros; assumption. Qed.
-
-Hint Resolve Nneq_impl_neq.
 
 Lemma Nlt_dec : {n < m} + {~ n < m}.
 Proof.
@@ -259,42 +236,33 @@ Ltac pre_nomega :=
   | tauto
   | congruence
   | unfold not in *; autounfold in *; nsimp; intros; norm_N; nsimp;
-    repeat
-      match goal with
-      | [ H : _ = _          |- _ ] => apply Neq_out in H; nsimp_H H
-      | [ H : _ <> _         |- _ ] => apply Nneq_out in H; nsimp_H H
-      | [ H : _ = _ -> False |- _ ] => apply Nneq_out in H; nsimp_H H
-      | [ H : _ < _          |- _ ] => apply Nlt_out in H; nsimp_H H
-      | [ H : _ <= _         |- _ ] => apply Nle_out in H; nsimp_H H
-      | [ H : _ > _          |- _ ] => apply Ngt_out in H; nsimp_H H
-      | [ H : _ >= _         |- _ ] => apply Nge_out in H; nsimp_H H
+    repeat match goal with
+    | [ H : _ = _          |- _ ] => apply Neq_out in H; nsimp_H H
+    | [ H : _ <> _         |- _ ] => apply Nneq_out in H; nsimp_H H
+    | [ H : _ = _ -> False |- _ ] => apply Nneq_out in H; nsimp_H H
+    | [ H : _ < _          |- _ ] => apply Nlt_out in H; nsimp_H H
+    | [ H : _ <= _         |- _ ] => apply Nle_out in H; nsimp_H H
+    | [ H : _ > _          |- _ ] => apply Ngt_out in H; nsimp_H H
+    | [ H : _ >= _         |- _ ] => apply Nge_out in H; nsimp_H H
 
-      | [ |- _ = _  ] => apply Neq_in; nsimp
-      | [ |- _ < _  ] => apply Nlt_in; nsimp
-      | [ |- _ <= _ ] => apply Nle_in; nsimp
-      | [ |- _ > _  ] => apply Ngt_in; nsimp
-      | [ |- _ >= _ ] => apply Nge_in; nsimp
-      end ].
+    | [ |- _ = _  ] => apply Neq_in; nsimp
+    | [ |- _ < _  ] => apply Nlt_in; nsimp
+    | [ |- _ <= _ ] => apply Nle_in; nsimp
+    | [ |- _ > _  ] => apply Ngt_in; nsimp
+    | [ |- _ >= _ ] => apply Nge_in; nsimp
+    end ].
 
 Ltac nomega' :=
   pre_nomega;
   repeat progress match goal with
   | _ => omega || (unfold nat_of_P in *; simpl in *; omega)
+
   | [ H : _ \/ _ |- _ ] => destruct H; nomega'
-  | [ |- _ /\ _ ] => split; intros; nomega'
-  | [ |- _ <-> _ ] => split; intros; nomega'
-  | [ |- _ \/ _ ] => first [ solve [ left; nomega' ]
-                           | solve [ right; nomega' ] ]
+  | [ |- _ /\ _ ]       => split; intros; nomega'
+  | [ |- _ <-> _ ]      => split; intros; nomega'
+  | [ |- _ \/ _ ]       => first [ solve [ left; nomega' ]
+                                 | solve [ right; nomega' ] ]
   end.
 
 Ltac nomega  := solve [ abstract nomega' ].
 Ltac nomega_ := solve [ nomega' ].
-
-Ltac decisions :=
-  repeat
-    match goal with
-    | [ H : context [if ?B then _ else _] |- _ ] =>
-      let Heqe := fresh "Heqe" in destruct B eqn:Heqe
-    | [ |- context [if ?B then _ else _] ] =>
-      let Heqe := fresh "Heqe" in destruct B eqn:Heqe
-    end.

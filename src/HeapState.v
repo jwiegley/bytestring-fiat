@@ -116,7 +116,7 @@ Obligation 1.
       reflexivity.
     intros.
     apply N.add_cancel_r in H0.
-    apply Nsub_eq in H0; try tauto; nomega.
+    nomega.
 Qed.
 
 Lemma copy_bytes_mapsto : forall elt k (e : elt) addr1 addr2 len m,
