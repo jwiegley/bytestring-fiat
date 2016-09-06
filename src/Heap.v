@@ -143,8 +143,7 @@ Ltac complete IHfromADT :=
   try (eapply IHfromADT; eassumption);
   try solve [ eapply IHfromADT; try eassumption; inspect
             | try eapply IHfromADT; eassumption
-            | inspect;
-              try (unfold fits, within in *; inspect; nomega);
+            | inspect; try nomega;
               eapply IHfromADT; try eassumption; inspect
             | discriminate ].
 

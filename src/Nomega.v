@@ -151,44 +151,18 @@ Qed.
 
 End N_theory.
 
-(*** definitions ***)
-
-Definition within (addr : N) (len : N) (a : N) : Prop :=
-  addr <= a < addr + len.
-
-Definition within_bool (addr : N) (len : N) (a : N) : bool :=
-  ((addr <=? a) && (a <? addr + len))%bool.
-
-Definition fits (addr1 len1 addr2 len2 : N) : Prop :=
-  within addr1 len1 addr2 /\ addr2 + len2 <= addr1 + len1.
-
-Definition fits_bool (addr1 len1 addr2 len2 : N) : bool :=
-  (within_bool addr1 len1 addr2 && (addr2 + len2 <=? addr1 + len1))%bool.
-
-Definition overlaps (addr len addr2 len2 : N) : Prop :=
-  addr < addr2 + len2 /\ addr2 < addr + len.
-
-Definition overlaps_bool (addr len addr2 len2 : N) : bool :=
-  ((addr <? addr2 + len2) && (addr2 <? addr + len))%bool.
-
 (*** tactics ***)
 
-Ltac nsimp :=
-  simpl; repeat progress (autorewrite with N; simpl).
-
+Ltac nsimp := simpl; repeat progress (autorewrite with N; simpl).
 Ltac nsimp_H H :=
   simpl in H; repeat progress (autorewrite with N in H; simpl in H).
 
-Hint Extern 3 (Decidable.decidable (_ = _)) => apply N.eq_decidable.
-Hint Extern 3 (Decidable.decidable (_ < _)) => apply N.lt_decidable.
+Hint Extern 3 (Decidable.decidable (_ = _))  => apply N.eq_decidable.
+Hint Extern 3 (Decidable.decidable (_ < _))  => apply N.lt_decidable.
 Hint Extern 3 (Decidable.decidable (_ <= _)) => apply N.le_decidable.
 
-Lemma not_and_implication :
-  forall (P Q: Prop),
-    ( ~ (P /\ Q) ) <-> (P -> ~ Q).
-Proof.
-  firstorder.
-Qed.
+Lemma not_and_implication : forall (P Q: Prop), ( ~ (P /\ Q) ) <-> (P -> ~ Q).
+Proof. firstorder. Qed.
 
 Ltac norm_N_step :=
   match goal with
@@ -200,19 +174,19 @@ Ltac norm_N_step :=
   | [ H : negb _ = true |- _ ] => apply Bool.negb_true_iff in H
   | [ |- negb _ = true ] => apply Bool.negb_true_iff
 
-  | [ H : (_ <? _) = true   |- _ ] => apply N.ltb_lt in H
-  | [ H : (_ <? _) = false  |- _ ] => apply N.ltb_ge in H
+  | [ H : (_ <? _)  = true  |- _ ] => apply N.ltb_lt in H
+  | [ H : (_ <? _)  = false |- _ ] => apply N.ltb_ge in H
   | [ H : (_ <=? _) = true  |- _ ] => apply N.leb_le in H
   | [ H : (_ <=? _) = false |- _ ] => apply N.leb_gt in H
-  | [ H : (_ =? _) = true   |- _ ] => apply N.eqb_eq in H; subst
-  | [ H : (_ =? _) = false  |- _ ] => apply N.eqb_neq in H
+  | [ H : (_ =? _)  = true  |- _ ] => apply N.eqb_eq in H; subst
+  | [ H : (_ =? _)  = false |- _ ] => apply N.eqb_neq in H
 
-  | [ |- (_ <? _) = true   ] => apply N.ltb_lt
-  | [ |- (_ <? _) = false  ] => apply N.ltb_ge
+  | [ |- (_ <? _)  = true  ] => apply N.ltb_lt
+  | [ |- (_ <? _)  = false ] => apply N.ltb_ge
   | [ |- (_ <=? _) = true  ] => apply N.leb_le
   | [ |- (_ <=? _) = false ] => apply N.leb_gt
-  | [ |- (_ =? _) = true   ] => apply N.eqb_eq
-  | [ |- (_ =? _) = false  ] => apply N.eqb_neq
+  | [ |- (_ =? _)  = true  ] => apply N.eqb_eq
+  | [ |- (_ =? _)  = false ] => apply N.eqb_neq
 
   | [ H : _ /\ _ |- _ ] => destruct H
 
@@ -226,40 +200,42 @@ Ltac norm_N_step :=
 
   | [ H : { _ : N | _ } |- _ ] => destruct H; simpl in *
 
-  | [ |- {?P /\ ?Q} + {~ (?P /\ ?Q)} ] => apply sumbool_split
-  | [ |- {?n =  ?m} + {?n <> ?m} ] => apply N.eq_dec
-  | [ |- {?n <  ?m} + {~ (?n <  ?m)} ] => apply Nlt_dec
-  | [ |- {?n <= ?m} + {~ (?n <= ?m)} ] => apply Nle_dec
-  | [ |- {?n >  ?m} + {~ (?n >  ?m)} ] => apply Ngt_dec
-  | [ |- {?n >= ?m} + {~ (?n >= ?m)} ] => apply Nge_dec
+  | [ |- {?P /\ ?Q} + {(?P /\ ?Q) -> False} ] => apply sumbool_split
 
-  | [ H : ~ _ < _  |- _ ] => apply N.nlt_ge in H
-  | [ H : ~ _ <= _ |- _ ] => apply N.nle_gt in H
+  | [ |- {?n =  ?m} + {?n <> ?m} ] => apply N.eq_dec
+
+  | [ |- {?n <  ?m} + {(?n <  ?m) -> False} ] => apply Nlt_dec
+  | [ |- {?n <= ?m} + {(?n <= ?m) -> False} ] => apply Nle_dec
+  | [ |- {?n >  ?m} + {(?n >  ?m) -> False} ] => apply Ngt_dec
+  | [ |- {?n >= ?m} + {(?n >= ?m) -> False} ] => apply Nge_dec
+
+  | [ H : (_ < _)  -> False |- _ ] => apply N.nlt_ge in H
+  | [ H : (_ <= _) -> False |- _ ] => apply N.nle_gt in H
 
   | [ H : _ <  _ <  _ |- _ ] => destruct H
   | [ H : _ <= _ <  _ |- _ ] => destruct H
   | [ H : _ <  _ <= _ |- _ ] => destruct H
   | [ H : _ <= _ <= _ |- _ ] => destruct H
 
-  | [ H : ~ (?x <  ?y <  ?z) |- _ ] => apply Decidable.not_and in H
-  | [ H : ~ (?x <= ?y <  ?z) |- _ ] => apply Decidable.not_and in H
-  | [ H : ~ (?x <  ?y <= ?z) |- _ ] => apply Decidable.not_and in H
-  | [ H : ~ (?x <= ?y <= ?z) |- _ ] => apply Decidable.not_and in H
+  | [ H : (?x <  ?y <  ?z) -> False |- _ ] => apply Decidable.not_and in H
+  | [ H : (?x <= ?y <  ?z) -> False |- _ ] => apply Decidable.not_and in H
+  | [ H : (?x <  ?y <= ?z) -> False |- _ ] => apply Decidable.not_and in H
+  | [ H : (?x <= ?y <= ?z) -> False |- _ ] => apply Decidable.not_and in H
 
-  | [ |- ~ (?x <  ?y <  ?z) ] => apply Decidable.not_and
-  | [ |- ~ (?x <= ?y <  ?z) ] => apply Decidable.not_and
-  | [ |- ~ (?x <  ?y <= ?z) ] => apply Decidable.not_and
-  | [ |- ~ (?x <= ?y <= ?z) ] => apply Decidable.not_and
+  | [ |- (?x <  ?y <  ?z) -> False ] => apply Decidable.not_and
+  | [ |- (?x <= ?y <  ?z) -> False ] => apply Decidable.not_and
+  | [ |- (?x <  ?y <= ?z) -> False ] => apply Decidable.not_and
+  | [ |- (?x <= ?y <= ?z) -> False ] => apply Decidable.not_and
 
-  | [ H : ~ (?x <  ?y /\ ?w <  ?z) |- _ ] => apply Decidable.not_and in H
-  | [ H : ~ (?x <= ?y /\ ?w <  ?z) |- _ ] => apply Decidable.not_and in H
-  | [ H : ~ (?x <  ?y /\ ?w <= ?z) |- _ ] => apply Decidable.not_and in H
-  | [ H : ~ (?x <= ?y /\ ?w <= ?z) |- _ ] => apply Decidable.not_and in H
+  | [ H : (?x <  ?y /\ ?w <  ?z) -> False |- _ ] => apply Decidable.not_and in H
+  | [ H : (?x <= ?y /\ ?w <  ?z) -> False |- _ ] => apply Decidable.not_and in H
+  | [ H : (?x <  ?y /\ ?w <= ?z) -> False |- _ ] => apply Decidable.not_and in H
+  | [ H : (?x <= ?y /\ ?w <= ?z) -> False |- _ ] => apply Decidable.not_and in H
 
-  | [ |- ~ (?x <  ?y /\ ?w <  ?z) ] => apply not_and_implication; intros
-  | [ |- ~ (?x <= ?y /\ ?w <  ?z) ] => apply not_and_implication; intros
-  | [ |- ~ (?x <  ?y /\ ?w <= ?z) ] => apply not_and_implication; intros
-  | [ |- ~ (?x <= ?y /\ ?w <= ?z) ] => apply not_and_implication; intros
+  | [ |- (?x <  ?y /\ ?w <  ?z) -> False ] => apply not_and_implication; intros
+  | [ |- (?x <= ?y /\ ?w <  ?z) -> False ] => apply not_and_implication; intros
+  | [ |- (?x <  ?y /\ ?w <= ?z) -> False ] => apply not_and_implication; intros
+  | [ |- (?x <= ?y /\ ?w <= ?z) -> False ] => apply not_and_implication; intros
 
   | [ |- _ <  _ <  _ ] => split
   | [ |- _ <= _ <  _ ] => split
@@ -282,9 +258,7 @@ Ltac pre_nomega :=
   [ discriminate
   | tauto
   | congruence
-  | unfold fits, fits_bool, within, within_bool,
-           overlaps, overlaps_bool in *;
-    nsimp; intros; norm_N; nsimp;
+  | unfold not in *; autounfold in *; nsimp; intros; norm_N; nsimp;
     repeat
       match goal with
       | [ H : _ = _          |- _ ] => apply Neq_out in H; nsimp_H H
@@ -324,13 +298,3 @@ Ltac decisions :=
     | [ |- context [if ?B then _ else _] ] =>
       let Heqe := fresh "Heqe" in destruct B eqn:Heqe
     end.
-
-(*** overlaps ***)
-
-Lemma not_overlaps_sym : forall addr1 len1 addr2 len2,
-  ~ overlaps addr1 len1 addr2 len2 <-> ~ overlaps addr2 len2 addr1 len1.
-Proof. nomega. Qed.
-
-Corollary not_overlaps_trans : forall a b x y z,
-  z < y -> ~ overlaps a b x y -> ~ overlaps a b x z.
-Proof. nomega. Qed.
