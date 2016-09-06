@@ -6,7 +6,6 @@ Require Import
   ByteString.Fiat
   ByteString.FromADT
   ByteString.Heap
-  ByteString.HeapADT
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
@@ -14,7 +13,7 @@ Generalizable All Variables.
 
 Module HeapCanonical (M : WSfun N_as_DT).
 
-Module Import HeapADT := HeapADT M.
+Module Import Heap := Heap M.
 
 Import Heap.
 Import HeapState.
@@ -32,7 +31,7 @@ Open Scope N_scope.
 Theorem HeapCanonical : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
-  eapply SharpenStep; [ apply (projT2 HeapSpecADT) |].
+  annotate HeapSpec ADT.
 
   hone representation using
        (fun or nr =>

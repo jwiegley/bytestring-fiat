@@ -3,7 +3,6 @@ Require Import
   ByteString.Memory
   ByteString.Nomega
   ByteString.Heap
-  ByteString.HeapADT
   ByteString.HeapCanon
   ByteString.ByteString
   ByteString.Fiat
@@ -18,7 +17,6 @@ Module ByteStringHeap (M : WSfun N_as_DT).
 
 Module Import HeapCanonical := HeapCanonical M.
 
-Import HeapADT.
 Import Heap.
 Import HeapState.
 Import FMapExt.

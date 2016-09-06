@@ -1,9 +1,9 @@
 Require Export
   Fiat.ADT
   Fiat.ADTNotation
+  ByteString.ADTInduction
   Fiat.ADTRefinement
-  Fiat.ADTRefinement.BuildADTRefinements
-  ByteString.ADTInduction.
+  Fiat.ADTRefinement.BuildADTRefinements.
 
 Tactic Notation "refine" "method" constr(name) :=
   match goal with

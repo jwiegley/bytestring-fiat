@@ -16,7 +16,6 @@ Module ByteStringFMap (M : WSfun N_as_DT).
 Module Import ByteStringHeap := ByteStringHeap M.
 
 Import HeapCanonical.
-Import HeapADT.
 Import Heap.
 Import HeapState.
 Import FMapExt.

@@ -1,6 +1,5 @@
 Require Import
-  ByteString.Fiat
-  ByteString.ADTInduction.
+  ByteString.Fiat.
 
 Generalizable All Variables.
 
@@ -99,6 +98,28 @@ Tactic Notation "resolve" "method" constr(meth) :=
       apply method knowledge for S meth H
     | finish honing ]
   end.
+
+Ltac resolve_method_bodies :=
+  match goal with
+  | [ H : constructorType
+            {r : Rep ?S | fromADT ?S r}
+            (consDom (Constructor ?C : rep)) |- _ ] =>
+    resolve constructor
+      (get_ctor S (fun idx => ibound (indexb idx)) {| bindex := C |})
+  | [ H : methodType
+            {r : Rep ?S | fromADT ?S r}
+            (methDom {| methID := ?M; methDom := _; methCod := _ |})
+            (methCod {| methID := ?M; methDom := _; methCod := _ |}) |- _ ] =>
+    resolve method
+      (get_method S (fun idx => ibound (indexb idx)) {| bindex := M |})
+  | _ => idtac
+  end.
+
+Tactic Notation "annotate" constr(spec) "ADT" :=
+  hone representation using
+       (fun (or : Rep spec)
+            (nr : { r : Rep spec | fromADT spec r }) => or = ` nr);
+  resolve_method_bodies.
 
 Lemma refine_strip_dependency :
   forall A (P : A -> Prop) x B (k : _ -> Comp B),

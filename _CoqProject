@@ -9,7 +9,6 @@ src/Fiat.v
 src/Memory.v
 src/HeapState.v
 src/Heap.v
-src/HeapADT.v
 src/HeapCanon.v
 src/ByteString.v
 src/ByteStringHeap.v
