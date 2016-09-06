@@ -43,7 +43,7 @@ Proof.
 
   refine method emptyS.
   {
-    remove_dependency (empty_fromADT (ReturnComputes _)).
+    remove dependency (HeapSpec@@emptyS).
     refine pick val (0%N, newHeapState).
       finish honing.
     intuition; simpl.
@@ -53,7 +53,7 @@ Proof.
   refine method allocS.
   {
     unfold find_free_block.
-    remove_dependency alloc_fromADT.
+    remove dependency (HeapSpec@allocS).
 
     refine pick val (fst r_n).
     {
@@ -89,7 +89,7 @@ Proof.
 
   refine method freeS.
   {
-    remove_dependency free_fromADT.
+    remove dependency (HeapSpec@freeS).
 
     refine pick val (fst r_n,
                      {| resvs := M.remove d (resvs (snd r_n))
@@ -105,7 +105,7 @@ Proof.
   refine method reallocS.
   {
     unfold find_free_block.
-    remove_dependency realloc_fromADT.
+    remove dependency (HeapSpec@reallocS).
 
     refine pick val (Ifopt M.find d (resvs (snd r_n)) as sz
                      Then If ` d0 <=? sz Then d Else fst r_n
@@ -203,7 +203,7 @@ Proof.
 
   refine method peekS.
   {
-    remove_dependency peek_fromADT.
+    remove dependency (HeapSpec@peekS).
 
     refine pick val (Ifopt M.find d (bytes (snd r_n)) as v
                      Then v
@@ -228,7 +228,7 @@ Proof.
 
   refine method pokeS.
   {
-    remove_dependency poke_fromADT.
+    remove dependency (HeapSpec@pokeS).
 
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
@@ -243,7 +243,7 @@ Proof.
 
   refine method memcpyS.
   {
-    remove_dependency memcpy_fromADT.
+    remove dependency (HeapSpec@memcpyS).
 
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
@@ -257,7 +257,7 @@ Proof.
 
   refine method memsetS.
   {
-    remove_dependency memset_fromADT.
+    remove dependency (HeapSpec@memsetS).
 
     refine pick val
        (fst r_n,

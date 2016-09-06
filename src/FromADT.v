@@ -4,59 +4,21 @@ Require Import
 
 Generalizable All Variables.
 
-Definition fromADTConstructor'
+Definition get_ctor
            {dSig : DecoratedADTSig}
            (adt : DecoratedADT dSig)
            (idxMap : BoundedIndex (ConstructorNames dSig)
                        -> ConstructorIndex dSig)
            (idx : BoundedIndex (ConstructorNames dSig)) :
-  forall (r : Rep adt),
-    fromConstructor (Constructors adt (idxMap idx)) r
-      -> fromADT adt r :=
-  fromADTConstructor adt (idxMap idx).
+  ConstructorIndex dSig :=
+  idxMap idx.
 
-Arguments fromADTConstructor' {dSig} adt idxMap idx r _.
+Notation ctor_ adt idx :=
+  (get_ctor adt (fun idx => ibound (indexb idx)) {| bindex := idx |}).
 
-Notation fromCons adt idx :=
-  (fromADTConstructor' adt (fun idx => ibound (indexb idx))
-                           {| bindex := idx |}).
-
-Tactic Notation "check" "constructor" constr(t) :=
-  simpl; intros; apply t;
-  repeat match goal with
-    | [ H : refine _ (ret _) |- _ ] => apply computes_to_refine in H
-    | [ |- fromConstructor _ _ _ ] => eexists
-    | [ H : _ ↝ _ |- _ ↝ _ ] => exact H
-    | [ H : ?X |- ?X ] => exact H
-    end.
-
-Definition fromADTMethod'
-           {dSig : DecoratedADTSig}
-           (adt : DecoratedADT dSig)
-           (idxMap : BoundedIndex (MethodNames dSig) -> MethodIndex dSig)
-           (idx : BoundedIndex (MethodNames dSig)) :
-  forall (r r' : Rep adt),
-    fromADT adt r
-      -> fromMethod (Methods adt (idxMap idx)) r r'
-      -> fromADT adt r' :=
-  fromADTMethod (adt:=adt) (idxMap idx).
-
-Arguments fromADTMethod' {dSig} adt idxMap idx r r' _ _.
-
-Notation fromMeth adt idx :=
-  (fromADTMethod' adt (fun idx => ibound (indexb idx)) {| bindex := idx |}).
-
-Tactic Notation "check" "method" constr(t) :=
-  simpl; intros;
-  apply t;
-  repeat match goal with
-    | [ H : _ * _ |- _ ] => destruct H; simpl in *
-    | [ H : refine _ (ret _) |- _ ] => apply computes_to_refine in H
-    | [ |- fromMethod _ _ _ ] => eexists
-    | [ |- fromMethod' _ _ ] => eexists
-    | [ H : _ ↝ _ |- _ ↝ _ ] => exact H
-    | [ H : ?X |- ?X ] => exact H
-    end.
+Notation "adt @@ idx" :=
+  (get_ctor adt (fun idx => ibound (indexb idx)) {| bindex := idx |})
+  (at level 100).
 
 Lemma refine_constructor_fromADT
       A (c : Comp (A)) (P : A -> Prop)
@@ -71,12 +33,34 @@ Proof.
   reflexivity.
 Qed.
 
-Ltac resolve_constructor m H0 :=
+Tactic Notation "apply" "constructor" "knowledge" "for" constr(meth) :=
+  apply (fromADTConstructor _ meth _);
+  simpl;
+  repeat match goal with
+         | [ |- fromConstructor _ _ ] => econstructor
+         end;
+  eauto.
+
+Tactic Notation "resolve" "constructor" constr(meth) :=
   subst; subst_evars;
   etransitivity;
-  [ apply refine_constructor_fromADT;
-    intros ??; apply H0; assumption
-  | finish honing].
+  [ apply refine_constructor_fromADT; intros;
+    apply constructor knowledge for meth
+  | finish honing ].
+
+Definition get_method
+           {dSig : DecoratedADTSig}
+           (adt : DecoratedADT dSig)
+           (idxMap : BoundedIndex (MethodNames dSig) -> MethodIndex dSig)
+           (idx : BoundedIndex (MethodNames dSig)) : MethodIndex dSig :=
+  idxMap idx.
+
+Notation method_ adt idx :=
+  (get_method adt (fun idx => ibound (indexb idx)) {| bindex := idx |}).
+
+Notation "adt @ idx" :=
+  (get_method adt (fun idx => ibound (indexb idx)) {| bindex := idx |})
+  (at level 100).
 
 Lemma refine_method_fromADT
       A B (c : Comp (A * B)) (P : A -> Prop)
@@ -95,12 +79,26 @@ Proof.
   reflexivity.
 Qed.
 
-Ltac resolve_method r_n m H0 :=
-  subst; subst_evars;
-  etransitivity;
-  [ apply refine_method_fromADT;
-    intros ??; apply H0; assumption
-  | finish honing].
+Tactic Notation "apply" "method" "knowledge" "for"
+       constr(S) constr(meth) constr(H) :=
+  apply (fromADTMethod (adt:=S) meth _ (proj2_sig H));
+  simpl;
+  repeat
+    match goal with
+    | [ |- fromMethod _ _ _ ] => econstructor
+    | [ |- fromMethod' _ _ ] => econstructor
+    end;
+  eauto.
+
+Tactic Notation "resolve" "method" constr(meth) :=
+  match goal with
+  | [ H : {r : _ | fromADT ?S _} |- _ ] =>
+    subst; subst_evars;
+    etransitivity;
+    [ apply refine_method_fromADT; intros [? ?] ?;
+      apply method knowledge for S meth H
+    | finish honing ]
+  end.
 
 Lemma refine_strip_dependency :
   forall A (P : A -> Prop) x B (k : _ -> Comp B),
@@ -192,19 +190,16 @@ Proof.
   assumption.
 Qed.
 
-Ltac remove_dependency HA :=
+Tactic Notation "remove" "dependency" constr(meth) :=
   first [ strip_dependency_constructor;
-          [| intros; apply HA; simpl ];
+          [| intros; apply constructor knowledge for meth ];
           rewrite refine_pick_ret; simpl
         | strip_dependency_method;
           [ rewrite refine_dependency;
             setoid_rewrite refine_pick_ret; simpl
-          | let H := fresh "H" in
-            intros ? ? ? H;
-            eapply HA; simpl;
-            [ match goal with
-                [ HR : { r : _ | _ r } |- _ ] =>
-                exact (proj2_sig HR)
-              end
-            | exact H ] ] ];
+          | intros ? ? [? ?] ?; simpl;
+            match goal with
+            | [ Hadt : {r : _ | fromADT ?S _} |- _ ] =>
+              apply method knowledge for S meth Hadt
+            end ] ];
   try simplify with monad laws; simpl.
