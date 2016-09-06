@@ -60,31 +60,97 @@ Record ByteString_Heap_AbsR or nr := {
   length_match : psLength or = ps'Length nr
 }.
 
-Lemma ByteString_Heap_AbsR_equiv : forall heap heap' b b' bl bl' o o' l l',
-  Heap_AbsR heap heap' -> b = b' -> bl = bl' -> o = o' -> l = l' ->
-  ByteString_Heap_AbsR
-    {| psHeap := heap
-     ; psBuffer := b
-     ; psBufLen := bl
-     ; psOffset := o
-     ; psLength := l |}
-    {| ps'Heap := heap'
-     ; ps'Buffer := b'
-     ; ps'BufLen := bl'
-     ; ps'Offset := o'
-     ; ps'Length := l' |}.
-Proof. firstorder. Qed.
-
-Lemma refine_ByteString_Heap_AbsR : forall h h',
-  ByteString_Heap_AbsR h h' ->
-  refine {r_n0 : PS' | ByteString_Heap_AbsR h r_n0} (ret h').
+Lemma refine_ByteString_Heap_AbsR :
+  forall heap_resvs heap_bytes buffer buflen offset length B (k : _ -> Comp B),
+    refine
+      (r_n' <- { r_n0 : PS'
+               | ByteString_Heap_AbsR
+                   {| psHeap := {| resvs := heap_resvs
+                                 ; bytes := heap_bytes |}
+                    ; psBuffer := buffer
+                    ; psBufLen := buflen
+                    ; psOffset := offset
+                    ; psLength := length |} r_n0 };
+       k r_n')
+      (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
+       bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
+       brk'   <- {brk'   : N
+                 | P.for_all (fun addr sz => addr + sz <=? brk') resvs' };
+       k {| ps'Heap   := (brk', {| resvs := resvs'; bytes := bytes' |})
+          ; ps'Buffer := buffer
+          ; ps'BufLen := buflen
+          ; ps'Offset := offset
+          ; ps'Length := length |}).
 Proof.
-  intros; subst.
-  intros ??.
-  destruct H0.
-  apply PickComputes.
-  assumption.
+  intros; intros ??.
+  destruct_computations.
+  revert H2.
+  remember (Build_PS' _ _ _ _ _) as P; intros.
+  refine pick val P.
+    apply computes_to_refine.
+    simplify with monad laws.
+    apply refine_computes_to.
+    assumption.
+  rewrite HeqP.
+  firstorder.
 Qed.
+
+Ltac apply_ByteString_Heap_AbsR :=
+  match goal with
+    | [ H : ByteString_Heap_AbsR ?O ?N |- _ ] =>
+      destruct H as
+          [ [ resvs_match0 [ bytes_match0 for_all_matches0 ] ]
+            buffer_match0 buflen_match0 offset_match0 length_match0 ],
+          O as [ [ resvs_o bytes_o ]
+                 psBuffer0 psBufLen0 psOffset0 psLength0 ];
+      simpl in *;
+      rewrite ?buffer_match0, ?buflen_match0, ?offset_match0, ?length_match0
+  end.
+
+Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
+  match goal with
+  | [ resvs_o : M.t Size, bytes_o : M.t Word |- _ ] =>
+    match goal with
+    | [ resvs_match0 : M.Equal resvs_o _
+      , bytes_match0 : M.Equal bytes_o _ |- _ ] =>
+      repeat (
+        try simplify with monad laws; simpl;
+        unfold find_free_block, allocate_buffer;
+        match goal with
+        | [ |- refine (x <- ret _; _) _ ] =>
+          simplify with monad laws; simpl
+        | [ |- refine (x <- { X : PS' | ByteString_Heap_AbsR _ X }; _) _ ] =>
+          rewrite refine_ByteString_Heap_AbsR
+        | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
+          apply refine_If_Then_Else
+        | [ |- refine (x <- If ?B Then ?T Else ?E; _) _ ] =>
+          rewrite refineEquiv_If_Then_Else_Bind
+        | [ |- refine (x <- { X : M.t Size | M.Equal _ X }; _) _ ] =>
+          try setoid_rewrite resvs_match0;
+          refine pick val _
+        | [ |- refine (x <- { X : M.t Word | M.Equal _ X }; _) _ ] =>
+          try setoid_rewrite bytes_match0;
+          refine pick val _
+        end);
+      try simplify with monad laws; simpl; eauto;
+      try match goal with
+      | [ |- M.Equal _ _ ] => reflexivity
+      end
+    end
+  end.
+
+Ltac fracture H :=
+  repeat (
+    try simplify with monad laws; simpl;
+    match goal with
+    | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
+      apply refine_If_Then_Else; [ fracture H | fracture H ]
+    | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
+      subst H; apply refine_If_Then_Else; [ fracture H | fracture H ]
+    | [ |- refine (x <- If ?B Then ?T Else ?E; _) _ ] =>
+      rewrite refineEquiv_If_Then_Else_Bind
+    | [ |- _ ] => idtac
+    end).
 
 Theorem ByteStringCanonical : FullySharpened (projT1 (ByteStringHeap heap)).
 Proof.
@@ -92,206 +158,109 @@ Proof.
 
   hone representation using ByteString_Heap_AbsR.
 
-  try simplify with monad laws; simpl.
+  refine method ByteString.emptyS.
   {
+    simplify with monad laws.
     refine pick val {| ps'Heap   := heap'
                      ; ps'Buffer := 0
                      ; ps'BufLen := 0
                      ; ps'Offset := 0
                      ; ps'Length := 0 |}.
       finish honing.
-    apply ByteString_Heap_AbsR_equiv; trivial.
+    firstorder.
   }
-  {
-    destruct H0, heap_match0, H1.
-    destruct r_o; simpl in *.
-    rewrite buffer_match0, buflen_match0, offset_match0, length_match0.
 
-    rewrite !refineEquiv_If_Then_Else_Bind.
-    apply refine_If_Then_Else.
-      simplify with monad laws; simpl.
-      refine pick val
-             {| ps'Heap   :=
-                  (fst (ps'Heap r_n),
-                   {| resvs := resvs (snd (ps'Heap r_n))
-                    ; bytes := M.add (ps'Buffer r_n + (ps'Offset r_n - 1)) d
-                                     (bytes (snd (ps'Heap r_n))) |})
-              ; ps'Buffer := ps'Buffer r_n
-              ; ps'BufLen := ps'BufLen r_n
-              ; ps'Offset := ps'Offset r_n - 1
-              ; ps'Length := ps'Length r_n + 1 |}.
+  refine method ByteString.consS.
+  {
+    apply_ByteString_Heap_AbsR.
+    fracture H; unfold find_free_block;
+    refine using ByteString_Heap_AbsR;
+    refine pick val (fst (ps'Heap r_n)); eauto;
+    try simplify with monad laws;
+    try finish honing;
+    refine using ByteString_Heap_AbsR.
+
+    - refine pick val (fst (ps'Heap r_n) +
+                       (ps'Length r_n + alloc_quantum)); eauto.
         simplify with monad laws.
         finish honing.
-      apply ByteString_Heap_AbsR_equiv; trivial.
-      split; simpl; trivial.
-      split; trivial.
-      apply F.add_m; eauto.
-    subst H.
-    apply refine_If_Then_Else.
-      simplify with monad laws; simpl.
-      refine pick val
-             {| ps'Heap   :=
-                  (fst (ps'Heap r_n),
-                   {| resvs := resvs (snd (ps'Heap r_n))
-                    ; bytes :=
-                        M.add (ps'Buffer r_n) d
-                              (copy_bytes (ps'Buffer r_n) (ps'Buffer r_n + 1)
-                                          (ps'Length r_n)
-                                          (bytes (snd (ps'Heap r_n)))) |})
-              ; ps'Buffer := ps'Buffer r_n
-              ; ps'BufLen := ps'BufLen r_n
-              ; ps'Offset := 0
-              ; ps'Length := ps'Length r_n + 1 |}.
+
+      rewrite <- remove_add.
+      apply for_all_remove; relational.
+      apply for_all_add_true; relational.
+        simplify_maps.
+      split; [|nomega].
+      apply for_all_remove; relational.
+      eapply for_all_impl; auto;
+      relational; eauto; nomega.
+
+    - rewrite resvs_match0.
+      eapply for_all_impl; eauto;
+      relational; nomega.
+
+    - refine pick val (fst (ps'Heap r_n) + alloc_quantum); eauto.
         simplify with monad laws.
         finish honing.
-      apply ByteString_Heap_AbsR_equiv; trivial.
-      rewrite !N.add_0_r.
-      simpl in *; intuition.
-      split; simpl; trivial.
-      split; trivial.
-      apply F.add_m; auto.
-      rewrite H1; reflexivity.
-    apply refine_If_Then_Else.
-      simplify with monad laws; simpl.
-      unfold find_free_block.
-      refine pick val (fst (ps'Heap r_n)).
-        simplify with monad laws; simpl.
-        refine pick val
-               {| ps'Heap   :=
-                    (fst (ps'Heap r_n) + ps'Length r_n + alloc_quantum,
-                     {| resvs :=
-                          M.remove (ps'Buffer r_n)
-                                   (M.add (fst (ps'Heap r_n))
-                                          (ps'Length r_n + 1)
-                                          (resvs (snd (ps'Heap r_n))))
-                      ; bytes :=
-                          M.add (fst (ps'Heap r_n)) d
-                                (copy_bytes (ps'Buffer r_n)
-                                            (fst (ps'Heap r_n) + 1)
-                                            (ps'Length r_n)
-                                            (bytes (snd (ps'Heap r_n)))) |})
-                ; ps'Buffer := fst (ps'Heap r_n)
-                ; ps'BufLen := ps'Length r_n + alloc_quantum
-                ; ps'Offset := 0
-                ; ps'Length := ps'Length r_n + alloc_quantum |}.
-          simplify with monad laws.
-          finish honing.
-        apply ByteString_Heap_AbsR_equiv; trivial.
-        rewrite N.add_0_r.
-        simpl in *; intuition.
-        split; simpl.
-           rewrite H0; reflexivity.
-        split.
-          rewrite H1; reflexivity.
-        rewrite <- remove_add.
-        apply for_all_remove; relational.
-        apply for_all_add_true; relational.
-          simplify_maps.
-        split.
-          apply for_all_remove; relational.
-          eapply for_all_impl; auto; relational.
-            exact H2.
-          intros.
-          nomega.
-        nomega.
-      rewrite H0.
-      eapply for_all_impl; eauto; relational.
-      intros.
-      nomega.
-    unfold allocate_buffer.
-    unfold Bind2.
-    rewrite refine_bind_bind.
-    unfold alloc, find_free_block.
-    simplify with monad laws; simpl.
-    refine pick val (fst (ps'Heap r_n)).
-      simplify with monad laws; simpl.
-      refine pick val
-             {| ps'Heap   :=
-                  (fst (ps'Heap r_n) + 1,
-                   {| resvs := M.add (fst (ps'Heap r_n)) 1
-                                     (resvs (snd (ps'Heap r_n)))
-                    ; bytes := M.add (fst (ps'Heap r_n)) d
-                                     (bytes (snd (ps'Heap r_n))) |})
-              ; ps'Buffer := fst (ps'Heap r_n)
-              ; ps'BufLen := 1
-              ; ps'Offset := 0
-              ; ps'Length := 1 |}.
-        simplify with monad laws.
-        finish honing.
-      rewrite N.add_0_r.
-      apply ByteString_Heap_AbsR_equiv; trivial.
-      simpl in *; intuition.
-      split; simpl.
-        rewrite H0; reflexivity.
-      split.
-        rewrite H1; reflexivity.
+
       rewrite <- remove_add.
       apply for_all_add_true; relational.
         simplify_maps.
-      split.
-        apply for_all_remove; relational.
-        eapply for_all_impl; auto; relational.
-          exact H2.
-        intros.
-        nomega.
-      nomega.
-    rewrite H0.
-    eapply for_all_impl; eauto; relational.
-    intros.
-    nomega.
-  }
-  {
-    destruct H0, heap_match0, H1.
-    destruct r_o; simpl in *.
-    rewrite buffer_match0, buflen_match0, offset_match0, length_match0.
+      split; [|nomega].
+      apply for_all_remove; relational.
+      eapply for_all_impl; auto;
+      relational; eauto; nomega.
 
-    rewrite refineEquiv_If_Then_Else_Bind.
-    subst H.
-    apply refine_If_Then_Else.
-      simplify with monad laws; simpl.
-      refine pick val (Ifopt M.find (ps'Buffer r_n + ps'Offset r_n)
+    - rewrite resvs_match0.
+      eapply for_all_impl; eauto;
+      relational; nomega.
+  }
+
+  refine method ByteString.unconsS.
+  {
+    apply_ByteString_Heap_AbsR.
+    fracture H; refine using ByteString_Heap_AbsR.
+
+    - refine pick val (Ifopt M.find (ps'Buffer r_n + ps'Offset r_n)
                                     (bytes (snd (ps'Heap r_n))) as v
                        Then v
                        Else Zero).
-        simplify with monad laws; simpl.
-        refine pick val {| ps'Heap   := ps'Heap r_n
-                         ; ps'Buffer := ps'Buffer r_n
-                         ; ps'BufLen := ps'BufLen r_n
-                         ; ps'Offset := if ps'Length r_n =? 1
-                                        then 0
-                                        else ps'Offset r_n + 1
-                         ; ps'Length := ps'Length r_n - 1 |}.
-          simplify with monad laws.
-          finish honing.
-        apply ByteString_Heap_AbsR_equiv; trivial.
-        split; trivial; split; trivial.
+        simplify with monad laws.
+        refine using ByteString_Heap_AbsR.
+        refine pick val (fst (ps'Heap r_n)); eauto.
+        simplify with monad laws.
+        finish honing.
+
       intros.
       destruct (M.find _ _) eqn:Heqe; simpl.
-        rewrite H1 in H.
         normalize.
+        rewrite bytes_match0 in H.
         eapply F.MapsTo_fun; eauto.
       apply F.find_mapsto_iff in H.
       congruence.
-    simplify with monad laws; simpl.
-    refine pick val r_n.
-      simplify with monad laws; simpl.
+
+    - refine pick val (fst (ps'Heap r_n)); eauto.
+      simplify with monad laws.
       finish honing.
-    destruct r_n.
-    apply ByteString_Heap_AbsR_equiv; trivial.
-    split; trivial; split; trivial.
   }
 
+  (** Apply some common functional optimizations. *)
+
   hone representation using eq.
+
+  refine method ByteString.emptyS.
   {
     simplify with monad laws.
     finish honing.
   }
+
+  refine method ByteString.consS.
   {
     rewrite !refine_If_Then_Else_ret.
     simplify with monad laws.
     refine pick eq.
     simplify with monad laws.
     rewrite !If_Then_Else_fst, !If_Then_Else_snd; simpl.
+
     replace (If 0 <? ps'Offset r_o
              Then ()
              Else (If ps'Length r_o + 1 <=? ps'BufLen r_o
@@ -299,12 +268,14 @@ Proof.
                    Else (If 0 <? ps'BufLen r_o
                          Then ()
                          Else ()))) with ().
-      subst.
-      finish honing.
+      subst; finish honing.
+
     destruct (0 <? _); trivial; simpl.
     destruct (_ + 1 <=? _); trivial; simpl.
     destruct (0 <? _); trivial.
   }
+
+  refine method ByteString.unconsS.
   {
     rewrite refine_If_Then_Else_ret.
     simplify with monad laws.
@@ -312,8 +283,7 @@ Proof.
     simplify with monad laws.
     rewrite !If_Then_Else_fst, !If_Then_Else_snd; simpl.
     rewrite If_Then_Else_pair.
-    subst.
-    finish honing.
+    subst; finish honing.
   }
 
   finish_SharpeningADT_WithoutDelegation.
