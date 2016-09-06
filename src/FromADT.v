@@ -211,16 +211,27 @@ Proof.
   assumption.
 Qed.
 
-Tactic Notation "remove" "dependency" constr(meth) :=
-  first [ strip_dependency_constructor;
-          [| intros; apply constructor knowledge for meth ];
-          rewrite refine_pick_ret; simpl
-        | strip_dependency_method;
-          [ rewrite refine_dependency;
-            setoid_rewrite refine_pick_ret; simpl
-          | intros ? ? [? ?] ?; simpl;
-            match goal with
-            | [ Hadt : {r : _ | fromADT ?S _} |- _ ] =>
-              apply method knowledge for S meth Hadt
-            end ] ];
+Tactic Notation "remove" "dependency" constr(S) :=
+    match goal with
+  | [ H : constructorType _ (consDom (Constructor ?C : rep)) |- _ ] =>
+    strip_dependency_constructor;
+    [| intros;
+       apply constructor knowledge for
+             (get_ctor S (fun idx => ibound (indexb idx)) {| bindex := C |}) ];
+    rewrite refine_pick_ret
+  | [ H : methodType _
+            (methDom {| methID := ?M; methDom := _; methCod := _ |})
+            (methCod {| methID := ?M; methDom := _; methCod := _ |}) |- _ ] =>
+    strip_dependency_method;
+    [ rewrite refine_dependency;
+      setoid_rewrite refine_pick_ret; simpl
+    | intros ? ? [? ?] ?; simpl;
+      match goal with
+      | [ Hadt : {r : _ | fromADT ?S _} |- _ ] =>
+        apply method knowledge for S
+              (get_method S (fun idx => ibound (indexb idx)) {| bindex := M |})
+              Hadt
+      end ]
+  | _ => idtac
+  end;
   try simplify with monad laws; simpl.

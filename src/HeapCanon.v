@@ -31,20 +31,25 @@ Open Scope N_scope.
 Theorem HeapCanonical : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
-  annotate HeapSpec ADT.
 
+  (** Refine the ADT, annotating the rep type with [fromADT] witnesses, so we
+      may use theorems such as [allocations_no_overlap], below. We then strip
+      it out in the upcoming refinement, but not before the information we
+      need has been added to the context. *)
+  annotate HeapSpec ADT.
   hone representation using
        (fun or nr =>
           M.Equal (resvs (` or)) (resvs (snd nr)) /\
           M.Equal (bytes (` or)) (bytes (snd nr)) /\
           P.for_all (fun addr sz => addr + sz <=? fst nr)
-                    (resvs (snd nr))).
+                    (resvs (snd nr)));
+  remove dependency HeapSpec.
 
   refine method emptyS.
   {
-    remove dependency (HeapSpec@@emptyS).
     refine pick val (0%N, newHeapState).
       finish honing.
+
     intuition; simpl.
     apply for_all_empty; relational.
   }
@@ -52,8 +57,6 @@ Proof.
   refine method allocS.
   {
     unfold find_free_block.
-    remove dependency (HeapSpec@allocS).
-
     refine pick val (fst r_n).
     {
       simplify with monad laws; simpl.
@@ -88,8 +91,6 @@ Proof.
 
   refine method freeS.
   {
-    remove dependency (HeapSpec@freeS).
-
     refine pick val (fst r_n,
                      {| resvs := M.remove d (resvs (snd r_n))
                       ; bytes := bytes (snd r_n) |}).
@@ -104,8 +105,6 @@ Proof.
   refine method reallocS.
   {
     unfold find_free_block.
-    remove dependency (HeapSpec@reallocS).
-
     refine pick val (Ifopt M.find d (resvs (snd r_n)) as sz
                      Then If ` d0 <=? sz Then d Else fst r_n
                      Else fst r_n).
@@ -178,6 +177,7 @@ Proof.
           relational; nomega.
         nomega.
     }
+
     simpl in *; intuition; rewrite ?H1;
     (destruct (M.find d _) as [sz|] eqn:Heqe;
      [ destruct (` d0 <=? sz) eqn:Heqe1;
@@ -202,18 +202,15 @@ Proof.
 
   refine method peekS.
   {
-    remove dependency (HeapSpec@peekS).
-
     refine pick val (Ifopt M.find d (bytes (snd r_n)) as v
                      Then v
                      Else Zero).
-    {
       simplify with monad laws.
       refine pick val r_n.
         simplify with monad laws.
         finish honing.
       simpl in *; intuition.
-    }
+
     simpl in *; intuition.
     destruct (M.find d _) as [sz|] eqn:Heqe;
     simpl; normalize.
@@ -227,8 +224,6 @@ Proof.
 
   refine method pokeS.
   {
-    remove dependency (HeapSpec@pokeS).
-
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := M.add d d0 (bytes (snd r_n)) |}).
@@ -242,8 +237,6 @@ Proof.
 
   refine method memcpyS.
   {
-    remove dependency (HeapSpec@memcpyS).
-
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := copy_bytes d d0 d1 (bytes (snd r_n)) |}).
@@ -256,8 +249,6 @@ Proof.
 
   refine method memsetS.
   {
-    remove dependency (HeapSpec@memsetS).
-
     refine pick val
        (fst r_n,
         {| resvs := resvs (snd r_n)
