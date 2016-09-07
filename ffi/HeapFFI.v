@@ -52,54 +52,42 @@ Record HeapIntf (Env : Type) := {
   copyBytes    : Ptr -> Ptr -> Size -> Mem Env -> Mem Env;
   fillBytes    : Ptr -> Word -> Size -> Mem Env -> Mem Env;
 
-  newheap_relates : forall mem, @Mem_AbsR Env newHeapState mem;
+  empty_correct : forall mem, @Mem_AbsR Env newHeapState mem;
 
-  malloc_relates : forall env env' sz ptr,
-    mallocBytes (` sz) env = (ptr, env')
-      -> forall r r', alloc r sz ↝ (r', ptr)
-      -> Mem_AbsR r' env';
+  malloc_correct : forall r env env' sz ptr,
+    Mem_AbsR r env
+      -> mallocBytes (` sz) env = (ptr, env')
+      -> forall r', alloc r sz ↝ (r', ptr) /\ Mem_AbsR r' env';
 
-  malloc_sound : forall env env' sz ptr,
-    mallocBytes sz env = (ptr, env') ->
-      All (fun ptr' sz' => ~ overlaps ptr' sz' ptr sz) (heap_rep env);
+  free_correct : forall r env env' ptr,
+    Mem_AbsR r env
+      -> freeBytes ptr env = env'
+      -> forall r', free r ptr ↝ (r', tt) /\ Mem_AbsR r' env';
 
-  free_relates : forall env env' ptr,
-    freeBytes ptr env = env'
-      -> forall r r', free r ptr ↝ (r', tt)
-      -> Mem_AbsR r' env';
+  realloc_correct : forall r env env' old sz new,
+    Mem_AbsR r env
+      -> reallocBytes old (` sz) env = (new, env')
+      -> forall r', realloc r old sz ↝ (r', new) /\ Mem_AbsR r' env';
 
-  realloc_relates : forall env env' old sz new,
-    reallocBytes old (` sz) env = (new, env')
-      -> forall r r', realloc r old sz ↝ (r', new)
-      -> Mem_AbsR r' env';
+  peek_correct : forall r env env' ptr w,
+    Mem_AbsR r env
+      -> peekPtr ptr env = (w, env')
+      -> forall r', peek r ptr ↝ (r', w) /\ Mem_AbsR r' env';
 
-  realloc_sound : forall env env' sz old new,
-    reallocBytes old sz env = (new, env') ->
-      All (fun ptr' sz' => ~ overlaps ptr' sz' new sz)
-          (Remove old (heap_rep env));
+  poke_correct : forall r env env' ptr w,
+    Mem_AbsR r env
+      -> pokePtr ptr w env = env'
+      -> forall r', poke r ptr w ↝ (r', tt) /\ Mem_AbsR r' env';
 
-  peek_relates : forall env env' ptr w,
-    peekPtr ptr env = (w, env')
-      -> forall r r', peek r ptr ↝ (r', w)
-      -> Mem_AbsR r' env';
+  memcpy_correct : forall r env env' addr1 addr2 sz,
+    Mem_AbsR r env
+      -> copyBytes addr1 sz addr2 env = env'
+      -> forall r', memcpy r addr1 addr2 sz ↝ (r', tt) /\ Mem_AbsR r' env';
 
-  peek_sound : forall env env' ptr w,
-    Lookup ptr w (mem_rep env) -> peekPtr ptr env = (w, env');
-
-  poke_relates : forall env env' ptr w,
-    pokePtr ptr w env = env'
-      -> forall r r', poke r ptr w ↝ (r', tt)
-      -> Mem_AbsR r' env';
-
-  memcpy_relates : forall env env' addr1 addr2 sz,
-    copyBytes addr1 sz addr2 env = env'
-      -> forall r r', memcpy r addr1 addr2 sz ↝ (r', tt)
-      -> Mem_AbsR r' env';
-
-  memset_relates : forall env env' addr w sz,
-    fillBytes addr w sz env = env'
-      -> forall r r', memset r addr sz w ↝ (r', tt)
-      -> Mem_AbsR r' env'
+  memset_correct : forall r env env' addr w sz,
+    Mem_AbsR r env
+      -> fillBytes addr w sz env = env'
+      -> forall r', memset r addr sz w ↝ (r', tt) /\ Mem_AbsR r' env'
 }.
 
 (** In order to refine to a computable heap, we have to add the notion of
@@ -124,7 +112,7 @@ Proof.
       finish honing.
 
     intros.
-    apply newheap_relates; assumption.
+    apply empty_correct; assumption.
   }
 
   (* refine method allocS. *)
@@ -143,23 +131,19 @@ Proof.
       symmetry in Heqmalloc.
       destruct malloc as [addr env'].
 
-      eapply malloc_relates; eauto.
-      repeat econstructor; apply PickComputes.
-
-      destruct H0.
-      pose proof (malloc_sound _ _ Heqmalloc) as H2.
-      eapply All_Map_AbsR in H2; relational; eauto.
-      constructor; split; nomega_.
+      eapply malloc_correct; eauto.
     }
 
     remember (mallocBytes _ _ _) as malloc.
     symmetry in Heqmalloc.
     destruct malloc as [addr env'].
-
-    destruct H0.
-    pose proof (malloc_sound _ _ Heqmalloc) as H2.
-    eapply All_Map_AbsR in H2; relational; eauto.
-    constructor; split; nomega_.
+    eapply malloc_correct
+           (* jww (2016-09-07): It should be possible to derive this *)
+      with (r':={| resvs := M.add addr (` d) (resvs r_o)
+                 ; bytes := bytes r_o |})
+      in Heqmalloc; eauto.
+    breakdown; destruct_computations.
+    tsubst; assumption.
   }
 
   (* refine method freeS. *)
@@ -168,8 +152,7 @@ Proof.
       simplify with monad laws; simpl.
       finish honing.
 
-    eapply free_relates; auto.
-    repeat econstructor.
+    eapply free_correct; eauto.
   }
 
   (* refine method reallocS. *)
@@ -187,26 +170,20 @@ Proof.
 
       symmetry in Heqrealloc.
       destruct realloc as [addr env'].
-
-      eapply realloc_relates; eauto.
-      repeat econstructor; apply PickComputes.
-
-      destruct H0.
-      pose proof (realloc_sound _ _ Heqrealloc) as H2.
-      eapply All_Map_AbsR in H2; relational; eauto;
-      related_maps; eauto.
-      constructor; split; nomega_.
+      eapply realloc_correct; eauto.
     }
 
     remember (reallocBytes _ _ _ _) as realloc.
     symmetry in Heqrealloc.
     destruct realloc as [addr env'].
-
-    destruct H0.
-    pose proof (realloc_sound _ _ Heqrealloc) as H2.
-    eapply All_Map_AbsR in H2; relational; eauto;
-    related_maps; eauto.
-    constructor; split; nomega_.
+    eapply realloc_correct
+      with (r':={| resvs := M.add addr (` d0) (M.remove d (resvs r_o))
+                 ; bytes := Ifopt M.find d (resvs r_o) as sz
+                            Then copy_bytes d addr (N.min sz (` d0)) (bytes r_o)
+                            Else bytes r_o |})
+      in Heqrealloc; eauto.
+    breakdown; destruct_computations.
+    tsubst; assumption.
   }
 
   (* refine method peekS. *)
@@ -218,11 +195,12 @@ Proof.
         finish honing.
       assumption.
 
-    intros.
-    apply H0 in H1; destruct H1 as [? [? ?]]; subst.
-    eapply (peek_sound ffi r_n r_n d) in H1; eauto.
-    rewrite H1.
-    reflexivity.
+    remember (peekPtr _ _ _) as peek.
+    symmetry in Heqpeek.
+    destruct peek as [w env'].
+    eapply peek_correct in Heqpeek; eauto.
+    breakdown; destruct_computations.
+    tsubst; eauto.
   }
 
   (* refine method pokeS. *)
@@ -231,8 +209,7 @@ Proof.
       simplify with monad laws.
       finish honing.
 
-    eapply poke_relates; eauto.
-    repeat econstructor.
+    eapply poke_correct; eauto.
   }
 
   (* refine method memcpyS. *)
@@ -241,8 +218,7 @@ Proof.
       simplify with monad laws.
       finish honing.
 
-    eapply memcpy_relates; eauto.
-    repeat econstructor.
+    eapply memcpy_correct; eauto.
   }
 
   (* refine method memsetS. *)
@@ -251,8 +227,7 @@ Proof.
       simplify with monad laws.
       finish honing.
 
-    eapply memset_relates; eauto.
-    repeat econstructor.
+    eapply memset_correct; eauto.
   }
 
   finish_SharpeningADT_WithoutDelegation.
