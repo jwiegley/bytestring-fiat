@@ -1,7 +1,4 @@
-Require Import
-  ByteString.Fiat.
-
-Generalizable All Variables.
+Require Import ByteString.Lib.Fiat.
 
 Definition get_ctor
            {dSig : DecoratedADTSig}
@@ -12,12 +9,9 @@ Definition get_ctor
   ConstructorIndex dSig :=
   idxMap idx.
 
-Notation ctor_ adt idx :=
-  (get_ctor adt (fun idx => ibound (indexb idx)) {| bindex := idx |}).
-
 Notation "adt @@ idx" :=
   (get_ctor adt (fun idx => ibound (indexb idx)) {| bindex := idx |})
-  (at level 100).
+  (at level 100) : comp_scope.
 
 Lemma refine_constructor_fromADT
       A (c : Comp (A)) (P : A -> Prop)
@@ -28,17 +22,15 @@ Proof.
   intros x ?.
   apply Pick_inv in H.
   apply BindComputes with (a:=` x); trivial.
-  apply PickComputes.
-  reflexivity.
+  apply PickComputes; reflexivity.
 Qed.
 
 Tactic Notation "apply" "constructor" "knowledge" "for" constr(meth) :=
-  apply (fromADTConstructor _ meth _);
-  simpl;
-  repeat match goal with
-         | [ |- fromConstructor _ _ ] => econstructor
-         end;
-  eauto.
+  apply (fromADTConstructor _ meth _); simpl;
+  repeat
+    match goal with
+      [ |- fromConstructor _ _ ] => econstructor
+    end; eauto.
 
 Tactic Notation "resolve" "constructor" constr(meth) :=
   subst; subst_evars;
@@ -54,12 +46,9 @@ Definition get_method
            (idx : BoundedIndex (MethodNames dSig)) : MethodIndex dSig :=
   idxMap idx.
 
-Notation method_ adt idx :=
-  (get_method adt (fun idx => ibound (indexb idx)) {| bindex := idx |}).
-
 Notation "adt @ idx" :=
   (get_method adt (fun idx => ibound (indexb idx)) {| bindex := idx |})
-  (at level 100).
+  (at level 100) : comp_scope.
 
 Lemma refine_method_fromADT
       A B (c : Comp (A * B)) (P : A -> Prop)
@@ -71,27 +60,23 @@ Lemma refine_method_fromADT
 Proof.
   intros [x b] ?.
   apply Pick_inv in H; simpl in H.
-  apply BindComputes with (a:=(` x, b)); trivial.
-  simpl.
+  apply BindComputes with (a:=(` x, b)); trivial; simpl.
   apply BindComputes with (a:=x); trivial.
-  apply PickComputes.
-  reflexivity.
+  apply PickComputes; reflexivity.
 Qed.
 
 Tactic Notation "apply" "method" "knowledge" "for"
        constr(S) constr(meth) constr(H) :=
-  apply (fromADTMethod (adt:=S) meth _ (proj2_sig H));
-  simpl;
+  apply (fromADTMethod (adt:=S) meth _ (proj2_sig H)); simpl;
   repeat
     match goal with
     | [ |- fromMethod _ _ _ ] => econstructor
     | [ |- fromMethod' _ _ ] => econstructor
-    end;
-  eauto.
+    end; eauto.
 
 Tactic Notation "resolve" "method" constr(meth) :=
   match goal with
-  | [ H : {r : _ | fromADT ?S _} |- _ ] =>
+    [ H : { r : _ | fromADT ?S _ } |- _ ] =>
     subst; subst_evars;
     etransitivity;
     [ apply refine_method_fromADT; intros [? ?] ?;
@@ -137,14 +122,14 @@ Ltac strip_dependency_constructor :=
   let x := fresh "x" in
   let H := fresh "H" in
   match goal with
-  | [ |- refine (_ <- _; _) _ ] =>
+    [ |- refine (_ <- _; _) _ ] =>
     eapply refine_under_bind_helper; intros x H;
     [ exact H
     | let H := fresh "H" in
       intro H;
       pattern (` x);
       match goal with
-      | [ |- (fun h : ?T => refine ?X ?Y) (` x) ] =>
+        [ |- (fun h : ?T => refine ?X ?Y) (` x) ] =>
         change (refine ((fun h : T => X) (` x)) Y)
       end;
       exact H
@@ -176,7 +161,7 @@ Ltac strip_dependency_method :=
   let x := fresh "x" in
   let H := fresh "H" in
   match goal with
-  | [ |- refine (_ <- _; _) _ ] =>
+    [ |- refine (_ <- _; _) _ ] =>
     eapply refine_under_bind_helper; intros x H;
     [ exact H
     | let H := fresh "H" in
@@ -184,7 +169,7 @@ Ltac strip_dependency_method :=
       pattern (snd x);
       pattern (` (fst x));
       match goal with
-      | [ |- (fun h : ?T => (fun p : ?U => refine ?X ?Y) (snd x))
+        [ |- (fun h : ?T => (fun p : ?U => refine ?X ?Y) (snd x))
                (` (fst x)) ] =>
         change (refine ((fun (h : T) (p : U) => X) (` (fst x)) (snd x)) Y)
       end;
@@ -195,7 +180,8 @@ Ltac strip_dependency_method :=
   revert x;
   try apply refine_inv.
 
-Lemma refine_dependency A (X : Comp A) B (f : B -> A) C (k : B -> Comp C) :
+Lemma refine_pick_computes_to
+      A (X : Comp A) B (f : B -> A) C (k : B -> Comp C) :
   refine (a <- {a : B | X ↝ f a}; k a)
          (x <- X; a <- {a : B | ret x ↝ f a}; k a).
 Proof.
@@ -212,7 +198,7 @@ Proof.
 Qed.
 
 Tactic Notation "remove" "dependency" constr(S) :=
-    match goal with
+  match goal with
   | [ H : constructorType _ (consDom (Constructor ?C : rep)) |- _ ] =>
     strip_dependency_constructor;
     [| intros;
@@ -223,11 +209,11 @@ Tactic Notation "remove" "dependency" constr(S) :=
             (methDom {| methID := ?M; methDom := _; methCod := _ |})
             (methCod {| methID := ?M; methDom := _; methCod := _ |}) |- _ ] =>
     strip_dependency_method;
-    [ rewrite refine_dependency;
+    [ rewrite refine_pick_computes_to;
       setoid_rewrite refine_pick_ret; simpl
     | intros ? ? [? ?] ?; simpl;
       match goal with
-      | [ Hadt : {r : _ | fromADT ?S _} |- _ ] =>
+        [ Hadt : {r : _ | fromADT ?S _} |- _ ] =>
         apply method knowledge for S
               (get_method S (fun idx => ibound (indexb idx)) {| bindex := M |})
               Hadt
@@ -235,3 +221,13 @@ Tactic Notation "remove" "dependency" constr(S) :=
   | _ => idtac
   end;
   try simplify with monad laws; simpl.
+
+Tactic Notation "hone" "representation" "over" constr(spec) "using" constr(f) :=
+  annotate spec ADT;
+  hone representation using (fun or => f (` or));
+  remove dependency spec;
+  try match goal with
+    [ H : { r : _ | fromADT spec r } |- _ ] =>
+    let Hfrom := fresh "Hfrom" in
+    destruct H as [H Hfrom]; simpl in *
+  end.

@@ -1,17 +1,13 @@
 Require Import
-  ByteString.Tactics
+  ByteString.Lib.Tactics
+  ByteString.Lib.Nomega
+  ByteString.Lib.Fiat
   ByteString.Memory
-  ByteString.Nomega
   ByteString.Heap
   ByteString.HeapCanon
   ByteString.ByteString
-  ByteString.Fiat
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
-
-Generalizable All Variables.
-
-Open Scope N_scope.
 
 Module ByteStringHeap (M : WSfun N_as_DT).
 
@@ -20,6 +16,8 @@ Module Import HeapCanonical := HeapCanonical M.
 Import Heap.
 Import HeapState.
 Import FMapExt.
+
+Open Scope N_scope.
 
 Record PS := makePS {
   psHeap : Rep HeapSpec;
@@ -88,9 +86,11 @@ Arguments alloc_quantum /.
 Program Definition buffer_cons (r : PS) (d : Word) : Comp PS :=
   ps <- If 0 <? psOffset r
         Then ret (simply_widen_region r)
-        Else If psLength r + alloc_quantum <=? psBufLen r
+        Else
+        If psLength r + alloc_quantum <=? psBufLen r
         Then make_room_by_shifting_up r alloc_quantum
-        Else If 0 <? psBufLen r
+        Else
+        If 0 <? psBufLen r
         Then make_room_by_growing_buffer r alloc_quantum
         Else allocate_buffer (psHeap r) alloc_quantum;
   poke_at_offset ps d.
@@ -135,13 +135,12 @@ Ltac destruct_AbsR H :=
 
 Ltac construct_AbsR := split; try split; simpl; try nomega.
 
-Lemma buffer_cons_sound
-      (r_o : list Word) (r_n : PS)
-      (AbsR : ByteString_list_AbsR r_o r_n) :
-  forall x r_n' (H : buffer_cons r_n x ↝ r_n'),
-    ByteString_list_AbsR (x :: r_o) r_n'.
+Lemma buffer_cons_sound : forall r_o r_n,
+  ByteString_list_AbsR r_o r_n
+    -> forall x r_n', buffer_cons r_n x ↝ r_n'
+    -> ByteString_list_AbsR (x :: r_o) r_n'.
 Proof.
-  unfold buffer_cons; intros.
+  unfold buffer_cons; intros ? ? AbsR ???.
   apply refine_computes_to in H.
   rewrite refineEquiv_If_Then_Else_Bind in H.
   apply refine_If_Then_Else_bool in H.
@@ -243,8 +242,7 @@ Proof.
     destruct i using N.peano_ind.
       left; nomega.
     right; split; [nomega|].
-    rewrite N2Nat.inj_succ in *; simpl.
-    nomega.
+    rewrite N2Nat.inj_succ in *; nomega.
 Qed.
 
 Lemma buffer_uncons_sound : forall r_o r_n a,
@@ -271,9 +269,7 @@ Proof.
     destruct (psLength r_n =? 1) eqn:Heqe2;
     try nomega;
     try (eexists; split; [exact H4|]; nomega).
-    split.
-      assumption.
-    intros.
+    split; trivial; intros.
     destruct i using N.peano_ind.
       rewrite N.add_0_r, N.add_assoc.
       apply H4; trivial.
@@ -284,8 +280,7 @@ Proof.
       nomega.
     rewrite N.add_succ_l.
     rewrite N2Nat.inj_succ in *; simpl.
-    rewrite N2Nat.inj_add, Nat.add_1_r.
-    assumption.
+    rewrite N2Nat.inj_add, Nat.add_1_r; trivial.
   apply computes_to_refine in H0.
   destruct_computations.
   destruct_AbsR H; construct_AbsR;
@@ -329,14 +324,13 @@ Proof.
   nomega.
 Qed.
 
-Section Refined.
-
-Variable heap : Rep HeapSpec.
-
-Theorem ByteStringHeap  : { adt : _ & refineADT ByteStringSpec adt }.
+Theorem ByteStringHeap (heap : Rep HeapSpec) :
+  { adt : _ & refineADT ByteStringSpec adt }.
 Proof.
   eexists.
+
   hone representation using ByteString_list_AbsR.
+
   {
     simplify with monad laws.
     refine pick val {| psHeap   := heap
@@ -345,9 +339,9 @@ Proof.
                      ; psOffset := 0
                      ; psLength := 0 |}.
       finish honing.
-    split; simpl; auto.
-    left; auto.
+    firstorder.
   }
+
   {
     simplify with monad laws.
     etransitivity.
@@ -358,11 +352,10 @@ Proof.
         simplify with monad laws.
         finish honing.
       eapply buffer_cons_sound; eauto.
-    unfold buffer_cons, simply_widen_region,
-           make_room_by_shifting_up, make_room_by_growing_buffer.
     simplify with monad laws; simpl.
     finish honing.
   }
+
   {
     simplify with monad laws.
     etransitivity.
@@ -378,12 +371,10 @@ Proof.
         finish honing.
       eapply buffer_uncons_sound; eauto.
     simplify with monad laws.
-    unfold buffer_uncons.
     finish honing.
   }
+
   apply reflexivityT.
 Defined.
-
-End Refined.
 
 End ByteStringHeap.

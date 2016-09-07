@@ -3,7 +3,7 @@ Require Export
   Coq.NArith.NArith
   Coq.omega.Omega.
 
-Open Scope N_scope.
+Local Open Scope N_scope.
 
 Hint Rewrite
   Nplus_0_r

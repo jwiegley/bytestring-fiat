@@ -1,7 +1,7 @@
 Require Export
-  ByteString.LibExt
-  ByteString.TupleEnsembles
-  ByteString.Relations
+  ByteString.Lib.LibExt
+  ByteString.Lib.TupleEnsembles
+  ByteString.Lib.Relations
   Coq.Sets.Finite_sets
   Coq.Sets.Finite_sets_facts.
 

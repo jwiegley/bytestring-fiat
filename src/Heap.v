@@ -1,14 +1,12 @@
 Require Import
-  ByteString.Tactics
-  ByteString.Nomega
+  ByteString.Lib.Tactics
+  ByteString.Lib.Nomega
+  ByteString.Lib.FMapExt
+  ByteString.Lib.Fiat
   ByteString.Memory
-  ByteString.FMapExt
-  ByteString.Fiat
   ByteString.HeapState
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
-
-Generalizable All Variables.
 
 Module Heap (M : WSfun N_as_DT).
 
@@ -234,6 +232,21 @@ Proof.
     simplify_maps.
     pose proof (allocations_have_size H H6).
     nomega.
+Qed.
+
+Corollary allocations_no_overlap_for_all :
+  forall r : Rep HeapSpec, fromADT _ r ->
+    forall addr sz,
+      M.MapsTo addr sz (resvs r) ->
+      P.for_all (fun addr' sz' => negb (overlaps_bool addr' sz' addr sz))
+                (M.remove addr (resvs r)).
+Proof.
+  intros.
+  pose proof (allocations_no_overlap H H0).
+  apply P.for_all_iff; relational; intros.
+  simplify_maps.
+  specialize (H1 _ _ H4 H3).
+  nomega.
 Qed.
 
 End Heap.

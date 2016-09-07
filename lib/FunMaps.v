@@ -1,10 +1,8 @@
 Require Import
-  ByteString.Relations
-  ByteString.Decidable
-  ByteString.FMapExt
-  ByteString.TupleEnsembles
-  ByteString.TupleEnsemblesFinite
-  ByteString.Same_set
+  ByteString.Lib.Relations
+  ByteString.Lib.FMapExt
+  ByteString.Lib.TupleEnsembles
+  ByteString.Lib.Same_set
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
@@ -186,12 +184,12 @@ Obligation 1. relational_maps; repeat teardown; simplify_maps. Qed.
 
 Global Program Instance Lookup_Map_AbsR :
   (@Lookup _ _) [R E.eq ==> R ==> Map_AbsR R ==> iff] (@M.MapsTo _).
-Obligation 1. relational; equalities; eauto. Qed.
+Obligation 1. constructor; equalities; eauto. Qed.
 
 Global Program Instance Same_Map_AbsR :
   (@Same _ _) [R Map_AbsR R ==> Map_AbsR R ==> iff] M.Equal.
 Obligation 1.
-  relational.
+  constructor; intros.
     apply F.Equal_mapsto_iff; split; intros.
       apply H0.
       apply H in H2.
@@ -215,9 +213,8 @@ Definition boolR (P : Prop) (b : bool) : Prop := P <-> b = true.
 Global Program Instance Member_Map_AbsR :
   (@Member _ _) [R E.eq ==> Map_AbsR R ==> boolR] (@M.mem _).
 Obligation 1.
-  relational; equalities.
-  split; intros.
-    destruct H.
+  constructor; intros; equalities.
+    destruct H1.
     reduction.
     rewrite F.mem_find_b.
     apply F.find_mapsto_iff in HA.
@@ -227,14 +224,14 @@ Obligation 1.
     reduction.
     exists blk.
     assumption.
-  rewrite F.mem_find_b, Heqe in H.
+  rewrite F.mem_find_b, Heqe in H1.
   discriminate.
 Qed.
 
 Global Program Instance Member_In_Map_AbsR :
   (@Member _ _) [R E.eq ==> Map_AbsR R ==> iff] (@M.In _).
 Obligation 1.
-  relational; equalities.
+  constructor; intros; equalities.
     destruct H1.
     reduction.
     apply in_mapsto_iff; eauto.
@@ -259,6 +256,7 @@ Qed.
 
 Hypothesis Oeq_eq : forall x y, E.eq x y -> x = y.
 
+(*
 Global Program Instance Insert_Map_AbsR : forall k e e' r m,
   FunctionalRelation -> InjectiveRelation
     -> Map_AbsR R r m
@@ -291,11 +289,12 @@ Obligation 1.
     simplify_maps.
     right; split; eauto.
 Qed.
+*)
 
 Global Program Instance Remove_Map_AbsR :
   (@Remove _ _) [R E.eq ==> Map_AbsR R ==> Map_AbsR R] (@M.remove _).
 Obligation 1.
-  relational; equalities;
+  constructor; split; intros; equalities;
   relational_maps.
   - teardown.
     reduction.
@@ -321,7 +320,7 @@ Global Program Instance Update_Map_AbsR :
   FunctionalRelation -> InjectiveRelation
     -> (@Update _ _) [R E.eq ==> R ==> Map_AbsR R ==> Map_AbsR R] (@M.add _).
 Obligation 1.
-  relational; equalities;
+  constructor; split; intros; equalities;
   relational_maps.
   - repeat teardown; subst.
       related; simplify_maps.
@@ -371,7 +370,7 @@ Global Program Instance Map_Map_AbsR :
     -> f [R E.eq ==> R ==> R] f'
     -> (@Map _ _ _ f) [R Map_AbsR R ==> Map_AbsR R] (@M.mapi _ _ f').
 Obligation 1.
-  relational; relational_maps.
+  constructor; split; intros; relational_maps.
   - teardown; reduction.
     exists (f' addr cblk).
     split.
@@ -413,7 +412,7 @@ Global Program Instance Filter_Map_AbsR :
     -> f [R E.eq ==> R ==> boolR] f'
     -> (@Filter _ _ f) [R Map_AbsR R ==> Map_AbsR R] (@P.filter _ f').
 Obligation 1.
-  relational; relational_maps.
+  constructor; split; intros; relational_maps.
   - reduction.
     related.
     simplify_maps; auto.
@@ -449,9 +448,8 @@ Global Program Instance All_Map_AbsR :
   f [R E.eq ==> R ==> boolR] f'
     -> All f [R Map_AbsR R ==> boolR] P.for_all f'.
 Obligation 1.
-  relational.
   unfold All, P.for_all in *.
-  split; intros.
+  constructor; intros.
     apply P.fold_rec_bis; intros; trivial; subst.
     reduction.
     apply H2 in HC.
@@ -475,9 +473,8 @@ Global Program Instance Any_Map_AbsR :
   (@Any _ _) [R (E.eq ==> R ==> boolR) ==> Map_AbsR R ==> boolR]
   (@P.exists_ _).
 Obligation 1.
-  relational.
-  split; intros;
   unfold Any in *.
+  constructor; intros.
     apply P.exists_iff.
       intros ??????; subst; equalities.
     do 3 destruct H1.
@@ -504,7 +501,7 @@ Global Program Instance Union_Map_AbsR : forall X X' Y Y',
   All (fun k _ => ~ Member k X') X ->
   Union _ X X' [R Map_AbsR R] (@P.update _ Y Y').
 Obligation 1.
-  relational; split; intros; split; intros.
+  constructor; intros; split; intros.
   - repeat teardown.
       apply H1 in H4; destruct H4 as [cblk [? ?]];
       exists cblk; intuition;
@@ -547,7 +544,7 @@ Lemma Map_AbsR_impl :
     forall a b c,
       Map_AbsR R a b -> Map_AbsR R a c -> M.Equal b c.
 Proof.
-  relational; intros.
+  intros.
   apply F.Equal_mapsto_iff; split; intros;
   reduction; reduction;
   pose proof (H _ _ _ HD HB);
@@ -569,6 +566,7 @@ Proof.
   eapply H; left; eassumption.
 Qed.
 
+(*
 Theorem every_finite_map_has_an_associated_fmap : forall r,
     FunctionalRelation ->
     InjectiveRelation ->
@@ -597,6 +595,7 @@ Proof.
     subst.
     contradiction.
 Qed.
+*)
 
 Definition of_map (x : M.t B) : EMap M.key A :=
   fun p => exists b : B, R (snd p) b /\ M.MapsTo (fst p) b x.
@@ -686,7 +685,7 @@ Hint Resolve Any_Map_AbsR : maps.
 Ltac relational_maps :=
   repeat (match goal with
           | [ |- Map_AbsR _ _ _ ]  => split; intros; intuition
-          end; relational).
+          end; constructor; intros).
 
 Ltac related_maps :=
   repeat (
@@ -701,8 +700,8 @@ Ltac related_maps :=
     apply Member_Map_AbsR
   | [ |- Map_AbsR ?R (Member _ _) (M.In _ _) ] =>
     apply Member_In_Map_AbsR
-  | [ |- Map_AbsR ?R (Insert _ _ _ _) (M.add _ _ _) ] =>
-    apply Insert_Map_AbsR
+  (* | [ |- Map_AbsR ?R (Insert _ _ _ _) (M.add _ _ _) ] => *)
+  (*   apply Insert_Map_AbsR *)
   | [ |- Map_AbsR ?R (Remove _ _) (M.remove _ _) ] =>
     apply Remove_Map_AbsR
   | [ |- Map_AbsR ?R (Update _ _ _) (M.add _ _ _) ] =>

@@ -1,9 +1,11 @@
 Require Import
-  ByteString.LibExt
-  ByteString.Nomega
-  ByteString.FMapExt
-  ByteString.FunMaps
-  ByteString.TupleEnsembles
+  ByteString.Lib.LibExt
+  ByteString.Lib.Nomega
+  ByteString.Lib.FMapExt
+  ByteString.Lib.FunMaps
+  ByteString.Lib.TupleEnsembles
+  ByteString.HeapState
+  ByteString.Ens.Decidable
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 

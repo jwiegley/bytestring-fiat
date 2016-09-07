@@ -1,19 +1,19 @@
 Require Import
-  ByteString.Tactics
-  ByteString.Nomega
+  ByteString.Lib.Tactics
+  ByteString.Lib.Nomega
+  ByteString.Lib.FMapExt
+  ByteString.Lib.Fiat
   ByteString.Memory
-  ByteString.FMapExt
-  ByteString.Fiat
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
-
-Generalizable All Variables.
 
 Module HeapState (M : WSfun N_as_DT).
 
 Module Import FMapExt := FMapExt N_as_DT M.
 Module P := FMapExt.P.
 Module F := P.F.
+
+Open Scope N_scope.
 
 Record HeapState := {
   resvs : M.t Size;

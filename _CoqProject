@@ -1,11 +1,20 @@
 -R fiat/src Fiat
 -R src ByteString
-src/Tactics.v
-src/Nomega.v
-src/FMapExt.v
-src/ADTInduction.v
-src/FromADT.v
-src/Fiat.v
+-R lib ByteString.Lib
+-R ffi ByteString.FFI
+lib/Tactics.v
+lib/Nomega.v
+lib/FMapExt.v
+lib/ADTInduction.v
+lib/FromADT.v
+lib/Fiat.v
+lib/LibExt.v
+lib/Same_set.v
+lib/Relations.v
+lib/TupleEnsembles.v
+lib/TupleEnsemblesFinite.v
+lib/FunMaps.v
+lib/Decidable.v
 src/Memory.v
 src/HeapState.v
 src/Heap.v
@@ -13,3 +22,4 @@ src/HeapCanon.v
 src/ByteString.v
 src/ByteStringHeap.v
 src/ByteStringCanon.v
+ffi/HeapFFI.v

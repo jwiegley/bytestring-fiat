@@ -1,7 +1,7 @@
 Require Export
   Fiat.ADT
   Fiat.ADTNotation
-  ByteString.ADTInduction
+  ByteString.Lib.ADTInduction
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
@@ -34,6 +34,31 @@ Ltac destruct_computations :=
           | apply Return_inv in H; subst ]
   end.
 
+Lemma refineEquiv_If_Then_Else_Bind :
+  forall (A B : Type) (i : bool) (t e : Comp A) (b : A -> Comp B),
+    refineEquiv (a <- If i Then t Else e; b a)
+                (If i Then a <- t; b a Else (a <- e; b a)).
+Proof. split; intros; destruct i; reflexivity. Qed.
+
+Lemma refine_If_Then_Else_bool :
+  forall (b : bool) A cpst cpse (res : Comp A),
+    (if b then refine cpst res else refine cpse res)
+      <-> refine (If b Then cpst Else cpse) res.
+Proof. split; intros; destruct b; auto. Qed.
+
+Ltac fracture H :=
+  repeat (
+    try simplify with monad laws; simpl;
+    match goal with
+    | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
+      apply refine_If_Then_Else; [ fracture H | fracture H ]
+    | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
+      subst H; apply refine_If_Then_Else; [ fracture H | fracture H ]
+    | [ |- refine (x <- If ?B Then ?T Else ?E; _) _ ] =>
+      rewrite refineEquiv_If_Then_Else_Bind
+    | [ |- _ ] => idtac
+    end).
+
 Corollary refine_computes_to {A} {c : Comp A} {v} : c ↝ v -> refine c (ret v).
 Proof. intros ?? H0; destruct H0; assumption. Qed.
 
@@ -47,18 +72,6 @@ Proof. intuition. Qed.
 Corollary refine_inv : forall A old new,
   refine old new -> forall x : A, new ↝ x -> old ↝ x.
 Proof. trivial. Qed.
-
-Lemma refineEquiv_If_Then_Else_Bind :
-  forall (A B : Type) (i : bool) (t e : Comp A) (b : A -> Comp B),
-    refineEquiv (a <- If i Then t Else e; b a)
-                (If i Then a <- t; b a Else (a <- e; b a)).
-Proof. split; intros; destruct i; reflexivity. Qed.
-
-Lemma refine_If_Then_Else_bool :
-  forall (b : bool) A cpst cpse (res : Comp A),
-    (if b then refine cpst res else refine cpse res)
-      <-> refine (If b Then cpst Else cpse) res.
-Proof. split; intros; destruct b; auto. Qed.
 
 Lemma fst_match_list :
   forall A (xs : list A) B z C z'

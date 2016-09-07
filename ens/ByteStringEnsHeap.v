@@ -6,17 +6,17 @@ Require Import
   Fiat.ADTNotation
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements
-  ByteString.ADTInduction
-  ByteString.BindDep
+  ByteString.Lib.ADTInduction
+  ByteString.Lib.Nomega
+  ByteString.Lib.Relations
+  ByteString.Lib.Tactics
+  ByteString.Lib.TupleEnsembles
+  ByteString.Lib.Same_set
   ByteString.ByteString
-  ByteString.HeapEns
-  ByteString.HeapEnsADT
-  ByteString.Nomega
-  ByteString.Relations
-  ByteString.Tactics
-  ByteString.TupleEnsembles
-  ByteString.Same_set
-  ByteString.Within.
+  ByteString.Ens.BindDep
+  ByteString.Ens.HeapEns
+  ByteString.Ens.HeapEnsADT
+  ByteString.Ens.Within.
 
 Generalizable All Variables.
 

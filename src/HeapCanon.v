@@ -1,21 +1,18 @@
 Require Import
-  ByteString.Tactics
-  ByteString.Nomega
+  ByteString.Lib.Tactics
+  ByteString.Lib.Nomega
+  ByteString.Lib.FMapExt
+  ByteString.Lib.Fiat
+  ByteString.Lib.FromADT
   ByteString.Memory
-  ByteString.FMapExt
-  ByteString.Fiat
-  ByteString.FromADT
   ByteString.Heap
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
-
-Generalizable All Variables.
 
 Module HeapCanonical (M : WSfun N_as_DT).
 
 Module Import Heap := Heap M.
 
-Import Heap.
 Import HeapState.
 Import FMapExt.
 
@@ -32,20 +29,13 @@ Theorem HeapCanonical : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
 
-  (** Refine the ADT, annotating the rep type with [fromADT] witnesses, so we
-      may use theorems such as [allocations_no_overlap], below. We then strip
-      it out in the upcoming refinement, but not before the information we
-      need has been added to the context. *)
-  annotate HeapSpec ADT.
-  hone representation using
+  hone representation over HeapSpec using
        (fun or nr =>
-          M.Equal (resvs (` or)) (resvs (snd nr)) /\
-          M.Equal (bytes (` or)) (bytes (snd nr)) /\
-          P.for_all (fun addr sz => addr + sz <=? fst nr)
-                    (resvs (snd nr)));
-  remove dependency HeapSpec.
+          M.Equal (resvs or) (resvs (snd nr)) /\
+          M.Equal (bytes or) (bytes (snd nr)) /\
+          P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
 
-  refine method emptyS.
+  (* refine method emptyS. *)
   {
     refine pick val (0%N, newHeapState).
       finish honing.
@@ -54,7 +44,7 @@ Proof.
     apply for_all_empty; relational.
   }
 
-  refine method allocS.
+  (* refine method allocS. *)
   {
     unfold find_free_block.
     refine pick val (fst r_n).
@@ -73,7 +63,6 @@ Proof.
         rewrite <- H1.
         destruct d.
         eapply allocations_no_overlap_r; eauto.
-          exact (proj2_sig r_o).
         rewrite H1.
         eapply for_all_impl; eauto; relational; intros.
         nomega.
@@ -89,7 +78,7 @@ Proof.
     relational; nomega.
   }
 
-  refine method freeS.
+  (* refine method freeS. *)
   {
     refine pick val (fst r_n,
                      {| resvs := M.remove d (resvs (snd r_n))
@@ -102,7 +91,7 @@ Proof.
     - apply for_all_remove; relational.
   }
 
-  refine method reallocS.
+  (* refine method reallocS. *)
   {
     unfold find_free_block.
     refine pick val (Ifopt M.find d (resvs (snd r_n)) as sz
@@ -184,7 +173,7 @@ Proof.
        simpl; rewrite ?Heqe1 |]); simpl.
     - normalize.
       rewrite <- H1 in Heqe.
-      pose proof (allocations_no_overlap (proj2_sig r_o) Heqe).
+      pose proof (allocations_no_overlap Hfrom Heqe) as H2.
       apply P.for_all_iff; relational; intros.
       simplify_maps.
       rewrite <- H1 in H6.
@@ -200,7 +189,7 @@ Proof.
       relational; nomega.
   }
 
-  refine method peekS.
+  (* refine method peekS. *)
   {
     refine pick val (Ifopt M.find d (bytes (snd r_n)) as v
                      Then v
@@ -222,7 +211,7 @@ Proof.
     congruence.
   }
 
-  refine method pokeS.
+  (* refine method pokeS. *)
   {
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
@@ -235,7 +224,7 @@ Proof.
     rewrite H0; reflexivity.
   }
 
-  refine method memcpyS.
+  (* refine method memcpyS. *)
   {
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
@@ -247,7 +236,7 @@ Proof.
     rewrite H0; reflexivity.
   }
 
-  refine method memsetS.
+  (* refine method memsetS. *)
   {
     refine pick val
        (fst r_n,
