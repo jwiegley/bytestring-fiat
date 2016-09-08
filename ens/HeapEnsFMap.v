@@ -1,15 +1,15 @@
 Require Import
-  ByteString.Relations
-  ByteString.TupleEnsembles
-  ByteString.Nomega
-  ByteString.BindDep
-  ByteString.ADTInduction
-  ByteString.Tactics
-  ByteString.HeapEns
-  ByteString.HeapEnsADT
-  ByteString.Within
-  ByteString.DefineAbsR
-  ByteString.Same_set
+  ByteString.Lib.Relations
+  ByteString.Lib.TupleEnsembles
+  ByteString.Lib.Nomega
+  ByteString.Lib.ADTInduction
+  ByteString.Lib.Tactics
+  ByteString.Lib.Same_set
+  ByteString.Ens.BindDep
+  ByteString.Ens.HeapEns
+  ByteString.Ens.HeapEnsADT
+  ByteString.Ens.Within
+  ByteString.Ens.DefineAbsR
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 

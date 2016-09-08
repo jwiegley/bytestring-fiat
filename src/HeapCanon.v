@@ -1,22 +1,18 @@
 Require Import
-  ByteString.Tactics
-  ByteString.Nomega
+  ByteString.Lib.Tactics
+  ByteString.Lib.Nomega
+  ByteString.Lib.FMapExt
+  ByteString.Lib.Fiat
+  ByteString.Lib.FromADT
   ByteString.Memory
-  ByteString.FMapExt
-  ByteString.Fiat
-  ByteString.FromADT
   ByteString.Heap
-  ByteString.HeapADT
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Generalizable All Variables.
-
 Module HeapCanonical (M : WSfun N_as_DT).
 
-Module Import HeapADT := HeapADT M.
+Module Import Heap := Heap M.
 
-Import Heap.
 Import HeapState.
 Import FMapExt.
 
@@ -32,29 +28,25 @@ Open Scope N_scope.
 Theorem HeapCanonical : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
-  eapply SharpenStep; [ apply (projT2 HeapSpecADT) |].
 
-  hone representation using
+  hone representation over HeapSpec using
        (fun or nr =>
-          M.Equal (resvs (` or)) (resvs (snd nr)) /\
-          M.Equal (bytes (` or)) (bytes (snd nr)) /\
-          P.for_all (fun addr sz => addr + sz <=? fst nr)
-                    (resvs (snd nr))).
+          M.Equal (resvs or) (resvs (snd nr)) /\
+          M.Equal (bytes or) (bytes (snd nr)) /\
+          P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
 
-  refine method emptyS.
+  (* refine method emptyS. *)
   {
-    remove_dependency (empty_fromADT (ReturnComputes _)).
     refine pick val (0%N, newHeapState).
       finish honing.
+
     intuition; simpl.
     apply for_all_empty; relational.
   }
 
-  refine method allocS.
+  (* refine method allocS. *)
   {
     unfold find_free_block.
-    remove_dependency alloc_fromADT.
-
     refine pick val (fst r_n).
     {
       simplify with monad laws; simpl.
@@ -71,7 +63,6 @@ Proof.
         rewrite <- H1.
         destruct d.
         eapply allocations_no_overlap_r; eauto.
-          exact (proj2_sig r_o).
         rewrite H1.
         eapply for_all_impl; eauto; relational; intros.
         nomega.
@@ -87,10 +78,8 @@ Proof.
     relational; nomega.
   }
 
-  refine method freeS.
+  (* refine method freeS. *)
   {
-    remove_dependency free_fromADT.
-
     refine pick val (fst r_n,
                      {| resvs := M.remove d (resvs (snd r_n))
                       ; bytes := bytes (snd r_n) |}).
@@ -102,11 +91,9 @@ Proof.
     - apply for_all_remove; relational.
   }
 
-  refine method reallocS.
+  (* refine method reallocS. *)
   {
     unfold find_free_block.
-    remove_dependency realloc_fromADT.
-
     refine pick val (Ifopt M.find d (resvs (snd r_n)) as sz
                      Then If ` d0 <=? sz Then d Else fst r_n
                      Else fst r_n).
@@ -179,13 +166,14 @@ Proof.
           relational; nomega.
         nomega.
     }
+
     simpl in *; intuition; rewrite ?H1;
     (destruct (M.find d _) as [sz|] eqn:Heqe;
      [ destruct (` d0 <=? sz) eqn:Heqe1;
        simpl; rewrite ?Heqe1 |]); simpl.
     - normalize.
       rewrite <- H1 in Heqe.
-      pose proof (allocations_no_overlap (proj2_sig r_o) Heqe).
+      pose proof (allocations_no_overlap Hfrom Heqe) as H2.
       apply P.for_all_iff; relational; intros.
       simplify_maps.
       rewrite <- H1 in H6.
@@ -201,20 +189,17 @@ Proof.
       relational; nomega.
   }
 
-  refine method peekS.
+  (* refine method peekS. *)
   {
-    remove_dependency peek_fromADT.
-
     refine pick val (Ifopt M.find d (bytes (snd r_n)) as v
                      Then v
                      Else Zero).
-    {
       simplify with monad laws.
       refine pick val r_n.
         simplify with monad laws.
         finish honing.
       simpl in *; intuition.
-    }
+
     simpl in *; intuition.
     destruct (M.find d _) as [sz|] eqn:Heqe;
     simpl; normalize.
@@ -226,10 +211,8 @@ Proof.
     congruence.
   }
 
-  refine method pokeS.
+  (* refine method pokeS. *)
   {
-    remove_dependency poke_fromADT.
-
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := M.add d d0 (bytes (snd r_n)) |}).
@@ -241,10 +224,8 @@ Proof.
     rewrite H0; reflexivity.
   }
 
-  refine method memcpyS.
+  (* refine method memcpyS. *)
   {
-    remove_dependency memcpy_fromADT.
-
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := copy_bytes d d0 d1 (bytes (snd r_n)) |}).
@@ -255,10 +236,8 @@ Proof.
     rewrite H0; reflexivity.
   }
 
-  refine method memsetS.
+  (* refine method memsetS. *)
   {
-    remove_dependency memset_fromADT.
-
     refine pick val
        (fst r_n,
         {| resvs := resvs (snd r_n)

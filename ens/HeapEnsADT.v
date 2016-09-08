@@ -3,9 +3,9 @@ Require Import
   Coq.NArith.NArith
   Fiat.ADT
   Fiat.ADTNotation
-  ByteString.ADTInduction
-  ByteString.FromADT
-  ByteString.HeapEns.
+  ByteString.Lib.ADTInduction
+  ByteString.Lib.FromADT
+  ByteString.Ens.HeapEns.
 
 Open Scope N_scope.
 

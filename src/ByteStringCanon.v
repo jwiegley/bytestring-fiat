@@ -1,22 +1,19 @@
 Require Import
-  ByteString.Tactics
+  ByteString.Lib.Tactics
+  ByteString.Lib.Nomega
+  ByteString.Lib.Fiat
   ByteString.Memory
-  ByteString.Nomega
   ByteString.Heap
   ByteString.ByteString
   ByteString.ByteStringHeap
-  ByteString.Fiat
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
-
-Generalizable All Variables.
 
 Module ByteStringFMap (M : WSfun N_as_DT).
 
 Module Import ByteStringHeap := ByteStringHeap M.
 
 Import HeapCanonical.
-Import HeapADT.
 Import Heap.
 Import HeapState.
 Import FMapExt.
@@ -28,7 +25,7 @@ Definition cHeapRep := ComputationalADT.cRep (projT1 HeapCanonical).
 Variable heap  : Rep HeapSpec.
 Variable heap' : cHeapRep.
 
-Definition Heap_AbsR (or : Rep HeapSpec) nr :=
+Definition Heap_AbsR (or : Rep HeapSpec) (nr : cHeapRep) :=
   M.Equal (resvs or) (resvs (snd nr)) /\
   M.Equal (bytes or) (bytes (snd nr)) /\
   P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr)).
@@ -38,7 +35,7 @@ Variable heap_AbsR : Heap_AbsR heap heap'.
 (* This style of computational refinement makes use of a separately refined
    heap. Another approach is to refine the heap methods directly, which would
    mean going directly to the metal (but would require replicating much of the
-   proof word that is done in HeapFMap.v). *)
+   proof work that is done in HeapFMap.v). *)
 
 Record PS' := {
   ps'Heap : cHeapRep;
@@ -49,8 +46,6 @@ Record PS' := {
   ps'Offset : N;
   ps'Length : N
 }.
-
-Require Import ByteString.FromADT.
 
 Record ByteString_Heap_AbsR or nr := {
   heap_match   : Heap_AbsR (psHeap or) (ps'Heap nr);
@@ -139,19 +134,6 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
     end
   end.
 
-Ltac fracture H :=
-  repeat (
-    try simplify with monad laws; simpl;
-    match goal with
-    | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
-      apply refine_If_Then_Else; [ fracture H | fracture H ]
-    | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
-      subst H; apply refine_If_Then_Else; [ fracture H | fracture H ]
-    | [ |- refine (x <- If ?B Then ?T Else ?E; _) _ ] =>
-      rewrite refineEquiv_If_Then_Else_Bind
-    | [ |- _ ] => idtac
-    end).
-
 Theorem ByteStringCanonical : FullySharpened (projT1 (ByteStringHeap heap)).
 Proof.
   start sharpening ADT.
@@ -217,8 +199,10 @@ Proof.
 
   refine method ByteString.unconsS.
   {
-    apply_ByteString_Heap_AbsR.
-    fracture H; refine using ByteString_Heap_AbsR.
+    unfold buffer_uncons;
+    apply_ByteString_Heap_AbsR;
+    fracture H;
+    refine using ByteString_Heap_AbsR.
 
     - refine pick val (Ifopt M.find (ps'Buffer r_n + ps'Offset r_n)
                                     (bytes (snd (ps'Heap r_n))) as v
@@ -243,7 +227,8 @@ Proof.
       finish honing.
   }
 
-  (** Apply some common functional optimizations. *)
+  (** Apply some common functional optimizations, such as common subexpression
+      elimination. *)
 
   hone representation using eq.
 

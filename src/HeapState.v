@@ -1,19 +1,19 @@
 Require Import
-  ByteString.Tactics
-  ByteString.Nomega
+  ByteString.Lib.Tactics
+  ByteString.Lib.Nomega
+  ByteString.Lib.FMapExt
+  ByteString.Lib.Fiat
   ByteString.Memory
-  ByteString.FMapExt
-  ByteString.Fiat
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
-
-Generalizable All Variables.
 
 Module HeapState (M : WSfun N_as_DT).
 
 Module Import FMapExt := FMapExt N_as_DT M.
 Module P := FMapExt.P.
 Module F := P.F.
+
+Open Scope N_scope.
 
 Record HeapState := {
   resvs : M.t Size;
@@ -43,6 +43,42 @@ Ltac tsubst :=
 Definition newHeapState :=
   {| resvs := M.empty _
    ; bytes := M.empty _ |}.
+
+Definition within (addr : N) (len : N) (a : N) : Prop :=
+  addr <= a < addr + len.
+Hint Unfold within.
+
+Definition within_bool (addr : N) (len : N) (a : N) : bool :=
+  ((addr <=? a) && (a <? addr + len))%bool.
+Hint Unfold within_bool.
+
+Definition fits (addr1 len1 addr2 len2 : N) : Prop :=
+  within addr1 len1 addr2 /\ addr2 + len2 <= addr1 + len1.
+Hint Unfold fits.
+
+Definition fits_bool (addr1 len1 addr2 len2 : N) : bool :=
+  (within_bool addr1 len1 addr2 && (addr2 + len2 <=? addr1 + len1))%bool.
+Hint Unfold fits_bool.
+
+Definition overlaps (addr len addr2 len2 : N) : Prop :=
+  addr < addr2 + len2 /\ addr2 < addr + len.
+Hint Unfold overlaps.
+
+Definition overlaps_bool (addr len addr2 len2 : N) : bool :=
+  ((addr <? addr2 + len2) && (addr2 <? addr + len))%bool.
+Hint Unfold overlaps_bool.
+
+Lemma not_overlaps_sym : forall addr1 len1 addr2 len2,
+  ~ overlaps addr1 len1 addr2 len2 <-> ~ overlaps addr2 len2 addr1 len1.
+Proof. autounfold; nomega. Qed.
+
+Corollary not_overlaps_trans : forall a b x y z,
+  z < y -> ~ overlaps a b x y -> ~ overlaps a b x z.
+Proof.
+  unfold not; intros.
+  autounfold in *.
+  apply H0; nomega.
+Qed.
 
 Definition find_free_block (len : Size) (r : M.t Ptr) : Comp Ptr :=
   { addr : N | P.for_all (fun a sz => negb (overlaps_bool a sz addr len)) r }.
@@ -80,7 +116,7 @@ Obligation 1.
       reflexivity.
     intros.
     apply N.add_cancel_r in H0.
-    apply Nsub_eq in H0; try tauto; nomega.
+    nomega.
 Qed.
 
 Lemma copy_bytes_mapsto : forall elt k (e : elt) addr1 addr2 len m,

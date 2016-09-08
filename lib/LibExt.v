@@ -10,7 +10,7 @@ Definition second {A B C} (f : B -> C) (p : A * B) : A * C :=
 
 Require Import
   Coq.Sets.Ensembles
-  ByteString.Same_set.
+  ByteString.Lib.Same_set.
 
 Definition Map_set {A B} (f : A -> B) (r : Ensemble A) : Ensemble B :=
   fun b => exists a : A, In _ r a /\ b = f a.

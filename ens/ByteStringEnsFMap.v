@@ -6,19 +6,19 @@ Require Import
   Fiat.ADTNotation
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements
-  ByteString.ADTInduction
-  ByteString.BindDep
+  ByteString.Lib.ADTInduction
+  ByteString.Lib.Nomega
+  ByteString.Lib.Relations
+  ByteString.Lib.Tactics
+  ByteString.Lib.TupleEnsembles
+  ByteString.Lib.Same_set
   ByteString.ByteString
-  ByteString.ByteStringEnsHeap
-  ByteString.HeapEns
-  ByteString.HeapEnsADT
-  ByteString.HeapEnsFMap
-  ByteString.Nomega
-  ByteString.Relations
-  ByteString.Tactics
-  ByteString.TupleEnsembles
-  ByteString.Same_set
-  ByteString.Within
+  ByteString.Ens.BindDep
+  ByteString.Ens.ByteStringEnsHeap
+  ByteString.Ens.HeapEns
+  ByteString.Ens.HeapEnsADT
+  ByteString.Ens.HeapEnsFMap
+  ByteString.Ens.Within
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 

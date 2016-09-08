@@ -1,18 +1,20 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
-  ByteString.TupleEnsembles
-  ByteString.LibExt
-  ByteString.Nomega
-  ByteString.Decidable
-  ByteString.BindDep
-  ByteString.ADTInduction
-  ByteString.Same_set
-  ByteString.TupleEnsemblesFinite.
+  ByteString.Lib.TupleEnsembles
+  ByteString.Lib.LibExt
+  ByteString.Lib.Nomega
+  ByteString.Lib.ADTInduction
+  ByteString.Lib.Same_set
+  ByteString.HeapState
+  ByteString.Ens.Decidable
+  ByteString.Ens.BindDep
+  ByteString.Ens.TupleEnsemblesFinite.
 
 Generalizable All Variables.
 
 Open Scope string_scope.
+Open Scope N_scope.
 
 Definition Word8 := Ascii.ascii.
 Definition Zero  := Ascii.zero.

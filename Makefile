@@ -11,7 +11,7 @@ all: bstring
 	-@$(MISSING) || exit 0
 
 bstring: Makefile.coq $(wildcard *.v)
-	make -f Makefile.coq -j4
+	make -f Makefile.coq -j
 
 Makefile.coq: _CoqProject
 	coq_makefile -f $< -o $@

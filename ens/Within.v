@@ -1,10 +1,10 @@
 Require Import
-  ByteString.Nomega
-  ByteString.HeapEns
-  ByteString.HeapEnsADT
-  ByteString.FMapExt
-  ByteString.Relations
-  ByteString.MemoryBlockC
+  ByteString.Lib.Nomega
+  ByteString.Lib.FMapExt
+  ByteString.Lib.Relations
+  ByteString.Ens.HeapEns
+  ByteString.Ens.HeapEnsADT
+  ByteString.Ens.MemoryBlockC
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 

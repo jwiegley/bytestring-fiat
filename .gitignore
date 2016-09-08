@@ -1,7 +1,10 @@
 /Makefile.coq
 .*.aux
 *.v.d
+*.vo
+*.glob
 /extract/ByteStringExt.hs
 /extract/Makefile.coq
 /extract/default.nix
 /extract/result
+/.DS_Store
