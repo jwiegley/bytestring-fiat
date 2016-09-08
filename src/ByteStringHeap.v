@@ -154,7 +154,7 @@ Proof.
       destruct_AbsR AbsR; construct_AbsR.
       right; split; trivial; split; [nomega|].
       split; intros;
-      destruct_computations; tsubst;
+      destruct_computations; try tsubst;
       simpl; trivial.
       simplify_maps.
       destruct i using N.peano_ind.
@@ -387,5 +387,6 @@ Proof.
 Defined.
 
 End Refined.
+
 
 End ByteStringHeap.
