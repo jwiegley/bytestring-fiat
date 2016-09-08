@@ -377,7 +377,4 @@ Proof.
   apply reflexivityT.
 Defined.
 
-End Refined.
-
-
 End ByteStringHeap.
