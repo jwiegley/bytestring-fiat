@@ -200,7 +200,9 @@ Proof.
     destruct peek as [w env'].
     eapply peek_correct in Heqpeek; eauto.
     breakdown; destruct_computations.
-    tsubst; eauto.
+    inversion H3; clear H5; subst.
+    simpl in *.
+    eassumption.
   }
 
   (* refine method pokeS. *)

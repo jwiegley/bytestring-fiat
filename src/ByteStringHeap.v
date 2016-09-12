@@ -150,9 +150,8 @@ Proof.
       destruct_computations; simpl in *.
       destruct_AbsR AbsR; construct_AbsR.
       right; split; trivial; split; [nomega|].
-      split; intros;
-      destruct_computations; try tsubst;
-      simpl; trivial.
+      split; intros.
+        simpl; trivial.
       simplify_maps.
       destruct i using N.peano_ind.
         left; nomega.
