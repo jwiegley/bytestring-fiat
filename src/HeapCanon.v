@@ -29,22 +29,35 @@ Theorem HeapCanonical : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
 
-  (* Taste of what this should look like. *)
+  hone representation over HeapSpec using
+       (fun or nr =>
+          M.Equal (resvs or) (resvs (snd nr)) /\
+          M.Equal (bytes or) (bytes (snd nr)) /\
+          P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
+
+  (*
+  (* Taste of what this should look like with [annotate_ADT]. *)
   eapply transitivityT.
   eapply annotate_ADT with
        (AbsR := fun or nr =>
                   M.Equal (resvs or) (resvs (snd nr)) /\
                   M.Equal (bytes or) (bytes (snd nr)) /\
-                  P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))); simpl; unfold refineMethod_w_PreCond; repeat first [apply Build_prim_prod | exact tt]; simpl; intros.
+                  P.for_all (fun addr sz => addr + sz <=? fst nr)
+                            (resvs (snd nr)));
+  simpl; unfold refineMethod_w_PreCond;
+  repeat first [apply Build_prim_prod | exact tt]; simpl; intros.
+  *)
 
   (* refine constructor emptyS *)
   {
+    (*
     instantiate (1 := Build_prim_prod {| consBody := _ |} ());
     simpl; simplify with monad laws; set_refine_evar.
     (* tactic should do all this automatically. *)
+    *)
 
     refine pick val (0%N, newHeapState).
-    finish honing.
+      finish honing.
 
     intuition; simpl.
     apply for_all_empty; relational.
@@ -52,9 +65,12 @@ Proof.
 
   (* refine method allocS. *)
   {
+    (*
     instantiate (1 := Build_prim_prod {| methBody := _ |} _); simpl;
     set_refine_evar; simplify with monad laws.
     (* tactic should do all this automatically. *)
+   *)
+
     unfold find_free_block.
 
     refine pick val (fst r_n).
@@ -68,19 +84,19 @@ Proof.
         finish honing.
 
       simpl in *; intuition.
-      rewrite H2; reflexivity.
+      rewrite H1; reflexivity.
       apply for_all_add_true; relational.
-        rewrite <- H2.
+        rewrite <- H1.
         destruct d.
         eapply allocations_no_overlap_r; eauto.
-        rewrite H2.
+        rewrite H1.
         eapply for_all_impl; eauto; relational; intros.
         nomega.
       split.
         eapply for_all_impl; eauto; relational; intros.
         nomega.
       nomega.
-    }    
+    }
 
     repeat breakdown; simpl in *.
     rewrite H0.
@@ -89,8 +105,6 @@ Proof.
   }
   (* And so on :) ....*)
 
-  
-  
   (* refine method freeS. *)
   {
     refine pick val (fst r_n,
