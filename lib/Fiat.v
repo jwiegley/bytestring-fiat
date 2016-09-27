@@ -109,3 +109,17 @@ Lemma If_Then_Else_pair : forall p A (a b : A) B (c d : B),
   (If p Then a Else b, If p Then c Else d)
     = If p Then (a, c) Else (b, d).
 Proof. intros; destruct p; trivial. Qed.
+
+Lemma Ifopt_Then_Else_fst : forall C p A B (a : C -> A * B) (b : A * B),
+  fst (Ifopt p as x Then a x Else b) = Ifopt p as x Then (fst (a x)) Else (fst b).
+Proof. intros; destruct p; trivial. Qed.
+
+Lemma Ifopt_Then_Else_snd : forall C p A B (a : C -> A * B) (b : A * B),
+  snd (Ifopt p as x Then a x Else b) = Ifopt p as x Then (snd (a x)) Else (snd b).
+Proof. intros; destruct p; trivial. Qed.
+
+Lemma Ifopt_Then_Else_pair :
+  forall C p A (a : C -> A) (b : A) B (c : C -> B) (d : B),
+    (Ifopt p as x Then a x Else b, Ifopt p as x Then c x Else d)
+      = Ifopt p as x Then (a x, c x) Else (b, d).
+Proof. intros; destruct p; trivial. Qed.

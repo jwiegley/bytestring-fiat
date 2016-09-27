@@ -7,7 +7,8 @@ Require Import
   ByteString.ByteString
   ByteString.ByteStringHeap
   Coq.FSets.FMapFacts
-  Coq.Structures.DecidableTypeEx.
+  Coq.Structures.DecidableTypeEx
+  Hask.Data.Maybe.
 
 Module ByteStringFMap (M : WSfun N_as_DT).
 
@@ -37,28 +38,18 @@ Variable heap_AbsR : Heap_AbsR heap heap'.
    mean going directly to the metal (but would require replicating much of the
    proof work that is done in HeapFMap.v). *)
 
-Record PS' := {
-  ps'Heap : cHeapRep;
-
-  ps'Buffer : N;
-  ps'BufLen : N;
-
-  ps'Offset : N;
-  ps'Length : N
-}.
-
 Record ByteString_Heap_AbsR or nr := {
-  heap_match   : Heap_AbsR (psHeap or) (ps'Heap nr);
-  buffer_match : psBuffer or = ps'Buffer nr;
-  buflen_match : psBufLen or = ps'BufLen nr;
-  offset_match : psOffset or = ps'Offset nr;
-  length_match : psLength or = ps'Length nr
+  heap_match   : Heap_AbsR (psHeap or) (psHeap nr);
+  buffer_match : psBuffer or = psBuffer nr;
+  buflen_match : psBufLen or = psBufLen nr;
+  offset_match : psOffset or = psOffset nr;
+  length_match : psLength or = psLength nr
 }.
 
 Lemma refine_ByteString_Heap_AbsR :
   forall heap_resvs heap_bytes buffer buflen offset length B (k : _ -> Comp B),
     refine
-      (r_n' <- { r_n0 : PS'
+      (r_n' <- { r_n0 : PS cHeapRep
                | ByteString_Heap_AbsR
                    {| psHeap := {| resvs := heap_resvs
                                  ; bytes := heap_bytes |}
@@ -71,16 +62,16 @@ Lemma refine_ByteString_Heap_AbsR :
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
        brk'   <- {brk'   : N
                  | P.for_all (fun addr sz => addr + sz <=? brk') resvs' };
-       k {| ps'Heap   := (brk', {| resvs := resvs'; bytes := bytes' |})
-          ; ps'Buffer := buffer
-          ; ps'BufLen := buflen
-          ; ps'Offset := offset
-          ; ps'Length := length |}).
+       k {| psHeap   := (brk', {| resvs := resvs'; bytes := bytes' |})
+          ; psBuffer := buffer
+          ; psBufLen := buflen
+          ; psOffset := offset
+          ; psLength := length |}).
 Proof.
   intros; intros ??.
   destruct_computations.
   revert H2.
-  remember (Build_PS' _ _ _ _ _) as P; intros.
+  remember (makePS _ _ _ _ _) as P; intros.
   refine pick val P.
     apply computes_to_refine.
     simplify with monad laws.
@@ -114,7 +105,7 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
         match goal with
         | [ |- refine (x <- ret _; _) _ ] =>
           simplify with monad laws; simpl
-        | [ |- refine (x <- { X : PS' | ByteString_Heap_AbsR _ X }; _) _ ] =>
+        | [ |- refine (x <- { X : PS cHeapRep | ByteString_Heap_AbsR _ X }; _) _ ] =>
           rewrite refine_ByteString_Heap_AbsR
         | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
           apply refine_If_Then_Else
@@ -134,6 +125,14 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
     end
   end.
 
+Program Instance Maybe_Computable : Computable Maybe.Maybe.
+Obligation 1.
+  destruct ca eqn:Heqe.
+    exact False.
+  exact (a = a0).
+Defined.
+
+(*
 Theorem ByteStringCanonical : FullySharpened (projT1 (ByteStringHeap heap)).
 Proof.
   start sharpening ADT.
@@ -273,6 +272,7 @@ Proof.
 
   finish_SharpeningADT_WithoutDelegation.
 Defined.
+*)
 
 End Refined.
 

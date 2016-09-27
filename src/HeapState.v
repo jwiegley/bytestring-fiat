@@ -80,8 +80,10 @@ Proof.
   apply H0; nomega.
 Qed.
 
-Definition find_free_block (len : Size) (r : M.t Ptr) : Comp Ptr :=
-  { addr : N | P.for_all (fun a sz => negb (overlaps_bool a sz addr len)) r }.
+Definition find_free_block (len : Size) (r : M.t Ptr) : Comp (option Ptr) :=
+  { addr : option N
+  | forall addr', addr = Some addr'
+      -> P.for_all (fun a sz => negb (overlaps_bool a sz addr' len)) r }.
 
 Definition keep_range {elt} (addr : M.key) (len : N) : M.t elt -> M.t elt :=
   keep_keys (within_bool addr len).

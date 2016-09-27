@@ -7,7 +7,8 @@ Require Import
   ByteString.Memory
   ByteString.Heap
   Coq.FSets.FMapFacts
-  Coq.Structures.DecidableTypeEx.
+  Coq.Structures.DecidableTypeEx
+  Hask.Data.Maybe.
 
 Module HeapCanonical (M : WSfun N_as_DT).
 
@@ -25,7 +26,7 @@ Open Scope N_scope.
     would be to better manage the free space to avoid fragmentation. The
     implementation below simply grows the heap with every allocation. *)
 
-Theorem HeapCanonical : FullySharpened HeapSpec.
+Theorem HeapCanonical : FullySharpened (HeapSpec (m:=Maybe)).
 Proof.
   start sharpening ADT.
 
@@ -73,7 +74,7 @@ Proof.
 
     unfold find_free_block.
 
-    refine pick val (fst r_n).
+    refine pick val (Some (fst r_n)).
     {
       simplify with monad laws; simpl.
 
@@ -99,6 +100,8 @@ Proof.
     }
 
     repeat breakdown; simpl in *.
+    intros.
+    inv H3.
     rewrite H0.
     eapply for_all_impl; eauto;
     relational; nomega.
@@ -107,6 +110,9 @@ Proof.
 
   (* refine method freeS. *)
   {
+    refine pick val (Some tt); auto.
+    simplify with monad laws; simpl.
+
     refine pick val (fst r_n,
                      {| resvs := M.remove d (resvs (snd r_n))
                       ; bytes := bytes (snd r_n) |}).
@@ -121,9 +127,9 @@ Proof.
   (* refine method reallocS. *)
   {
     unfold find_free_block.
-    refine pick val (Ifopt M.find d (resvs (snd r_n)) as sz
-                     Then If ` d0 <=? sz Then d Else fst r_n
-                     Else fst r_n).
+    refine pick val (Some (Ifopt M.find d (resvs (snd r_n)) as sz
+                           Then If ` d0 <=? sz Then d Else fst r_n
+                           Else fst r_n)).
     {
       simplify with monad laws.
 
@@ -144,7 +150,7 @@ Proof.
            (fst r_n + ` d0,
             {| resvs := M.add (fst r_n) (` d0) (resvs (snd r_n))
              ; bytes := bytes (snd r_n) |})).
-        simplify with monad laws.
+        simplify with monad laws; simpl.
         finish honing.
 
       simpl in *; intuition; rewrite ?H1;
@@ -199,47 +205,56 @@ Proof.
      [ destruct (` d0 <=? sz) eqn:Heqe1;
        simpl; rewrite ?Heqe1 |]); simpl.
     - normalize.
+      simpl in *.
+      rewrite Heqe1 in H2; simpl in H2; inv H2.
       rewrite <- H1 in Heqe.
-      pose proof (allocations_no_overlap Hfrom Heqe) as H2.
+      pose proof (allocations_no_overlap Hfrom Heqe) as H4.
       apply P.for_all_iff; relational; intros.
       simplify_maps.
       rewrite <- H1 in H6.
-      specialize (H2 _ _ H6 H5).
+      specialize (H4 _ _ H6 H5).
       nomega.
     - normalize.
       apply_for_all; relational.
       apply for_all_remove; relational.
+      simpl in *.
+      rewrite Heqe1 in H2; simpl in H2; inv H2.
       eapply for_all_impl; eauto;
       relational; nomega.
     - apply for_all_remove; relational.
+      simpl in *; inv H2.
       eapply for_all_impl; eauto;
       relational; nomega.
   }
 
   (* refine method peekS. *)
   {
-    refine pick val (Ifopt M.find d (bytes (snd r_n)) as v
-                     Then v
-                     Else Zero).
+    refine pick val (M.find d (bytes (snd r_n))).
+      autorewrite with monad laws.
+      rewrite refine_If_Opt_Then_Else_ret.
       simplify with monad laws.
       refine pick val r_n.
         simplify with monad laws.
+        rewrite Ifopt_Then_Else_snd; simpl.
         finish honing.
-      simpl in *; intuition.
+
+      rewrite Ifopt_Then_Else_fst; simpl.
+      destruct (M.find d (bytes (snd r_n))); auto.
 
     simpl in *; intuition.
     destruct (M.find d _) as [sz|] eqn:Heqe;
     simpl; normalize.
-      rewrite H0 in H2.
-      pose proof (F.MapsTo_fun Heqe H2).
+      inv H2.
+      rewrite H0.
       assumption.
-    rewrite H0 in H2.
-    apply F.find_mapsto_iff in H2.
     congruence.
   }
 
   (* refine method pokeS. *)
   {
+    refine pick val (Some tt); auto.
+    simplify with monad laws; simpl.
+
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := M.add d d0 (bytes (snd r_n)) |}).
@@ -253,6 +268,9 @@ Proof.
 
   (* refine method memcpyS. *)
   {
+    refine pick val (Some tt); auto.
+    simplify with monad laws; simpl.
+
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := copy_bytes d d0 d1 (bytes (snd r_n)) |}).
@@ -265,6 +283,9 @@ Proof.
 
   (* refine method memsetS. *)
   {
+    refine pick val (Some tt); auto.
+    simplify with monad laws; simpl.
+
     refine pick val
        (fst r_n,
         {| resvs := resvs (snd r_n)

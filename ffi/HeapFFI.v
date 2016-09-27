@@ -11,7 +11,10 @@ Require Import
   ByteString.ByteString
   ByteString.ByteStringHeap
   Coq.FSets.FMapFacts
-  Coq.Structures.DecidableTypeEx.
+  Coq.Structures.DecidableTypeEx
+  Hask.Control.Monad
+  Hask.Control.Monad.State
+  Hask.Control.Monad.Free.
 
 Module HeapFFI (M : WSfun N_as_DT).
 
@@ -24,71 +27,49 @@ Module Import FunMaps := FunMaps N_as_DT M.
 
 Open Scope N_scope.
 
-Record Mem (Env : Type) := {
-  heap_ptr : Env;
-  heap_rep : EMap Ptr Size;
-  mem_rep  : EMap Ptr Word;
+Inductive DSL (r : Type) :=
+  | MAlloc : Size -> (Ptr -> r) -> DSL r
+  | MFree : Ptr -> r -> DSL r.
+
+Program Instance DSL_Functor : Functor DSL := {
+  fmap := fun _ _ f x =>
+            match x with
+            | MAlloc x h => MAlloc x (compose f h)
+            | MFree x h => MFree x (f h)
+            end
 }.
 
-Definition Mem_AbsR (Env : Type) (or : Rep HeapSpec) (nr : Mem Env) :=
-  Map_AbsR eq (heap_rep nr) (resvs or) /\
-  Map_AbsR eq (mem_rep nr)  (bytes or).
+Definition FFI := Free DSL.
 
-Record HeapIntf (Env : Type) := {
-  nullPtr      : Ptr;
-  alignPtr     : Ptr -> Size -> Ptr;
-  plusPtr      : Ptr -> Size -> Ptr;
-  minusPtr     : Ptr -> Size -> Ptr;
+Definition nextFreeAddr (h : M.t Size) : Ptr :=
+  let final := M.fold (fun k e z => if fst z <=? k
+                                    then (k, e)
+                                    else z) h (0, 0) in
+  fst final + snd final.
 
-  mallocBytes  : Size -> Mem Env -> (Ptr * Mem Env);
-  freeBytes    : Ptr -> Mem Env -> Mem Env;
-  reallocBytes : Ptr -> Size -> Mem Env -> (Ptr * Mem Env);
+Program Definition ffiState `(f : FFI ()) : HeapState :=
+  let go A (x : DSL A) : State HeapState A :=
+      h <- get;
+      match h with
+      | Build_HeapState allocs data =>
+        match x with
+        | MAlloc size f =>
+          let addr := nextFreeAddr allocs in
+          put (Build_HeapState (M.add addr size allocs) data) ;;
+          pure (f addr)
+        | MFree addr r =>
+          put (Build_HeapState (M.remove addr allocs) data) ;;
+          pure r
+        end
+      end in
+  snd (foldFree go f (Build_HeapState (M.empty _) (M.empty _))).
 
-  peekPtr      : Ptr -> Mem Env -> (Word * Mem Env);
-  peekByteOff  : Ptr -> Size -> Mem Env -> (Word * Mem Env);
-  pokePtr      : Ptr -> Word -> Mem Env -> Mem Env;
-  pokeByteOff  : Ptr -> Size -> Word -> Mem Env -> Mem Env;
-
-  copyBytes    : Ptr -> Ptr -> Size -> Mem Env -> Mem Env;
-  fillBytes    : Ptr -> Word -> Size -> Mem Env -> Mem Env;
-
-  empty_correct : forall mem, @Mem_AbsR Env newHeapState mem;
-
-  malloc_correct : forall r env env' sz ptr,
-    Mem_AbsR r env
-      -> mallocBytes (` sz) env = (ptr, env')
-      -> forall r', alloc r sz ↝ (r', ptr) /\ Mem_AbsR r' env';
-
-  free_correct : forall r env env' ptr,
-    Mem_AbsR r env
-      -> freeBytes ptr env = env'
-      -> forall r', free r ptr ↝ (r', tt) /\ Mem_AbsR r' env';
-
-  realloc_correct : forall r env env' old sz new,
-    Mem_AbsR r env
-      -> reallocBytes old (` sz) env = (new, env')
-      -> forall r', realloc r old sz ↝ (r', new) /\ Mem_AbsR r' env';
-
-  peek_correct : forall r env env' ptr w,
-    Mem_AbsR r env
-      -> peekPtr ptr env = (w, env')
-      -> forall r', peek r ptr ↝ (r', w) /\ Mem_AbsR r' env';
-
-  poke_correct : forall r env env' ptr w,
-    Mem_AbsR r env
-      -> pokePtr ptr w env = env'
-      -> forall r', poke r ptr w ↝ (r', tt) /\ Mem_AbsR r' env';
-
-  memcpy_correct : forall r env env' addr1 addr2 sz,
-    Mem_AbsR r env
-      -> copyBytes addr1 sz addr2 env = env'
-      -> forall r', memcpy r addr1 addr2 sz ↝ (r', tt) /\ Mem_AbsR r' env';
-
-  memset_correct : forall r env env' addr w sz,
-    Mem_AbsR r env
-      -> fillBytes addr w sz env = env'
-      -> forall r', memset r addr sz w ↝ (r', tt) /\ Mem_AbsR r' env'
-}.
+Definition Mem_AbsR (or : Rep HeapSpec) (nr : FFI ()) :=
+  match ffiState nr with
+    Build_HeapState heap_rep mem_rep =>
+    M.Equal heap_rep (resvs or) /\
+    M.Equal mem_rep  (bytes or)
+  end.
 
 (** In order to refine to a computable heap, we have to add the notion of
     "free memory", from which addresses may be allocated. A further
@@ -97,33 +78,36 @@ Record HeapIntf (Env : Type) := {
     would be to better manage the free space to avoid fragmentation. The
     implementation below simply grows the heap with every allocation. *)
 
-Theorem HeapFFI {Env : Type} (ffi : HeapIntf Env) (mem : Mem Env) :
-  FullySharpened HeapSpec.
+Program Instance FFI_Alternative : Alternative FFI.
+Obligation 1.
+Admitted.
+
+Theorem HeapFFI : FullySharpened (HeapSpec (m:=FFI)).
 Proof.
-  intros.
   start sharpening ADT.
 
-  hone representation over HeapSpec using (@Mem_AbsR Env).
+  hone representation over HeapSpec using Mem_AbsR.
 
   (* refine method emptyS. *)
   {
     rewrite refine_pick.
-      instantiate (1 := ret mem).
+      instantiate (1 := ret (Pure ())).
       finish honing.
 
     intros.
-    apply empty_correct; assumption.
+    computes_to_inv; subst.
+    split; reflexivity.
   }
 
   (* refine method allocS. *)
   {
+    pose proof (liftF (MAlloc (` d) id)) as next.
     unfold find_free_block.
-    refine pick val (fst (mallocBytes ffi (` d) r_n)).
+    refine pick val (Some (nextFreeAddr (resvs r_o))).
     {
-      remember (mallocBytes _ _ _) as malloc.
       simplify with monad laws; simpl.
 
-      refine pick val (snd malloc).
+      refine pick val next.
         simplify with monad laws; simpl.
         rewrite Heqmalloc.
         finish honing.
