@@ -1,7 +1,9 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
+  ByteString.Lib.Fiat
   ByteString.Memory
+  Hask.Data.Functor
   Hask.Control.Applicative.
 
 (************************************************************************
@@ -17,6 +19,7 @@ Definition unconsS := "uncons".
 Section ByteString.
 
 Context `{Alternative m}.
+Context `{Computable m}.
 
 Definition ByteStringSpec := Def ADT {
   rep := list Word,
@@ -24,14 +27,17 @@ Definition ByteStringSpec := Def ADT {
   Def Constructor0 emptyS : rep := ret []%list,,
 
   Def Method1 consS (r : rep) (w : Word) : rep * m unit :=
-    u <- { u : m unit | True };
-    ret (cons w r, u),
+    mu <- { mu : m unit | True };
+    ret (if m_computes_to mu then cons w r else r, mu),
+
   Def Method0 unconsS (r : rep) : rep * m (option Word) :=
-    u <- { u : m unit | True };
-    ret (match r with
-         | nil => (r, u *> pure None)
-         | cons x xs => (xs, u *> pure (Some x))
-         end)
+    mu <- { mu : m unit | True };
+    ret (if m_computes_to mu
+         then (match r with
+               | nil => (r, None <$ mu)
+               | cons x xs => (xs, Some x <$ mu)
+               end)
+         else (r, None <$ mu))
 
 }%ADTParsing.
 

@@ -64,7 +64,15 @@ Program Definition ffiState `(f : FFI ()) : HeapState :=
       end in
   snd (foldFree go f (Build_HeapState (M.empty _) (M.empty _))).
 
-Definition Mem_AbsR (or : Rep HeapSpec) (nr : FFI ()) :=
+Program Instance FFI_Computable : Computable FFI.
+Obligation 1.
+Admitted.
+
+Program Instance FFI_Alternative : Alternative FFI.
+Obligation 1.
+Admitted.
+
+Definition Mem_AbsR (or : Rep (HeapSpec (m:=FFI))) (nr : FFI ()) :=
   match ffiState nr with
     Build_HeapState heap_rep mem_rep =>
     M.Equal heap_rep (resvs or) /\
@@ -77,10 +85,6 @@ Definition Mem_AbsR (or : Rep HeapSpec) (nr : FFI ()) :=
     returned, in order avoid gaps in the heap. A yet further optimization
     would be to better manage the free space to avoid fragmentation. The
     implementation below simply grows the heap with every allocation. *)
-
-Program Instance FFI_Alternative : Alternative FFI.
-Obligation 1.
-Admitted.
 
 Theorem HeapFFI : FullySharpened (HeapSpec (m:=FFI)).
 Proof.

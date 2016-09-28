@@ -123,3 +123,16 @@ Lemma Ifopt_Then_Else_pair :
     (Ifopt p as x Then a x Else b, Ifopt p as x Then c x Else d)
       = Ifopt p as x Then (a x, c x) Else (b, d).
 Proof. intros; destruct p; trivial. Qed.
+
+Class Computable (m : Type -> Type) := {
+  (* Parametricity gives us the only laws we should need. Note that this can
+     allow for multiple interpretations: for the list monad, we might choose
+     computation to mean that any member in the list has the given value, or
+     that only the first or last one does, etc. *)
+  m_computes_to {A : Type} (ca : m A) : option A
+}.
+
+Notation "'Ifcomputes' x 'as' v 'Then' t 'Else' e" :=
+  (Ifopt m_computes_to x as v
+   Then t
+   Else e)%comp (at level 100).

@@ -26,6 +26,10 @@ Open Scope N_scope.
     would be to better manage the free space to avoid fragmentation. The
     implementation below simply grows the heap with every allocation. *)
 
+Instance Maybe_Computable : Computable Maybe := {
+  m_computes_to := fun _ x => maybe None Some x
+}.
+
 Theorem HeapCanonical : FullySharpened (HeapSpec (m:=Maybe)).
 Proof.
   start sharpening ADT.
@@ -74,7 +78,7 @@ Proof.
 
     unfold find_free_block.
 
-    refine pick val (Some (fst r_n)).
+    refine pick val (Just (fst r_n)).
     {
       simplify with monad laws; simpl.
 
@@ -110,7 +114,7 @@ Proof.
 
   (* refine method freeS. *)
   {
-    refine pick val (Some tt); auto.
+    refine pick val (Just tt); auto.
     simplify with monad laws; simpl.
 
     refine pick val (fst r_n,
@@ -127,7 +131,7 @@ Proof.
   (* refine method reallocS. *)
   {
     unfold find_free_block.
-    refine pick val (Some (Ifopt M.find d (resvs (snd r_n)) as sz
+    refine pick val (Just (Ifopt M.find d (resvs (snd r_n)) as sz
                            Then If ` d0 <=? sz Then d Else fst r_n
                            Else fst r_n)).
     {
@@ -229,7 +233,10 @@ Proof.
 
   (* refine method peekS. *)
   {
-    refine pick val (M.find d (bytes (snd r_n))).
+    refine pick val (match M.find d (bytes (snd r_n)) with
+                     | Some x => Just x
+                     | None => Nothing
+                     end).
       autorewrite with monad laws.
       rewrite refine_If_Opt_Then_Else_ret.
       simplify with monad laws.
@@ -247,12 +254,14 @@ Proof.
       inv H2.
       rewrite H0.
       assumption.
-    congruence.
+    simpl in H2.
+    computes_to_inv.
+    discriminate.
   }
 
   (* refine method pokeS. *)
   {
-    refine pick val (Some tt); auto.
+    refine pick val (Just tt); auto.
     simplify with monad laws; simpl.
 
     refine pick val (fst r_n,
@@ -268,7 +277,7 @@ Proof.
 
   (* refine method memcpyS. *)
   {
-    refine pick val (Some tt); auto.
+    refine pick val (Just tt); auto.
     simplify with monad laws; simpl.
 
     refine pick val (fst r_n,
@@ -283,7 +292,7 @@ Proof.
 
   (* refine method memsetS. *)
   {
-    refine pick val (Some tt); auto.
+    refine pick val (Just tt); auto.
     simplify with monad laws; simpl.
 
     refine pick val

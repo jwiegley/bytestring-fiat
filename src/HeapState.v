@@ -5,7 +5,8 @@ Require Import
   ByteString.Lib.Fiat
   ByteString.Memory
   Coq.FSets.FMapFacts
-  Coq.Structures.DecidableTypeEx.
+  Coq.Structures.DecidableTypeEx
+  Hask.Control.Applicative.
 
 Module HeapState (M : WSfun N_as_DT).
 
@@ -80,10 +81,17 @@ Proof.
   apply H0; nomega.
 Qed.
 
-Definition find_free_block (len : Size) (r : M.t Ptr) : Comp (option Ptr) :=
-  { addr : option N
-  | forall addr', addr = Some addr'
+Section FindFree.
+
+Context `{Alternative m}.
+Context `{Computable m}.
+
+Definition find_free_block (len : Size) (r : M.t Ptr) : Comp (m Ptr) :=
+  { addr : m N
+  | forall addr', m_computes_to addr = Some addr'
       -> P.for_all (fun a sz => negb (overlaps_bool a sz addr' len)) r }.
+
+End FindFree.
 
 Definition keep_range {elt} (addr : M.key) (len : N) : M.t elt -> M.t elt :=
   keep_keys (within_bool addr len).

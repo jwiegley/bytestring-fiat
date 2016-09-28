@@ -21,22 +21,6 @@ Import FMapExt.
 
 Open Scope N_scope.
 
-Class Computable (m : Type -> Type) := {
-  (* Parametricity gives us the only laws we should need. Note that this can
-     allow for multiple interpretations: for the list monad, we might choose
-     computation to mean that any member in the list has the given value, or
-     that only the first or last one does, etc. *)
-  m_computes_to {A : Type} (ca : m A) (a : A) : Prop
-}.
-
-Notation "'Ifcomputes' x 'as' v 'Then' t 'Else' e" :=
-  (mv <- { mv | forall v, IF m_computes_to x v
-                          then mv = Some v
-                          else mv = None };
-   Ifopt mv as v
-   Then t
-   Else e)%comp (at level 100).
-
 Section ByteStringHeap.
 
 Context `{Monad m}.
@@ -67,34 +51,34 @@ Program Definition make_room_by_shifting_up (r : PSH) (n : N | 0 < n) :
      the buffer. *)
   Comp (PSH * m unit) :=
   `(h, mres) <- memcpy (psHeap r) (psBuffer r) (psBuffer r + n) (psLength r);
-  Ifcomputes mres as u
-  Then ret ({| psHeap   := h
+  ret (if m_computes_to mres
+       then {| psHeap   := h
              ; psBuffer := psBuffer r
              ; psBufLen := psBufLen r
              ; psOffset := 0
-             ; psLength := psLength r + n |}, pure u)
-  Else ret (r, mres).
+             ; psLength := psLength r + n |}
+       else r, mres).
 
 Program Definition make_room_by_growing_buffer (r : PSH) (n : N | 0 < n) :
   Comp (PSH * m unit) :=
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
   `(h, ma) <- alloc (psHeap r) (psLength r + n);
-  Ifcomputes ma as a
+  Ifopt m_computes_to ma as a
   Then (
     `(h, mres) <- memcpy h (psBuffer r) (a + n) (psLength r);
-    Ifcomputes mres as u
-    Then (
+    if m_computes_to mres
+    then (
       `(h, mres) <- free h (psBuffer r);
-      Ifcomputes mres as u
-      Then ret ({| psHeap   := h
+      ret (if m_computes_to mres
+           then {| psHeap   := h
                  ; psBuffer := a
                  ; psBufLen := psLength r + n
                  ; psOffset := 0
-                 ; psLength := psLength r + n |}, pure u)
-      Else ret (r, mres)
+                 ; psLength := psLength r + n |}
+           else r, mres)
     )
-    Else ret (r, mres)
+    else ret (r, mres)
   )
   Else ret (r, fmap (const tt) ma).
 Obligation 1. nomega. Defined.
@@ -102,23 +86,23 @@ Obligation 1. nomega. Defined.
 Program Definition allocate_buffer (r : Rep HeapSpec) (len : N | 0 < len) :
   Comp (PSH * m unit) :=
   `(h, ma) <- alloc r len;
-  Ifcomputes ma as a
-  Then ret ({| psHeap   := h
+  ret (Ifopt m_computes_to ma as a
+       Then {| psHeap   := h
              ; psBuffer := a
              ; psBufLen := len
              ; psOffset := 0
-             ; psLength := len |}, pure tt)
-  Else ret (makePS r 0 0 0 0, fmap (const tt) ma).
+             ; psLength := len |}
+       Else makePS r 0 0 0 0, tt <$ ma).
 
 Definition poke_at_offset (r : PSH) (d : Word) : Comp (PSH * m unit) :=
   `(h, mres) <- poke (psHeap r) (psBuffer r + psOffset r) d;
-  Ifcomputes mres as u
-  Then ret ({| psHeap   := h
+  ret (if m_computes_to mres
+       then {| psHeap   := h
              ; psBuffer := psBuffer r
              ; psBufLen := psBufLen r
              ; psOffset := psOffset r
-             ; psLength := psLength r |}, pure u)
-  Else ret (r, mres).
+             ; psLength := psLength r |}
+       else r, mres).
 
 (* This defines how much a buffer is grown by when more space is needed to
    [cons] on a new element. *)
@@ -134,9 +118,9 @@ Program Definition buffer_cons (r : PSH) (d : Word) : Comp (PSH * m unit) :=
           Else If 0 <? psBufLen r
                Then make_room_by_growing_buffer r alloc_quantum
                Else allocate_buffer (psHeap r) alloc_quantum;
-  Ifcomputes mres as u
-  Then poke_at_offset ps d
-  Else ret (r, mres).
+  if m_computes_to mres
+  then poke_at_offset ps d      (* need to plumb mres through here *)
+  else ret (r, mres).
 Obligation 1. nomega. Defined.
 Obligation 2. nomega. Defined.
 Obligation 3. nomega. Defined.
@@ -190,20 +174,53 @@ Local Ltac breakdown :=
 Lemma buffer_cons_sound : forall r_o r_n,
   ByteString_list_AbsR r_o r_n
     -> forall x r_n' mu, buffer_cons r_n x ↝ (r_n', mu)
-    -> forall u, m_computes_to mu u
-    -> ByteString_list_AbsR (x :: r_o) r_n'.
+    -> if m_computes_to mu
+       then ByteString_list_AbsR (x :: r_o) r_n'
+       else ByteString_list_AbsR r_o r_n'.
 Proof.
-  unfold buffer_cons; intros ? ? AbsR ??????.
+  unfold buffer_cons; intros ? ? AbsR ????.
   apply refine_computes_to in H2.
   unfold Bind2 in H2.
   rewrite refineEquiv_If_Then_Else_Bind in H2.
   apply refine_If_Then_Else_bool in H2.
   destruct (0 <? psOffset r_n) eqn:Heqe.
+    revert H2.
+    rewrite refineEquiv_bind_unit; simpl.
+    destruct (m_computes_to ((pure[ m]) ())) eqn:Heqe2;
+    simpl; intros;
+    apply computes_to_refine in H2;
+    computes_to_inv; tsubst.
+      unfold poke_at_offset, Bind2 in H2.
+      computes_to_inv.
+      destruct (m_computes_to (snd v)) eqn:Heqe3;
+      simpl in *;
+      computes_to_inv; tsubst.
+        destruct u0.
+        rewrite Heqe3.
+        admit.
+      rewrite Heqe3.
+      admit.
+    rewrite Heqe2.
+    assumption.
+(*
     apply computes_to_refine in H2.
     {
       destruct_AbsR AbsR; construct_AbsR.
         breakdown; try nomega.
-        destruct u, (H8 tt); intuition.
+        unfold poke_at_offset, Bind2 in H2.
+        simpl in *.
+        computes_to_inv; subst; simpl in *.
+        destruct (m_computes_to ((pure[m]) ())); simpl in *.
+          computes_to_inv; subst; simpl in *.
+          destruct (m_computes_to (snd v)); simpl in *.
+            computes_to_inv; tsubst; simpl in *.
+            nomega.
+          computes_to_inv; tsubst; simpl in *.
+          nomega.
+        computes_to_inv; tsubst; simpl in *.
+*)
+(*
+        nomega.
         discriminate.
       right; split.
         breakdown; nomega.
@@ -314,12 +331,13 @@ Proof.
     right; split; [nomega|].
     rewrite N2Nat.inj_succ in *; nomega.
 *)
+*)
 Admitted.
 
 Lemma buffer_uncons_sound : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
     -> forall mp, buffer_uncons r_n ↝ (a, mp)
-    -> forall p, m_computes_to mp p
+    -> forall p, m_computes_to mp = Some p
     -> ByteString_list_AbsR (match r_o with
                              | [] => r_o
                              | _ :: xs => xs
@@ -370,7 +388,7 @@ Admitted.
 Lemma buffer_uncons_impl : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
     -> forall mp, buffer_uncons r_n ↝ (a, mp)
-    -> forall p, m_computes_to mp p
+    -> forall p, m_computes_to mp = Some p
     -> p = match r_o with
                | [] => None
                | x :: _ => Some x
@@ -433,16 +451,14 @@ Proof.
       eapply (refine_skip2 (dummy:=buffer_cons r_n d)).
     etransitivity.
       apply refine_under_bind; intros; simpl.
-
       destruct a.
       refine pick val m0; auto.
       simplify with monad laws; simpl.
-
       refine pick val p.
         simplify with monad laws.
         finish honing.
-      admit.
-      (* eapply buffer_cons_sound; eauto. *)
+      pose proof (buffer_cons_sound H3 H4).
+      destruct (m_computes_to m0) eqn:Heqe; auto.
     simplify with monad laws; simpl.
     finish honing.
   }
@@ -454,7 +470,7 @@ Proof.
     etransitivity.
       apply refine_under_bind; intros; simpl.
       destruct a.
-      refine pick val (fmap (const tt) m0); auto.
+      refine pick val (tt <$ m0); auto.
         simplify with monad laws.
         pose proof H4.
         eapply buffer_uncons_impl in H4; eauto.
