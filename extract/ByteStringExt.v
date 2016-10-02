@@ -1,10 +1,10 @@
 Require Import
+  ByteString.Lib.Fiat
+  ByteString.Lib.Nomega
   ByteString.Memory
   ByteString.Heap
   ByteString.ByteString
   ByteString.ByteStringCanon
-  ByteString.Fiat
-  ByteString.Nomega
   Coq.Strings.Ascii
   Coq.Strings.String
   Coq.FSets.FMapList
@@ -15,8 +15,8 @@ Module Import BS := ByteStringFMap M.
 
 Import ByteStringHeap.
 Import HeapCanonical.
-Import HeapADT.
 Import Heap.
+Import HeapState.
 
 Definition impl := Eval simpl in projT1 HeapCanonical.
 

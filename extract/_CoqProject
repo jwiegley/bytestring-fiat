@@ -1,3 +1,5 @@
 -R ../fiat/src Fiat
 -R ../src ByteString
+-R ../lib ByteString.Lib
+-R ../ffi ByteString.FFI
 ByteStringExt.v
