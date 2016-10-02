@@ -155,7 +155,7 @@ Proof.
   refine method ByteString.consS.
   {
     apply_ByteString_Heap_AbsR.
-    fracture H; unfold find_free_block.
+    fracture H; unfold find_free_block;
     refine using ByteString_Heap_AbsR;
     refine pick val (fst (ps'Heap r_n)); eauto;
     try simplify with monad laws;
