@@ -23,6 +23,6 @@ executable bytestring-fiat
     HString
     ByteStringExt
   other-extensions:    StandaloneDeriving
-  build-depends:       base >=4.8 && <4.9, ghc-prim
+  build-depends:       base >=4.8 && <5, ghc-prim
   -- hs-source-dirs:      
   default-language:    Haskell2010
