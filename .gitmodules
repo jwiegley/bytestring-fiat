@@ -3,4 +3,4 @@
 	url = https://github.com/JasonGross/coq-scripts.git
 [submodule "coq-haskell"]
 	path = coq-haskell
-	url = git://github.com/jwiegley/coq-haskell.git
+	url = https://github.com/jwiegley/coq-haskell.git
