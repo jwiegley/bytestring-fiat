@@ -19,8 +19,8 @@ Import FMapExt.
 
 Open Scope N_scope.
 
-Record PS := makePS {
-  psHeap : Rep HeapSpec;
+Record PS (heapType : Type) := makePS {
+  psHeap : heapType;
 
   psBuffer : Ptr;
   psBufLen : Size;
@@ -29,17 +29,19 @@ Record PS := makePS {
   psLength : Size
 }.
 
-Definition simply_widen_region (r : PS) : PS :=
+Definition PSH := PS (Rep HeapSpec).
+
+Definition simply_widen_region (r : PSH) : PSH :=
   {| psHeap   := psHeap r
    ; psBuffer := psBuffer r
    ; psBufLen := psBufLen r
    ; psOffset := psOffset r - 1
    ; psLength := psLength r + 1 |}.
 
-Program Definition make_room_by_shifting_up (r : PS) (n : N | 0 < n) :
+Program Definition make_room_by_shifting_up (r : PSH) (n : N | 0 < n) :
   (* We could maybe be smarter by shifting the block so it sits mid-way within
      the buffer. *)
-  Comp PS :=
+  Comp PSH :=
   res <- memcpy (psHeap r) (psBuffer r) (psBuffer r + n) (psLength r);
   ret {| psHeap   := fst res
        ; psBuffer := psBuffer r
@@ -47,8 +49,8 @@ Program Definition make_room_by_shifting_up (r : PS) (n : N | 0 < n) :
        ; psOffset := 0
        ; psLength := psLength r + n |}.
 
-Program Definition make_room_by_growing_buffer (r : PS) (n : N | 0 < n) :
-  Comp PS :=
+Program Definition make_room_by_growing_buffer (r : PSH) (n : N | 0 < n) :
+  Comp PSH :=
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
   `(h, a) <- alloc (psHeap r) (psLength r + n);
@@ -62,7 +64,7 @@ Program Definition make_room_by_growing_buffer (r : PS) (n : N | 0 < n) :
 Obligation 1. nomega. Defined.
 
 Program Definition allocate_buffer (r : Rep HeapSpec) (len : N | 0 < len) :
-  Comp PS :=
+  Comp PSH :=
   `(h, a) <- alloc r len;
   ret {| psHeap   := h
        ; psBuffer := a
@@ -70,7 +72,7 @@ Program Definition allocate_buffer (r : Rep HeapSpec) (len : N | 0 < len) :
        ; psOffset := 0
        ; psLength := len |}.
 
-Definition poke_at_offset (r : PS) (d : Word) : Comp PS :=
+Definition poke_at_offset (r : PSH) (d : Word) : Comp PSH :=
   res <- poke (psHeap r) (psBuffer r + psOffset r) d;
   ret {| psHeap   := fst res
        ; psBuffer := psBuffer r
@@ -83,7 +85,7 @@ Definition poke_at_offset (r : PS) (d : Word) : Comp PS :=
 Definition alloc_quantum := 1.
 Arguments alloc_quantum /.
 
-Program Definition buffer_cons (r : PS) (d : Word) : Comp PS :=
+Program Definition buffer_cons (r : PSH) (d : Word) : Comp PSH :=
   ps <- If 0 <? psOffset r
         Then ret (simply_widen_region r)
         Else
@@ -98,7 +100,7 @@ Obligation 1. nomega. Defined.
 Obligation 2. nomega. Defined.
 Obligation 3. nomega. Defined.
 
-Definition buffer_uncons (r : PS) : Comp (PS * option Word) :=
+Definition buffer_uncons (r : PSH) : Comp (PSH * option Word) :=
   If 0 <? psLength r
   Then (
     w <- peek (psHeap r) (psBuffer r + psOffset r);
@@ -111,7 +113,7 @@ Definition buffer_uncons (r : PS) : Comp (PS * option Word) :=
           ; psLength := psLength r - 1 |}, Some (snd w)))
   Else ret (r, None).
 
-Definition ByteString_list_AbsR (or : Rep ByteStringSpec) (nr : PS) :=
+Definition ByteString_list_AbsR (or : Rep ByteStringSpec) (nr : PSH) :=
   length or = N.to_nat (psLength nr) /\
   IF psBufLen nr = 0
   then psOffset nr = 0 /\ psLength nr = 0
@@ -182,8 +184,8 @@ Proof.
     (right; split; [nomega|]; split; [nomega|]).
     rewrite H0, N.add_0_r in *; clear H0;
     tsubst; simpl in *; subst.
-    destruct (psLength r_n =? 0) eqn:Heqe.
-      assert (psLength r_n = 0) by nomega.
+    destruct (@psLength HeapState r_n =? 0) eqn:Heqe.
+      assert (@psLength HeapState r_n = 0) by nomega.
       rewrite H in *; clear H.
       split; trivial.
       intros; simplify_maps.
@@ -197,10 +199,12 @@ Proof.
     right; split; [nomega|].
     rewrite N2Nat.inj_succ in *; simpl.
     apply copy_bytes_mapsto.
-    destruct (within_bool (psBuffer r_n + 1) (psLength r_n)
-                          (psBuffer r_n + N.succ i)) eqn:Heqe1; simpl.
-      replace (psBuffer r_n + N.succ i - (psBuffer r_n + 1) + psBuffer r_n)
-         with (psBuffer r_n + i) by nomega.
+    destruct (within_bool
+                (@psBuffer HeapState r_n + 1) (@psLength HeapState r_n)
+                (@psBuffer HeapState r_n + N.succ i)) eqn:Heqe1; simpl.
+      replace (@psBuffer HeapState r_n + N.succ i -
+               (@psBuffer HeapState r_n + 1) + @psBuffer HeapState r_n)
+         with (@psBuffer HeapState r_n + i) by nomega.
       apply H4; trivial.
       nomega.
     nomega.
@@ -222,10 +226,10 @@ Proof.
     right; split; [nomega|].
     rewrite N2Nat.inj_succ in *; simpl.
     apply copy_bytes_mapsto.
-    destruct (within_bool (x0 + 1) (psLength r_n)
+    destruct (within_bool (x0 + 1) (@psLength HeapState r_n)
                           (x0 + N.succ i)) eqn:Heqe1; simpl.
-      replace (x0 + N.succ i - (x0 + 1) + psBuffer r_n)
-         with (psBuffer r_n + i) by nomega.
+      replace (x0 + N.succ i - (x0 + 1) + @psBuffer HeapState r_n)
+         with (@psBuffer _ r_n + i) by nomega.
       apply H4; trivial.
       nomega.
     nomega.
@@ -265,7 +269,7 @@ Proof.
     destruct r_o; simpl in *;
     try nomega; right;
     split; try nomega; split;
-    destruct (psLength r_n =? 1) eqn:Heqe2;
+    destruct (@psLength HeapState r_n =? 1) eqn:Heqe2;
     try nomega;
     try (eexists; split; [exact H4|]; nomega).
     split; trivial; intros.
@@ -273,8 +277,10 @@ Proof.
       rewrite N.add_0_r, N.add_assoc.
       apply H4; trivial.
       nomega.
-    replace (psBuffer r_n + (psOffset r_n + 1) + N.succ i)
-       with (psBuffer r_n + psOffset r_n + (N.succ i + 1)) by nomega.
+    replace (@psBuffer HeapState r_n +
+             (@psOffset HeapState r_n + 1) + N.succ i)
+       with (@psBuffer HeapState r_n +
+             @psOffset HeapState r_n + (N.succ i + 1)) by nomega.
     apply H4.
       nomega.
     rewrite N.add_succ_l.
@@ -308,8 +314,8 @@ Proof.
     destruct r_o; simpl in *; try nomega.
     f_equal; tsubst.
     apply H0.
-    replace (psBuffer r_n + psOffset r_n)
-       with (psBuffer r_n + psOffset r_n + 0) by nomega.
+    replace (@psBuffer HeapState r_n + @psOffset HeapState r_n)
+       with (@psBuffer HeapState r_n + @psOffset HeapState r_n + 0) by nomega.
     apply H4; trivial.
     nomega.
   apply computes_to_refine in H0.

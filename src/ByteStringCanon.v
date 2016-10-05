@@ -37,28 +37,18 @@ Variable heap_AbsR : Heap_AbsR heap heap'.
    mean going directly to the metal (but would require replicating much of the
    proof work that is done in HeapFMap.v). *)
 
-Record PS' := {
-  ps'Heap : cHeapRep;
-
-  ps'Buffer : N;
-  ps'BufLen : N;
-
-  ps'Offset : N;
-  ps'Length : N
-}.
-
 Record ByteString_Heap_AbsR or nr := {
-  heap_match   : Heap_AbsR (psHeap or) (ps'Heap nr);
-  buffer_match : psBuffer or = ps'Buffer nr;
-  buflen_match : psBufLen or = ps'BufLen nr;
-  offset_match : psOffset or = ps'Offset nr;
-  length_match : psLength or = ps'Length nr
+  heap_match   : Heap_AbsR (psHeap or) (psHeap nr);
+  buffer_match : psBuffer or = psBuffer nr;
+  buflen_match : psBufLen or = psBufLen nr;
+  offset_match : psOffset or = psOffset nr;
+  length_match : psLength or = psLength nr
 }.
 
 Lemma refine_ByteString_Heap_AbsR :
   forall heap_resvs heap_bytes buffer buflen offset length B (k : _ -> Comp B),
     refine
-      (r_n' <- { r_n0 : PS'
+      (r_n' <- { r_n0 : PS cHeapRep
                | ByteString_Heap_AbsR
                    {| psHeap := {| resvs := heap_resvs
                                  ; bytes := heap_bytes |}
@@ -71,16 +61,16 @@ Lemma refine_ByteString_Heap_AbsR :
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
        brk'   <- {brk'   : N
                  | P.for_all (fun addr sz => addr + sz <=? brk') resvs' };
-       k {| ps'Heap   := (brk', {| resvs := resvs'; bytes := bytes' |})
-          ; ps'Buffer := buffer
-          ; ps'BufLen := buflen
-          ; ps'Offset := offset
-          ; ps'Length := length |}).
+       k {| psHeap   := (brk', {| resvs := resvs'; bytes := bytes' |})
+          ; psBuffer := buffer
+          ; psBufLen := buflen
+          ; psOffset := offset
+          ; psLength := length |}).
 Proof.
   intros; intros ??.
   destruct_computations.
   revert H2.
-  remember (Build_PS' _ _ _ _ _) as P; intros.
+  remember (makePS _ _ _ _ _) as P; intros.
   refine pick val P.
     apply computes_to_refine.
     simplify with monad laws.
@@ -114,7 +104,7 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
         match goal with
         | [ |- refine (x <- ret _; _) _ ] =>
           simplify with monad laws; simpl
-        | [ |- refine (x <- { X : PS' | ByteString_Heap_AbsR _ X }; _) _ ] =>
+        | [ |- refine (x <- { X : PS cHeapRep | ByteString_Heap_AbsR _ X }; _) _ ] =>
           rewrite refine_ByteString_Heap_AbsR
         | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
           apply refine_If_Then_Else
@@ -143,11 +133,11 @@ Proof.
   refine method ByteString.emptyS.
   {
     simplify with monad laws.
-    refine pick val {| ps'Heap   := heap'
-                     ; ps'Buffer := 0
-                     ; ps'BufLen := 0
-                     ; ps'Offset := 0
-                     ; ps'Length := 0 |}.
+    refine pick val {| psHeap   := heap'
+                     ; psBuffer := 0
+                     ; psBufLen := 0
+                     ; psOffset := 0
+                     ; psLength := 0 |}.
       finish honing.
     firstorder.
   }
@@ -157,13 +147,13 @@ Proof.
     apply_ByteString_Heap_AbsR.
     fracture H; unfold find_free_block;
     refine using ByteString_Heap_AbsR;
-    refine pick val (fst (ps'Heap r_n)); eauto;
+    refine pick val (fst (psHeap r_n)); eauto;
     try simplify with monad laws;
     try finish honing;
     refine using ByteString_Heap_AbsR.
 
-    - refine pick val (fst (ps'Heap r_n) +
-                       (ps'Length r_n + alloc_quantum)); eauto.
+    - refine pick val (fst (psHeap r_n) +
+                       (psLength r_n + alloc_quantum)); eauto.
         simplify with monad laws.
         finish honing.
 
@@ -180,7 +170,7 @@ Proof.
       eapply for_all_impl; eauto;
       relational; nomega.
 
-    - refine pick val (fst (ps'Heap r_n) + alloc_quantum); eauto.
+    - refine pick val (fst (psHeap r_n) + alloc_quantum); eauto.
         simplify with monad laws.
         finish honing.
 
@@ -204,13 +194,13 @@ Proof.
     fracture H;
     refine using ByteString_Heap_AbsR.
 
-    - refine pick val (Ifopt M.find (ps'Buffer r_n + ps'Offset r_n)
-                                    (bytes (snd (ps'Heap r_n))) as v
+    - refine pick val (Ifopt M.find (psBuffer r_n + psOffset r_n)
+                                    (bytes (snd (psHeap r_n))) as v
                        Then v
                        Else Zero).
         simplify with monad laws.
         refine using ByteString_Heap_AbsR.
-        refine pick val (fst (ps'Heap r_n)); eauto.
+        refine pick val (fst (psHeap r_n)); eauto.
         simplify with monad laws.
         finish honing.
 
@@ -222,7 +212,7 @@ Proof.
       apply F.find_mapsto_iff in H.
       congruence.
 
-    - refine pick val (fst (ps'Heap r_n)); eauto.
+    - refine pick val (fst (psHeap r_n)); eauto.
       simplify with monad laws.
       finish honing.
   }
@@ -246,11 +236,11 @@ Proof.
     simplify with monad laws.
     rewrite !If_Then_Else_fst, !If_Then_Else_snd; simpl.
 
-    replace (If 0 <? ps'Offset r_o
+    replace (If 0 <? psOffset r_o
              Then ()
-             Else (If ps'Length r_o + 1 <=? ps'BufLen r_o
+             Else (If psLength r_o + 1 <=? psBufLen r_o
                    Then ()
-                   Else (If 0 <? ps'BufLen r_o
+                   Else (If 0 <? psBufLen r_o
                          Then ()
                          Else ()))) with ().
       subst; finish honing.
