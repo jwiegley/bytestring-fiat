@@ -1,4 +1,5 @@
 -R fiat/src Fiat
+-R coq-haskell/src Hask
 -R src ByteString
 -R lib ByteString.Lib
 -R ffi ByteString.FFI
@@ -23,3 +24,4 @@ src/ByteString.v
 src/ByteStringHeap.v
 src/ByteStringCanon.v
 ffi/HeapFFI.v
+ffi/ByteStringFFI.v
