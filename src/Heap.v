@@ -95,7 +95,7 @@ Definition empty : Comp (Rep HeapSpec) :=
   Eval simpl in callCons HeapSpec emptyS.
 
 Definition alloc (r : Rep HeapSpec) (len : Size | 0 < len) :
-  Comp (Rep HeapSpec * N) :=
+  Comp (Rep HeapSpec * Ptr) :=
   Eval simpl in callMeth HeapSpec allocS r len.
 
 Definition free (r : Rep HeapSpec) (addr : Ptr) :
@@ -103,7 +103,7 @@ Definition free (r : Rep HeapSpec) (addr : Ptr) :
   Eval simpl in callMeth HeapSpec freeS r addr.
 
 Definition realloc (r : Rep HeapSpec) (addr : Ptr) (len : Size | 0 < len) :
-  Comp (Rep HeapSpec * N) :=
+  Comp (Rep HeapSpec * Ptr) :=
   Eval simpl in callMeth HeapSpec reallocS r addr len.
 
 Definition peek (r : Rep HeapSpec) (addr : Ptr) :
