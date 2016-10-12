@@ -79,39 +79,33 @@ Record Mem := {
 }.
 
 Inductive HeapDSL_Computes :
-  forall {A}, HeapDSL A -> A
-    -> (Rep HeapSpec -> Comp (Rep HeapSpec * A))
-    -> Rep HeapSpec -> Rep HeapSpec -> Prop :=
-  | RPure r T (v : T) c :
-      refine (ret (r, v)) (c r) ->
-      HeapDSL_Computes (pure v) v c r r
+  forall {A}, HeapDSL A -> Rep HeapSpec -> Rep HeapSpec -> A -> Prop :=
+  | RPure r T (v : T) : HeapDSL_Computes (pure v) r r v
+  | RBind r r' r'' T t (v : T) C k (v' : C) :
+      HeapDSL_Computes t r r' v
+        -> HeapDSL_Computes (k v) r' r'' v'
+        -> HeapDSL_Computes (t >>= k)%monad r r'' v'
 
-  | RBind r r' r'' T t c (v : T) C k ctk h (v' : C) :
-      HeapDSL_Computes t v c r r'
-        -> HeapDSL_Computes (k v) v' (h v) r' r''
-        -> refine (c r >>= fun p => h (snd p) (fst p)) (ctk r)%comp
-        -> HeapDSL_Computes (t >>= k)%monad v' ctk r r''
-
-  | RIf b r r' T (t e : HeapDSL T) c ct ce (v : T) :
-      (b = true  -> HeapDSL_Computes t v ct r r') ->
-      (b = false -> HeapDSL_Computes e v ce r r') ->
-      refine (If b Then ct r Else ce r) (c r) ->
-      HeapDSL_Computes (If b Then t Else e) v c r r'
+  | RIf b r r' T (t e : HeapDSL T) (v : T) :
+      (b = true  -> HeapDSL_Computes t r r' v) ->
+      (b = false -> HeapDSL_Computes e r r' v) ->
+      HeapDSL_Computes (If b Then t Else e) r r' v
 
   | RAlloc len addr (r r' : Rep HeapSpec) :
-      HeapDSL_Computes (allocM len) addr (fun r => alloc r len) r r'
+      alloc r len ↝ (r', addr) ->
+      HeapDSL_Computes (allocM len) r r' addr
 
   | RFree addr (r r' : Rep HeapSpec) :
       free r addr ↝ (r', tt) ->
-      HeapDSL_Computes (freeM addr) tt (fun r => free r addr) r r'
+      HeapDSL_Computes (freeM addr) r r' tt
 
   | RPoke addr w (r r' : Rep HeapSpec) :
       poke r addr w ↝ (r', tt) ->
-      HeapDSL_Computes (pokeM addr w) tt (fun r => poke r addr w) r r'
+      HeapDSL_Computes (pokeM addr w) r r' tt
 
-  | RMemcpy addr addr2 len r r' c :
-      refine (memcpy r addr addr2 len) (c r) ->
-      HeapDSL_Computes (memcpyM addr addr2 len) tt c r r'.
+  | RMemcpy addr addr2 len r r' :
+      memcpy r addr addr2 len ↝ (r', tt) ->
+      HeapDSL_Computes (memcpyM addr addr2 len) r r' tt.
 
   (* | RMemcpy addr addr2 len r r' : *)
   (*     HeapDSL_Computes (memcpyM addr addr2 len) tt *)
@@ -223,86 +217,129 @@ Lemma consDSL :
   { f : PS () -> Word -> HeapDSL (PS ())
   & forall w (r r' : PSH) (bs bs' : PS ()),
       matchPS r bs -> matchPS r' bs' ->
-      HeapDSL_Computes
-        (f bs w) bs'
-        (fun h =>
-           let ps := {| psHeap   := h
-                      ; psBuffer := psBuffer bs
-                      ; psBufLen := psBufLen bs
-                      ; psOffset := psOffset bs
-                      ; psLength := psLength bs |} in
-           h' <- buffer_cons ps w;
-           ret (psHeap h',
-                {| psHeap   := tt
-                 ; psBuffer := psBuffer h'
-                 ; psBufLen := psBufLen h'
-                 ; psOffset := psOffset h'
-                 ; psLength := psLength h' |}))%comp
-        (psHeap r) (psHeap r') }.
+      buffer_cons r w ↝ r' ->
+      HeapDSL_Computes (f bs w) (psHeap r) (psHeap r') bs' }.
 Proof.
   exists buffer_consM.
   unfold buffer_cons, buffer_consM.
-  intros.
-  destruct H, H1, H2.
-  rewrite <- H1, <- H2, <- H3.
-  { eapply RBind with (v:=bs') (r':=psHeap r').
-    - eapply RIf; intros.
-        unfold simply_widen_regionM; simpl.
-        apply RPure.
+  intros w r r' bs bs' Hr Hr' H.
+  destruct Hr as [H1 [H2 [H3 H4]]].
+  rewrite <- H3.
+  revert H.
+  destruct (0 <? psOffset r) eqn:Heqe1;
+  simpl If_Then_Else.
+    unfold poke_at_offset, simply_widen_region,
+           poke_at_offsetM, simply_widen_regionM.
+    simpl If_Then_Else.
+    autorewrite with monad laws.
+    intros; simpl in H.
+    eapply RBind.
+      apply RPure.
+    simpl pokeM; simpl pure.
+    eapply RBind.
+      apply RPoke.
+      unfold poke.
+      higher_order_reflexivity.
+    computes_to_inv; subst; simpl.
+    rewrite <- H1, <- H2, <- H3, <- H4.
+    destruct Hr' as [H5 [H6 [H7 H8]]].
+    destruct bs'.
+    simpl in *.
+    rewrite <- H5, <- H6, <- H7, <- H8.
+    destruct psHeap0.
+    apply RPure.
+  rewrite <- H2, <- H4.
+  simpl If_Then_Else.
+  destruct (@psLength HeapState r + 1 <=? @psBufLen HeapState r) eqn:Heqe2;
+  simpl If_Then_Else.
+    unfold make_room_by_shifting_up, make_room_by_shifting_upM.
+    simpl If_Then_Else.
+    autorewrite with monad laws.
+    intros; simpl in H.
+    eapply RBind.
+      eapply RBind.
+        apply RMemcpy.
+        unfold memcpy; simpl.
         higher_order_reflexivity.
-      apply RIf; intros.
-        unfold make_room_by_shifting_upM.
-        simpl memcpyM; simpl pure.
-        { eapply RBind.
-          - apply RMemcpy.
-            higher_order_reflexivity.
-          - apply RPure.
-            higher_order_reflexivity.
-          - simplify with monad laws; simpl.
-            higher_order_reflexivity.
-        }
-      apply RIf; intros.
-        unfold make_room_by_growing_bufferM.
-        simpl allocM; simpl memcpyM; simpl pure.
-        { eapply RBind.
-          - apply RAlloc.
-          - { eapply RBind.
-              - apply RMemcpy.
-                higher_order_reflexivity.
-              - { eapply RBind.
-                  - apply RFree.
-                    constructor.
-                  - apply RPure.
-                    higher_order_reflexivity.
-                  - simplify with monad laws; simpl.
-                    higher_order_reflexivity.
-                }
-              - simplify with monad laws; simpl.
-                higher_order_reflexivity.
-            }
-          - simplify with monad laws; simpl.
-            higher_order_reflexivity.
-        }
-      unfold allocate_bufferM.
-      simpl allocM; simpl pure.
-      { eapply RBind.
-        - apply RAlloc.
-        - apply RPure.
-          higher_order_reflexivity.
-        - simplify with monad laws; simpl.
-          higher_order_reflexivity.
-      }
-    - unfold poke_at_offsetM.
-      { eapply RBind.
-        - apply RPoke.
-          admit.
-        - admit.
-        - simplify with monad laws; simpl.
-          higher_order_reflexivity.
-      }
-    - admit.
-  }
-Admitted.
+      apply RPure.
+    unfold poke_at_offsetM.
+    eapply RBind.
+      simpl.
+      apply RPoke.
+      higher_order_reflexivity.
+    computes_to_inv; subst; simpl.
+    rewrite <- H1, <- H2, <- H4.
+    destruct Hr' as [H5 [H6 [H7 H8]]].
+    destruct bs'.
+    simpl in *.
+    rewrite <- H5, <- H6, <- H7, <- H8.
+    destruct psHeap0.
+    apply RPure.
+  destruct (0 <? @psBufLen HeapState r) eqn:Heqe3;
+  simpl If_Then_Else.
+    unfold make_room_by_growing_buffer, make_room_by_growing_bufferM.
+    simpl If_Then_Else.
+    unfold Bind2.
+    simpl alloc; simpl memcpy.
+    autorewrite with monad laws.
+    intros; simpl in H.
+    computes_to_inv; subst.
+    eapply RBind.
+      eapply RBind.
+        apply RAlloc with (addr:=v).
+        unfold alloc; simpl.
+        computes_to_econstructor.
+          rewrite <- H4.
+          exact H.
+        constructor.
+      eapply RBind.
+        apply RMemcpy.
+        higher_order_reflexivity.
+      eapply RBind.
+        apply RFree.
+        unfold free.
+        simpl.
+        higher_order_reflexivity.
+      apply RPure.
+    unfold poke_at_offsetM.
+    eapply RBind.
+      simpl.
+      apply RPoke.
+      higher_order_reflexivity.
+    computes_to_inv; subst; simpl.
+    rewrite <- H1, <- H4.
+    destruct Hr' as [H5 [H6 [H7 H8]]].
+    destruct bs'.
+    simpl in *.
+    rewrite <- H5, <- H6, <- H7, <- H8.
+    destruct psHeap0.
+    apply RPure.
+  unfold allocate_buffer, allocate_bufferM.
+  unfold Bind2.
+  autorewrite with monad laws.
+  intros; simpl in H.
+  computes_to_inv; subst.
+  eapply RBind.
+    eapply RBind.
+      apply RAlloc with (addr:=v).
+      unfold alloc; simpl.
+      computes_to_econstructor.
+        exact H.
+      constructor.
+    apply RPure.
+  unfold poke_at_offsetM.
+  eapply RBind.
+    simpl.
+    apply RPoke.
+    higher_order_reflexivity.
+  computes_to_inv; subst; simpl.
+  destruct Hr' as [H5 [H6 [H7 H8]]].
+  destruct bs'.
+  simpl in *.
+  rewrite <- H5, <- H6, <- H7, <- H8.
+  destruct psHeap0.
+  apply RPure.
+Defined.
 
 Definition consDSL' := Eval simpl in projT1 consDSL.
 Print consDSL'.
