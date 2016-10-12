@@ -20,11 +20,9 @@ Import FMapExt.
 Open Scope N_scope.
 
 Record PS (heapType : Type) := makePS {
-  psHeap : heapType;
-
+  psHeap   : heapType;
   psBuffer : Ptr;
   psBufLen : Size;
-
   psOffset : Size;
   psLength : Size
 }.

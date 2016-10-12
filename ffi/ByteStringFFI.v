@@ -19,10 +19,9 @@ Require Import
 Module ByteStringFFI (M : WSfun N_as_DT).
 
 Module Import ByteStringHeap := ByteStringHeap M.
-Module Import HeapFFI := HeapFFI M.
+Module Import FunMaps := FunMaps N_as_DT M.
 
 Import HeapCanonical.
-Import FunMaps.
 Import Heap.
 Import HeapState.
 Import FMapExt.
@@ -74,46 +73,69 @@ Definition memcpyM (addr : Ptr) (addr2 : Ptr) (len : Size) : HeapDSL () :=
 Definition memsetM (addr : Ptr) (len : Ptr) (w : Word) : HeapDSL () :=
   liftF (Memset addr len w ()).
 
-Program Instance Comp_Functor : Functor Comp := {
-  fmap := fun A B f (x : Comp A) => (v <- x; ret (f v))%comp
+Record Mem := {
+  heap_rep : EMap Ptr Size;
+  mem_rep  : EMap Ptr Word;
 }.
 
-Program Instance Comp_Applicative : Applicative Comp := {
-  pure := fun _ x => (ret x)%comp;
-  ap   := fun A B mf mx => (f <- mf; x <- mx; ret (f x))%comp
-}.
+Inductive HeapDSL_Computes :
+  forall {A}, HeapDSL A -> A
+    -> (Rep HeapSpec -> Comp (Rep HeapSpec * A))
+    -> Rep HeapSpec -> Rep HeapSpec -> Prop :=
+  | RPure r T (v : T) c :
+      refine (ret (r, v)) (c r) ->
+      HeapDSL_Computes (pure v) v c r r
 
-Program Instance Comp_Monad : Monad Comp := {
-  join := fun A m => (m >>= id)%comp
-}.
+  | RBind r r' r'' T t c (v : T) C k ctk h (v' : C) :
+      HeapDSL_Computes t v c r r'
+        -> HeapDSL_Computes (k v) v' (h v) r' r''
+        -> refine (c r >>= fun p => h (snd p) (fst p)) (ctk r)%comp
+        -> HeapDSL_Computes (t >>= k)%monad v' ctk r r''
 
-Definition CompT := StateT (Rep HeapSpec) Comp.
+  | RIf b r r' T (t e : HeapDSL T) c ct ce (v : T) :
+      (b = true  -> HeapDSL_Computes t v ct r r') ->
+      (b = false -> HeapDSL_Computes e v ce r r') ->
+      refine (If b Then ct r Else ce r) (c r) ->
+      HeapDSL_Computes (If b Then t Else e) v c r r'
 
-Definition denote {a : Type} : HeapDSL a -> CompT a :=
-  let phi (fx : HeapF (CompT a)) : CompT a :=
-      match fx with
-      | Alloc len k             => res <- (fun r => alloc r len);
-                                   k res
-      | Free_ addr x            => v <- x;
-                                   res <- (fun r => free r addr);
-                                   pure[CompT] v
-      | Realloc addr len k      => res <- (fun r => realloc r addr len);
-                                   k res
-      | Peek addr k             => res <- (fun r => peek r addr);
-                                   k res
-      | Poke addr w x           => v <- x;
-                                   res <- (fun r => poke r addr w);
-                                   pure[CompT] v
-      | Memcpy addr addr2 len x => v <- x;
-                                   res <- (fun r => memcpy r addr addr2 len);
-                                   pure[CompT] v
-      | Memset addr len w x     => v <- x;
-                                   res <- (fun r => memset r addr len w);
-                                   pure[CompT] v
-      end in
-  compose (iter phi) (fmap (pure[CompT])).
+  | RAlloc len addr (r r' : Rep HeapSpec) :
+      HeapDSL_Computes (allocM len) addr (fun r => alloc r len) r r'
+
+  | RFree addr (r r' : Rep HeapSpec) :
+      free r addr ↝ (r', tt) ->
+      HeapDSL_Computes (freeM addr) tt (fun r => free r addr) r r'
+
+  | RPoke addr w (r r' : Rep HeapSpec) :
+      poke r addr w ↝ (r', tt) ->
+      HeapDSL_Computes (pokeM addr w) tt (fun r => poke r addr w) r r'
+
+  | RMemcpy addr addr2 len r r' c :
+      refine (memcpy r addr addr2 len) (c r) ->
+      HeapDSL_Computes (memcpyM addr addr2 len) tt c r r'.
+
+  (* | RMemcpy addr addr2 len r r' : *)
+  (*     HeapDSL_Computes (memcpyM addr addr2 len) tt *)
+  (*                      (fun r => memcpy r addr addr2 len) r r'. *)
+
+Definition Mem_AbsR (or : Rep HeapSpec) (nr : Mem) :=
+  Map_AbsR eq (heap_rep nr) (resvs or) /\
+  Map_AbsR eq (mem_rep nr)  (bytes or).
 
 Definition ByteString (r : Rep HeapSpec) := Rep (projT1 (ByteStringHeap r)).
+
+(*
+Definition HeapRelation
+           `(c : R -> Comp (R * A))
+           (f : R -> Rep HeapSpec)
+           `(t : HeapDSL B)
+           (AbsR : R -> B -> Prop)
+           (r r' : R) (m m' : Mem) (a : A) :=
+  computes_to (c r) (r', a)
+    -> Mem_AbsR (f r) m
+    -> Mem_AbsR (f r') m'
+    -> forall b, AbsR r' b
+    -> HeapDSL_Computes t m m' b.
+*)
 
 Definition cons (r : Rep HeapSpec) (w : Word) (bs : ByteString r) :
   Comp (ByteString r) :=
@@ -197,57 +219,90 @@ Obligation 1. nomega. Defined.
 Obligation 2. nomega. Defined.
 Obligation 3. nomega. Defined.
 
-Corollary ret_denote : forall A (x : A) r,
-  refineEquiv (denote (pure x) r) (ret (r, x)).
-Proof. reflexivity. Qed.
-
-Lemma bind_denote :
-  forall A (c' : HeapDSL A) B (k' : A -> HeapDSL B) r,
-    refine (a <- denote c' r;
-            denote (k' (snd a)) (fst a))
-           (denote (c' >>= k') r).
-Proof.
-  intros; simpl.
-  destruct c'; simpl.
-    pose proof ret_denote.
-    simpl in H.
-    rewrite H.
-    simplify with monad laws.
-    reflexivity.
-  unfold comp.
-Admitted.
-
-Lemma buffer_cons_denote : forall r r' w,
-  refine (buffer_cons r w)
-         (res <- denote (buffer_consM r' w) (psHeap r);
-          ret {| psHeap   := fst res
-               ; psBuffer := psBuffer (snd res)
-               ; psBufLen := psBufLen (snd res)
-               ; psOffset := psOffset (snd res)
-               ; psLength := psLength (snd res) |}).
-Proof.
-  intros.
-  unfold buffer_cons, buffer_consM.
-  rewrite <- bind_denote.
-Admitted.
-
 Lemma consDSL :
-  { f : PSU -> Word -> HeapDSL PSU
-  & forall w bs bs',
-      matchPS bs bs' ->
-      refine (buffer_cons bs w)
-             (res <- denote (f bs' w) (psHeap bs);
-              ret {| psHeap   := fst res
-                   ; psBuffer := psBuffer (snd res)
-                   ; psBufLen := psBufLen (snd res)
-                   ; psOffset := psOffset (snd res)
-                   ; psLength := psLength (snd res) |}) }.
+  { f : PS () -> Word -> HeapDSL (PS ())
+  & forall w (r r' : PSH) (bs bs' : PS ()),
+      matchPS r bs -> matchPS r' bs' ->
+      HeapDSL_Computes
+        (f bs w) bs'
+        (fun h =>
+           let ps := {| psHeap   := h
+                      ; psBuffer := psBuffer bs
+                      ; psBufLen := psBufLen bs
+                      ; psOffset := psOffset bs
+                      ; psLength := psLength bs |} in
+           h' <- buffer_cons ps w;
+           ret (psHeap h',
+                {| psHeap   := tt
+                 ; psBuffer := psBuffer h'
+                 ; psBufLen := psBufLen h'
+                 ; psOffset := psOffset h'
+                 ; psLength := psLength h' |}))%comp
+        (psHeap r) (psHeap r') }.
 Proof.
-  intros.
   exists buffer_consM.
+  unfold buffer_cons, buffer_consM.
   intros.
-  apply buffer_cons_denote.
-Defined.
+  destruct H, H1, H2.
+  rewrite <- H1, <- H2, <- H3.
+  { eapply RBind with (v:=bs') (r':=psHeap r').
+    - eapply RIf; intros.
+        unfold simply_widen_regionM; simpl.
+        apply RPure.
+        higher_order_reflexivity.
+      apply RIf; intros.
+        unfold make_room_by_shifting_upM.
+        simpl memcpyM; simpl pure.
+        { eapply RBind.
+          - apply RMemcpy.
+            higher_order_reflexivity.
+          - apply RPure.
+            higher_order_reflexivity.
+          - simplify with monad laws; simpl.
+            higher_order_reflexivity.
+        }
+      apply RIf; intros.
+        unfold make_room_by_growing_bufferM.
+        simpl allocM; simpl memcpyM; simpl pure.
+        { eapply RBind.
+          - apply RAlloc.
+          - { eapply RBind.
+              - apply RMemcpy.
+                higher_order_reflexivity.
+              - { eapply RBind.
+                  - apply RFree.
+                    constructor.
+                  - apply RPure.
+                    higher_order_reflexivity.
+                  - simplify with monad laws; simpl.
+                    higher_order_reflexivity.
+                }
+              - simplify with monad laws; simpl.
+                higher_order_reflexivity.
+            }
+          - simplify with monad laws; simpl.
+            higher_order_reflexivity.
+        }
+      unfold allocate_bufferM.
+      simpl allocM; simpl pure.
+      { eapply RBind.
+        - apply RAlloc.
+        - apply RPure.
+          higher_order_reflexivity.
+        - simplify with monad laws; simpl.
+          higher_order_reflexivity.
+      }
+    - unfold poke_at_offsetM.
+      { eapply RBind.
+        - apply RPoke.
+          admit.
+        - admit.
+        - simplify with monad laws; simpl.
+          higher_order_reflexivity.
+      }
+    - admit.
+  }
+Admitted.
 
 Definition consDSL' := Eval simpl in projT1 consDSL.
 Print consDSL'.
