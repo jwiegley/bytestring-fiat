@@ -75,21 +75,21 @@ Definition memsetM (addr : Ptr) (len : Ptr) (w : Word) : HeapDSL () :=
 
 Inductive HeapF_Computes :
   forall {A}, HeapF A -> Rep HeapSpec -> Rep HeapSpec -> A -> Prop :=
-  | HAlloc len addr (r r' : Rep HeapSpec) :
+  | HAlloc len addr (r r' : Rep HeapSpec) A (k : Ptr -> A) :
       alloc r len ↝ (r', addr) ->
-      HeapF_Computes (Alloc len id) r r' addr
+      HeapF_Computes (Alloc len k) r r' (k addr)
 
-  | HFree addr (r r' : Rep HeapSpec) :
+  | HFree addr (r r' : Rep HeapSpec) A (x : A) :
       free r addr ↝ (r', tt) ->
-      HeapF_Computes (Free_ addr tt) r r' tt
+      HeapF_Computes (Free_ addr x) r r' x
 
-  | HPoke addr w (r r' : Rep HeapSpec) :
+  | HPoke addr w (r r' : Rep HeapSpec) A (x : A) :
       poke r addr w ↝ (r', tt) ->
-      HeapF_Computes (Poke addr w tt) r r' tt
+      HeapF_Computes (Poke addr w x) r r' x
 
-  | HMemcpy addr addr2 len r r' :
+  | HMemcpy addr addr2 len r r' A (x : A) :
       memcpy r addr addr2 len ↝ (r', tt) ->
-      HeapF_Computes (Memcpy addr addr2 len tt) r r' tt.
+      HeapF_Computes (Memcpy addr addr2 len x) r r' x.
 
 Inductive Free_Computes `{Functor f} {R : Type}
           (crel : forall {A}, f A -> R -> R -> A -> Prop) :
@@ -265,6 +265,30 @@ Definition denote {A : Type} :
     end in
   iter phi \o fmap (fun x r => ret (r, x)).
 
+Corollary Free_bind_Pure `{Functor f} : forall A B (k : A -> B) (c : Free f A),
+  Free_bind (fun x : A => Pure (k x)) c = fmap k c.
+Proof. destruct c; reflexivity. Qed.
+
+Lemma HeapDSL_Computes_denotation : forall A f r r' (v : A),
+  denote f r ↝ (r', v) -> HeapDSL_Computes f r r' v.
+Proof.
+  intros.
+  induction f.
+    unfold denote in H; simpl in H.
+    computes_to_inv; tsubst.
+    apply CPure.
+  revert H.
+  destruct f0.
+  - unfold denote, Bind2; simpl.
+    unfold compose, comp.
+    intros.
+    computes_to_inv.
+    destruct v0.
+    simpl in *.
+    eapply CJoin.
+      apply HAlloc, H.
+Admitted.
+
 Lemma consDSL :
   { f : PS () -> Word -> HeapDSL (PS ())
   & forall w (r r' : PSH),
@@ -274,12 +298,6 @@ Lemma consDSL :
 Proof.
   eexists.
   intros.
-  unfold HeapDSL_Computes.
-  assert { c : HeapDSL PSH
-         & refine (buffer_cons r w) (fmap snd (denote c (psHeap r))) }.
-    eexists.
-    unfold buffer_cons.
-    simpl.
 Abort.
 
 Lemma consDSL :
