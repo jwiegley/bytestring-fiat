@@ -78,58 +78,41 @@ Record Mem := {
   mem_rep  : EMap Ptr Word;
 }.
 
-Inductive HeapDSL_Computes :
-  forall {A}, HeapDSL A -> Rep HeapSpec -> Rep HeapSpec -> A -> Prop :=
-  | RPure r T (v : T) : HeapDSL_Computes (pure v) r r v
-  | RBind r r' r'' T t (v : T) C k (v' : C) :
-      HeapDSL_Computes t r r' v
-        -> HeapDSL_Computes (k v) r' r'' v'
-        -> HeapDSL_Computes (t >>= k)%monad r r'' v'
-
-  | RIf b r r' T (t e : HeapDSL T) (v : T) :
-      (b = true  -> HeapDSL_Computes t r r' v) ->
-      (b = false -> HeapDSL_Computes e r r' v) ->
-      HeapDSL_Computes (If b Then t Else e) r r' v
-
-  | RAlloc len addr (r r' : Rep HeapSpec) :
+Inductive HeapF_Computes :
+  forall {A}, HeapF A -> Rep HeapSpec -> Rep HeapSpec -> A -> Prop :=
+  | HAlloc len addr (r r' : Rep HeapSpec) :
       alloc r len ↝ (r', addr) ->
-      HeapDSL_Computes (allocM len) r r' addr
+      HeapF_Computes (Alloc len id) r r' addr
 
-  | RFree addr (r r' : Rep HeapSpec) :
+  | HFree addr (r r' : Rep HeapSpec) :
       free r addr ↝ (r', tt) ->
-      HeapDSL_Computes (freeM addr) r r' tt
+      HeapF_Computes (Free_ addr tt) r r' tt
 
-  | RPoke addr w (r r' : Rep HeapSpec) :
+  | HPoke addr w (r r' : Rep HeapSpec) :
       poke r addr w ↝ (r', tt) ->
-      HeapDSL_Computes (pokeM addr w) r r' tt
+      HeapF_Computes (Poke addr w tt) r r' tt
 
-  | RMemcpy addr addr2 len r r' :
+  | HMemcpy addr addr2 len r r' :
       memcpy r addr addr2 len ↝ (r', tt) ->
-      HeapDSL_Computes (memcpyM addr addr2 len) r r' tt.
+      HeapF_Computes (Memcpy addr addr2 len tt) r r' tt.
 
-  (* | RMemcpy addr addr2 len r r' : *)
-  (*     HeapDSL_Computes (memcpyM addr addr2 len) tt *)
-  (*                      (fun r => memcpy r addr addr2 len) r r'. *)
+Inductive Free_Computes `{Functor f} {R : Type}
+          (crel : forall {A}, f A -> R -> R -> A -> Prop) :
+  forall {A}, Free f A -> R -> R -> A -> Prop :=
+  | CPure r A (v : A) : Free_Computes crel (Pure v) r r v
+  | CJoin r r'' B (v' : B) :
+      forall A t k r' v, crel A t r r' v
+        -> Free_Computes crel (k v) r' r'' v'
+        -> Free_Computes crel (Join k t) r r'' v'.
+
+Definition HeapDSL_Computes `(h : HeapDSL A) :=
+  Free_Computes (@HeapF_Computes) h.
 
 Definition Mem_AbsR (or : Rep HeapSpec) (nr : Mem) :=
   Map_AbsR eq (heap_rep nr) (resvs or) /\
   Map_AbsR eq (mem_rep nr)  (bytes or).
 
 Definition ByteString (r : Rep HeapSpec) := Rep (projT1 (ByteStringHeap r)).
-
-(*
-Definition HeapRelation
-           `(c : R -> Comp (R * A))
-           (f : R -> Rep HeapSpec)
-           `(t : HeapDSL B)
-           (AbsR : R -> B -> Prop)
-           (r r' : R) (m m' : Mem) (a : A) :=
-  computes_to (c r) (r', a)
-    -> Mem_AbsR (f r) m
-    -> Mem_AbsR (f r') m'
-    -> forall b, AbsR r' b
-    -> HeapDSL_Computes t m m' b.
-*)
 
 Definition cons (r : Rep HeapSpec) (w : Word) (bs : ByteString r) :
   Comp (ByteString r) :=
@@ -141,6 +124,13 @@ Definition matchPS {A B : Type} (r : PS A) (r' : PS B) : Prop :=
   psBufLen r = psBufLen r' /\
   psOffset r = psOffset r' /\
   psLength r = psLength r'.
+
+Program Instance PS_Functor : Functor PS := {
+  fmap := fun _ _ f x =>
+            match x with
+            | makePS h a b c d => makePS (f h) a b c d
+            end
+}.
 
 Definition PSU := PS ().
 
@@ -213,69 +203,63 @@ Obligation 1. nomega. Defined.
 Obligation 2. nomega. Defined.
 Obligation 3. nomega. Defined.
 
+(*
+Lemma consDSL_generated :
+  { f : PS () -> Word -> HeapDSL (PS ())
+  & forall w (r r' : PSH),
+      buffer_cons r w ↝ r' ->
+      HeapDSL_Computes (f (() <$ r) w) r r' (() <$ r') }.
+Proof.
+  eexists.
+  unfold buffer_cons; intros.
+*)
+
 Lemma consDSL :
   { f : PS () -> Word -> HeapDSL (PS ())
-  & forall w (r r' : PSH) (bs bs' : PS ()),
-      matchPS r bs -> matchPS r' bs' ->
+  & forall w (r r' : PSH),
       buffer_cons r w ↝ r' ->
-      HeapDSL_Computes (f bs w) (psHeap r) (psHeap r') bs' }.
+      HeapDSL_Computes (f (() <$ r) w) (psHeap r) (psHeap r')
+                       (() <$ r') }.
 Proof.
   exists buffer_consM.
   unfold buffer_cons, buffer_consM.
-  intros w r r' bs bs' Hr Hr' H.
-  destruct Hr as [H1 [H2 [H3 H4]]].
-  rewrite <- H3.
+  intros w r r' H.
+  destruct r.
+  simpl psOffset in *.
+  simpl psLength in *.
+  simpl psBuffer in *.
+  simpl psBufLen in *.
   revert H.
-  destruct (0 <? psOffset r) eqn:Heqe1;
+  destruct (0 <? psOffset0) eqn:Heqe1;
   simpl If_Then_Else.
     unfold poke_at_offset, simply_widen_region,
            poke_at_offsetM, simply_widen_regionM.
-    simpl If_Then_Else.
     autorewrite with monad laws.
     intros; simpl in H.
-    eapply RBind.
-      apply RPure.
-    simpl pokeM; simpl pure.
-    eapply RBind.
-      apply RPoke.
+    eapply CJoin.
+      apply HPoke.
       unfold poke.
       higher_order_reflexivity.
     computes_to_inv; subst; simpl.
-    rewrite <- H1, <- H2, <- H3, <- H4.
-    destruct Hr' as [H5 [H6 [H7 H8]]].
-    destruct bs'.
-    simpl in *.
-    rewrite <- H5, <- H6, <- H7, <- H8.
-    destruct psHeap0.
-    apply RPure.
-  rewrite <- H2, <- H4.
-  simpl If_Then_Else.
-  destruct (@psLength HeapState r + 1 <=? @psBufLen HeapState r) eqn:Heqe2;
+    apply CPure.
+  destruct (psLength0 + 1 <=? psBufLen0) eqn:Heqe2;
   simpl If_Then_Else.
     unfold make_room_by_shifting_up, make_room_by_shifting_upM.
     simpl If_Then_Else.
     autorewrite with monad laws.
     intros; simpl in H.
-    eapply RBind.
-      eapply RBind.
-        apply RMemcpy.
-        unfold memcpy; simpl.
-        higher_order_reflexivity.
-      apply RPure.
+    eapply CJoin.
+      apply HMemcpy.
+      unfold memcpy; simpl.
+      higher_order_reflexivity.
     unfold poke_at_offsetM.
-    eapply RBind.
+    eapply CJoin.
       simpl.
-      apply RPoke.
+      apply HPoke.
       higher_order_reflexivity.
     computes_to_inv; subst; simpl.
-    rewrite <- H1, <- H2, <- H4.
-    destruct Hr' as [H5 [H6 [H7 H8]]].
-    destruct bs'.
-    simpl in *.
-    rewrite <- H5, <- H6, <- H7, <- H8.
-    destruct psHeap0.
-    apply RPure.
-  destruct (0 <? @psBufLen HeapState r) eqn:Heqe3;
+    apply CPure.
+  destruct (0 <? psBufLen0) eqn:Heqe3;
   simpl If_Then_Else.
     unfold make_room_by_growing_buffer, make_room_by_growing_bufferM.
     simpl If_Then_Else.
@@ -284,61 +268,45 @@ Proof.
     autorewrite with monad laws.
     intros; simpl in H.
     computes_to_inv; subst.
-    eapply RBind.
-      eapply RBind.
-        apply RAlloc with (addr:=v).
-        unfold alloc; simpl.
-        computes_to_econstructor.
-          rewrite <- H4.
-          exact H.
-        constructor.
-      eapply RBind.
-        apply RMemcpy.
-        higher_order_reflexivity.
-      eapply RBind.
-        apply RFree.
-        unfold free.
-        simpl.
-        higher_order_reflexivity.
-      apply RPure.
-    unfold poke_at_offsetM.
-    eapply RBind.
+    eapply CJoin.
+      apply HAlloc with (addr:=v).
+      unfold alloc; simpl.
+      computes_to_econstructor.
+        exact H.
+      constructor.
+    eapply CJoin.
+      apply HMemcpy.
+      higher_order_reflexivity.
+    eapply CJoin.
+      apply HFree.
+      unfold free.
       simpl.
-      apply RPoke.
+      higher_order_reflexivity.
+    unfold poke_at_offsetM.
+    eapply CJoin.
+      simpl.
+      apply HPoke.
       higher_order_reflexivity.
     computes_to_inv; subst; simpl.
-    rewrite <- H1, <- H4.
-    destruct Hr' as [H5 [H6 [H7 H8]]].
-    destruct bs'.
-    simpl in *.
-    rewrite <- H5, <- H6, <- H7, <- H8.
-    destruct psHeap0.
-    apply RPure.
+    apply CPure.
   unfold allocate_buffer, allocate_bufferM.
   unfold Bind2.
   autorewrite with monad laws.
   intros; simpl in H.
   computes_to_inv; subst.
-  eapply RBind.
-    eapply RBind.
-      apply RAlloc with (addr:=v).
-      unfold alloc; simpl.
-      computes_to_econstructor.
-        exact H.
-      constructor.
-    apply RPure.
+  eapply CJoin.
+    apply HAlloc with (addr:=v).
+    unfold alloc; simpl.
+    computes_to_econstructor.
+      exact H.
+    constructor.
   unfold poke_at_offsetM.
-  eapply RBind.
+  eapply CJoin.
     simpl.
-    apply RPoke.
+    apply HPoke.
     higher_order_reflexivity.
   computes_to_inv; subst; simpl.
-  destruct Hr' as [H5 [H6 [H7 H8]]].
-  destruct bs'.
-  simpl in *.
-  rewrite <- H5, <- H6, <- H7, <- H8.
-  destruct psHeap0.
-  apply RPure.
+  apply CPure.
 Defined.
 
 Definition consDSL' := Eval simpl in projT1 consDSL.
