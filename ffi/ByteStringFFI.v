@@ -73,11 +73,6 @@ Definition memcpyM (addr : Ptr) (addr2 : Ptr) (len : Size) : HeapDSL () :=
 Definition memsetM (addr : Ptr) (len : Ptr) (w : Word) : HeapDSL () :=
   liftF (Memset addr len w ()).
 
-Record Mem := {
-  heap_rep : EMap Ptr Size;
-  mem_rep  : EMap Ptr Word;
-}.
-
 Inductive HeapF_Computes :
   forall {A}, HeapF A -> Rep HeapSpec -> Rep HeapSpec -> A -> Prop :=
   | HAlloc len addr (r r' : Rep HeapSpec) :
@@ -108,22 +103,12 @@ Inductive Free_Computes `{Functor f} {R : Type}
 Definition HeapDSL_Computes `(h : HeapDSL A) :=
   Free_Computes (@HeapF_Computes) h.
 
-Definition Mem_AbsR (or : Rep HeapSpec) (nr : Mem) :=
-  Map_AbsR eq (heap_rep nr) (resvs or) /\
-  Map_AbsR eq (mem_rep nr)  (bytes or).
-
 Definition ByteString (r : Rep HeapSpec) := Rep (projT1 (ByteStringHeap r)).
 
 Definition cons (r : Rep HeapSpec) (w : Word) (bs : ByteString r) :
   Comp (ByteString r) :=
   Eval simpl in
     (p <- callMeth (projT1 (ByteStringHeap r)) consS bs w; ret (fst p)).
-
-Definition matchPS {A B : Type} (r : PS A) (r' : PS B) : Prop :=
-  psBuffer r = psBuffer r' /\
-  psBufLen r = psBufLen r' /\
-  psOffset r = psOffset r' /\
-  psLength r = psLength r'.
 
 Program Instance PS_Functor : Functor PS := {
   fmap := fun _ _ f x =>
@@ -202,17 +187,6 @@ Program Definition buffer_consM (r : PSU) (d : Word) : HeapDSL PSU :=
 Obligation 1. nomega. Defined.
 Obligation 2. nomega. Defined.
 Obligation 3. nomega. Defined.
-
-(*
-Lemma consDSL_generated :
-  { f : PS () -> Word -> HeapDSL (PS ())
-  & forall w (r r' : PSH),
-      buffer_cons r w ↝ r' ->
-      HeapDSL_Computes (f (() <$ r) w) r r' (() <$ r') }.
-Proof.
-  eexists.
-  unfold buffer_cons; intros.
-*)
 
 Lemma consDSL :
   { f : PS () -> Word -> HeapDSL (PS ())
