@@ -100,6 +100,35 @@ Inductive Free_Computes `{Functor f} {R : Type}
         -> Free_Computes crel (k v) r' r'' v'
         -> Free_Computes crel (Join k t) r r'' v'.
 
+Ltac retract comp :=
+  match goal with
+    [ |- Free Comp ?T ?TS ] =>
+    assert { c : Comp T
+           & { f : Free Comp T TS & refineEquiv (retract f) c } }
+      as freeified
+      by (exists comp;
+          eexists;
+          unfold comp;
+          repeat
+            match goal with
+            | [ |- refineEquiv (retract _) (Bind ?C _) ] =>
+              instantiate (1 := Join _ C); unfold id; simpl;
+              autorewrite with monad laws;
+              apply refineEquiv_bind; [ reflexivity |];
+              intros ?; unfold id; simpl
+            | [ |- refineEquiv (retract (_ ?X)) (Bind ?C _) ] =>
+              instantiate (1 := fun X => Join _ C); unfold id; simpl;
+              autorewrite with monad laws;
+              apply refineEquiv_bind; [ reflexivity |];
+              intros ?; unfold id; simpl
+            | [ |- refineEquiv (retract _) (Return _) ] =>
+              instantiate (1 := fun _ => Pure _); unfold id; simpl;
+              autorewrite with monad laws;
+              reflexivity
+            end);
+    exact (projT1 (projT2 freeified))
+  end.
+
 Definition HeapDSL_Computes `(h : HeapDSL A) :=
   Free_Computes (@HeapF_Computes) h.
 
@@ -187,6 +216,71 @@ Program Definition buffer_consM (r : PSU) (d : Word) : HeapDSL PSU :=
 Obligation 1. nomega. Defined.
 Obligation 2. nomega. Defined.
 Obligation 3. nomega. Defined.
+
+Program Instance Comp_Functor : Functor Comp := {
+  fmap := fun A B f (x : Comp A) => (v <- x; ret (f v))%comp
+}.
+
+Program Instance Comp_Applicative : Applicative Comp := {
+  pure := fun _ x => (ret x)%comp;
+  ap   := fun A B mf mx => (f <- mf; x <- mx; ret (f x))%comp
+}.
+
+Program Instance Comp_Monad : Monad Comp := {
+  join := fun A m => (m >>= id)%comp
+}.
+
+Corollary refineEquiv_Pure : forall A (x : A),
+  refineEquiv (ret x) (retract (Pure x)).
+Proof. reflexivity. Qed.
+
+Corollary refineEquiv_Join {A B : Type} (c : Comp A) (f : A -> Comp B) :
+  refineEquiv (Bind c f) (retract (Join (liftF \o f) c)).
+Proof.
+  simpl.
+  autorewrite with monad laws.
+  reflexivity.
+Qed.
+
+Definition enwrap (f : Rep HeapSpec -> Comp (Rep HeapSpec)) (h : PSH) :
+  Comp PSH :=
+  r <- f (psHeap h);
+  ret {| psHeap   := r
+       ; psBuffer := psBuffer h
+       ; psBufLen := psBufLen h
+       ; psOffset := psOffset h
+       ; psLength := psLength h |}.
+
+Definition denote {A : Type} :
+  HeapDSL A -> Rep HeapSpec -> Comp (Rep HeapSpec * A) :=
+  let phi (c : HeapF (Rep HeapSpec -> Comp (Rep HeapSpec * A))) := fun r =>
+    match c with
+    | Alloc len k             => `(r', addr) <- alloc r len; k addr r'
+    | Free_ addr x            => `(r', _)    <- free r addr; x r'
+    | Realloc addr len k      => `(r', addr) <- realloc r addr len; k addr r'
+    | Peek addr k             => `(r', w)    <- peek r addr; k w r'
+    | Poke addr w x           => `(r', _)    <- poke r addr w; x r'
+    | Memcpy addr addr2 len x => `(r', _)    <- memcpy r addr addr2 len; x r'
+    | Memset addr len w x     => `(r', _)    <- memset r addr len w; x r'
+    end in
+  iter phi \o fmap (fun x r => ret (r, x)).
+
+Lemma consDSL :
+  { f : PS () -> Word -> HeapDSL (PS ())
+  & forall w (r r' : PSH),
+      buffer_cons r w ↝ r' ->
+      HeapDSL_Computes (f (() <$ r) w) (psHeap r) (psHeap r')
+                       (() <$ r') }.
+Proof.
+  eexists.
+  intros.
+  unfold HeapDSL_Computes.
+  assert { c : HeapDSL PSH
+         & refine (buffer_cons r w) (fmap snd (denote c (psHeap r))) }.
+    eexists.
+    unfold buffer_cons.
+    simpl.
+Abort.
 
 Lemma consDSL :
   { f : PS () -> Word -> HeapDSL (PS ())
