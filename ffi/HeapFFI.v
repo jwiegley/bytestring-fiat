@@ -26,8 +26,8 @@ Open Scope N_scope.
 
 Record Mem (Env : Type) := {
   heap_ptr : Env;
-  heap_rep : EMap Ptr Size;
-  mem_rep  : EMap Ptr Word;
+  heap_rep : EMap (Ptr Word) Size;
+  mem_rep  : EMap (Ptr Word) Word;
 }.
 
 Definition Mem_AbsR (Env : Type) (or : Rep HeapSpec) (nr : Mem Env) :=
@@ -35,22 +35,22 @@ Definition Mem_AbsR (Env : Type) (or : Rep HeapSpec) (nr : Mem Env) :=
   Map_AbsR eq (mem_rep nr)  (bytes or).
 
 Record HeapIntf (Env : Type) := {
-  nullPtr      : Ptr;
-  alignPtr     : Ptr -> Size -> Ptr;
-  plusPtr      : Ptr -> Size -> Ptr;
-  minusPtr     : Ptr -> Size -> Ptr;
+  nullPtr      : Ptr Word;
+  alignPtr     : Ptr Word -> Size -> Ptr Word;
+  plusPtr      : Ptr Word -> Size -> Ptr Word;
+  minusPtr     : Ptr Word -> Size -> Ptr Word;
 
-  mallocBytes  : Size -> Mem Env -> (Ptr * Mem Env);
-  freeBytes    : Ptr -> Mem Env -> Mem Env;
-  reallocBytes : Ptr -> Size -> Mem Env -> (Ptr * Mem Env);
+  mallocBytes  : Size -> Mem Env -> (Ptr Word * Mem Env);
+  freeBytes    : Ptr Word -> Mem Env -> Mem Env;
+  reallocBytes : Ptr Word -> Size -> Mem Env -> (Ptr Word * Mem Env);
 
-  peekPtr      : Ptr -> Mem Env -> (Word * Mem Env);
-  peekByteOff  : Ptr -> Size -> Mem Env -> (Word * Mem Env);
-  pokePtr      : Ptr -> Word -> Mem Env -> Mem Env;
-  pokeByteOff  : Ptr -> Size -> Word -> Mem Env -> Mem Env;
+  peekPtr      : Ptr Word -> Mem Env -> (Word * Mem Env);
+  peekByteOff  : Ptr Word -> Size -> Mem Env -> (Word * Mem Env);
+  pokePtr      : Ptr Word -> Word -> Mem Env -> Mem Env;
+  pokeByteOff  : Ptr Word -> Size -> Word -> Mem Env -> Mem Env;
 
-  copyBytes    : Ptr -> Ptr -> Size -> Mem Env -> Mem Env;
-  fillBytes    : Ptr -> Word -> Size -> Mem Env -> Mem Env;
+  copyBytes    : Ptr Word -> Ptr Word -> Size -> Mem Env -> Mem Env;
+  fillBytes    : Ptr Word -> Word -> Size -> Mem Env -> Mem Env;
 
   empty_correct : forall mem, @Mem_AbsR Env newHeapState mem;
 

@@ -30,12 +30,12 @@ Section Refined.
 
 Inductive HeapF (r : Type) : Type :=
   | Alloc   : forall (len : Size | 0 < len) (k : N -> r), HeapF r
-  | Free_   : forall (addr : Ptr), r -> HeapF r
-  | Realloc : forall (addr : Ptr) (len : Size | 0 < len) (k : N -> r), HeapF r
-  | Peek    : forall (addr : Ptr) (k : Word -> r), HeapF r
-  | Poke    : forall (addr : Ptr) (w : Word), r -> HeapF r
-  | Memcpy  : forall (addr : Ptr) (addr2 : Ptr) (len : Size), r -> HeapF r
-  | Memset  : forall (addr : Ptr) (len : Ptr) (w : Word), r -> HeapF r.
+  | Free_   : forall (addr : Ptr Word), r -> HeapF r
+  | Realloc : forall (addr : Ptr Word) (len : Size | 0 < len) (k : N -> r), HeapF r
+  | Peek    : forall (addr : Ptr Word) (k : Word -> r), HeapF r
+  | Poke    : forall (addr : Ptr Word) (w : Word), r -> HeapF r
+  | Memcpy  : forall (addr : Ptr Word) (addr2 : Ptr Word) (len : Size), r -> HeapF r
+  | Memset  : forall (addr : Ptr Word) (len : Ptr Word) (w : Word), r -> HeapF r.
 
 Program Instance HeapF_Functor : Functor HeapF := {
   fmap := fun _ _ f x =>
@@ -55,27 +55,27 @@ Definition HeapDSL := Free HeapF.
 Definition allocM (len : Size | 0 < len) : HeapDSL N :=
   liftF (Alloc len id).
 
-Definition freeM (addr : Ptr) : HeapDSL () :=
+Definition freeM (addr : Ptr Word) : HeapDSL () :=
   liftF (Free_ addr ()).
 
-Definition reallocM (addr : Ptr) (len : Size | 0 < len) : HeapDSL Ptr :=
+Definition reallocM (addr : Ptr Word) (len : Size | 0 < len) : HeapDSL (Ptr Word) :=
   liftF (Realloc addr len id).
 
-Definition peekM (addr : Ptr) : HeapDSL Word :=
+Definition peekM (addr : Ptr Word) : HeapDSL Word :=
   liftF (Peek addr id).
 
-Definition pokeM (addr : Ptr) (w : Word) : HeapDSL () :=
+Definition pokeM (addr : Ptr Word) (w : Word) : HeapDSL () :=
   liftF (Poke addr w ()).
 
-Definition memcpyM (addr : Ptr) (addr2 : Ptr) (len : Size) : HeapDSL () :=
+Definition memcpyM (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) : HeapDSL () :=
   liftF (Memcpy addr addr2 len ()).
 
-Definition memsetM (addr : Ptr) (len : Ptr) (w : Word) : HeapDSL () :=
+Definition memsetM (addr : Ptr Word) (len : Ptr Word) (w : Word) : HeapDSL () :=
   liftF (Memset addr len w ()).
 
 Inductive HeapF_Computes :
   forall {A}, HeapF A -> Rep HeapSpec -> Rep HeapSpec -> A -> Prop :=
-  | HAlloc len addr (r r' : Rep HeapSpec) A (k : Ptr -> A) :
+  | HAlloc len addr (r r' : Rep HeapSpec) A (k : Ptr Word -> A) :
       alloc r len ↝ (r', addr) ->
       HeapF_Computes (Alloc len k) r r' (k addr)
 
@@ -83,13 +83,25 @@ Inductive HeapF_Computes :
       free r addr ↝ (r', tt) ->
       HeapF_Computes (Free_ addr x) r r' x
 
+  | HRealloc addr len addr' (r r' : Rep HeapSpec) A (k : Ptr Word -> A) :
+      realloc r addr len ↝ (r', addr') ->
+      HeapF_Computes (Realloc addr len k) r r' (k addr')
+
+  | HPeek addr w (r r' : Rep HeapSpec) A (k : Word -> A) :
+      peek r addr ↝ (r', w) ->
+      HeapF_Computes (Peek addr k) r r' (k w)
+
   | HPoke addr w (r r' : Rep HeapSpec) A (x : A) :
       poke r addr w ↝ (r', tt) ->
       HeapF_Computes (Poke addr w x) r r' x
 
   | HMemcpy addr addr2 len r r' A (x : A) :
       memcpy r addr addr2 len ↝ (r', tt) ->
-      HeapF_Computes (Memcpy addr addr2 len x) r r' x.
+      HeapF_Computes (Memcpy addr addr2 len x) r r' x
+
+  | HMemset addr len w r r' A (x : A) :
+      memset r addr len w ↝ (r', tt) ->
+      HeapF_Computes (Memset addr len w x) r r' x.
 
 Inductive Free_Computes `{Functor f} {R : Type}
           (crel : forall {A}, f A -> R -> R -> A -> Prop) :
@@ -170,9 +182,7 @@ Program Definition make_room_by_growing_bufferM (r : PSU) (n : N | 0 < n) :
   HeapDSL PSU :=
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
-  a   <- allocM (psLength r + n);
-  _   <- memcpyM (psBuffer r) (a + n) (psLength r);
-  _   <- freeM (psBuffer r);
+  a <- reallocM (psBuffer r) (psLength r + n);
   pure {| psHeap   := tt
         ; psBuffer := a
         ; psBufLen := psLength r + n
@@ -269,25 +279,111 @@ Corollary Free_bind_Pure `{Functor f} : forall A B (k : A -> B) (c : Free f A),
   Free_bind (fun x : A => Pure (k x)) c = fmap k c.
 Proof. destruct c; reflexivity. Qed.
 
+Corollary denote_Pure : forall A (x : A) r,
+  refineEquiv (denote (Pure x) r) (ret (r, x)).
+Proof. reflexivity. Qed.
+
+Lemma denote_Join : forall A B (k : A -> HeapDSL B) (h : HeapF A) r,
+  refineEquiv (denote (Join k h) r)
+              (denote (liftF h) r >>= fun p => denote (k (snd p)) (fst p)).
+Proof.
+  intros.
+  unfold denote, iter; simpl.
+  induction h;
+  autorewrite with monad laws; reflexivity.
+Qed.
+
+Lemma denote_Free_bind : forall A (x : HeapDSL A) B (k : A -> HeapDSL B) r,
+  refineEquiv (denote (Free_bind k x) r)
+              (denote x r >>= fun p => denote (k (snd p)) (fst p)).
+Proof.
+  intros.
+  generalize dependent r.
+  induction x; simpl; intros.
+    rewrite denote_Pure.
+    autorewrite with monad laws; simpl.
+    reflexivity.
+  rewrite denote_Join.
+  setoid_rewrite H.
+  rewrite denote_Join.
+  autorewrite with monad laws; simpl.
+  reflexivity.
+Qed.
+
+Corollary denote_If : forall b A (t e : HeapDSL A) r,
+  refineEquiv (denote (If b Then t Else e) r)
+              (If b Then denote t r Else denote e r).
+Proof. destruct b; simpl; reflexivity. Qed.
+
+Theorem consDSL_correct : forall (r : PSH) w,
+  refine (r' <- buffer_cons r w;
+          ret (() <$ r'))
+         (let ru : PSU := () <$ r in
+          r' <- denote (buffer_consM ru w) (psHeap r);
+          ret (snd r')).
+Proof.
+  intros.
+  destruct r.
+  unfold buffer_cons, buffer_consM; simpl.
+  repeat rewrite denote_Free_bind; simpl.
+  rewrite denote_If; simpl.
+  do 3 rewrite refineEquiv_bind_bind.
+  do 4 rewrite refineEquiv_If_Then_Else_Bind.
+  apply refine_If_Then_Else.
+    unfold poke_at_offsetM, simply_widen_regionM; simpl.
+    autorewrite with monad laws; reflexivity.
+  rewrite denote_If; simpl.
+  rewrite refineEquiv_If_Then_Else_Bind.
+  apply refine_If_Then_Else.
+    unfold make_room_by_shifting_upM, memcpyM; simpl.
+    autorewrite with monad laws; reflexivity.
+  rewrite denote_If; simpl.
+  rewrite refineEquiv_If_Then_Else_Bind.
+  apply refine_If_Then_Else.
+    unfold make_room_by_growing_bufferM, reallocM; simpl.
+    autorewrite with monad laws; reflexivity.
+  unfold allocate_bufferM; simpl.
+  autorewrite with monad laws; reflexivity.
+Qed.
+
 Lemma HeapDSL_Computes_denotation : forall A f r r' (v : A),
   denote f r ↝ (r', v) -> HeapDSL_Computes f r r' v.
 Proof.
   intros.
-  induction f.
-    unfold denote in H; simpl in H.
+  generalize dependent r.
+  induction f; intros.
+    apply denote_Pure in H.
     computes_to_inv; tsubst.
     apply CPure.
-  revert H.
-  destruct f0.
-  - unfold denote, Bind2; simpl.
-    unfold compose, comp.
-    intros.
-    computes_to_inv.
-    destruct v0.
-    simpl in *.
-    eapply CJoin.
-      apply HAlloc, H.
-Admitted.
+  apply denote_Join in H0.
+  computes_to_inv; tsubst.
+  destruct v0; simpl in *.
+  destruct f0;
+  revert H0;
+  unfold denote; simpl;
+  unfold compose, comp, Bind2, Free_bind; simpl;
+  intro H0;
+  computes_to_inv; tsubst;
+  destruct v0;
+  eapply CJoin;
+  simpl in H0';
+  [ apply HAlloc
+  | apply H; eauto
+  | apply HFree
+  | apply H; eauto
+  | apply HRealloc
+  | apply H; eauto
+  | apply HPeek
+  | apply H; eauto
+  | apply HPoke
+  | apply H; eauto
+  | apply HMemcpy
+  | apply H; eauto
+  | apply HMemset
+  | apply H; eauto ];
+  try destruct u;
+  auto.
+Qed.
 
 Lemma consDSL :
   { f : PS () -> Word -> HeapDSL (PS ())
@@ -296,18 +392,7 @@ Lemma consDSL :
       HeapDSL_Computes (f (() <$ r) w) (psHeap r) (psHeap r')
                        (() <$ r') }.
 Proof.
-  eexists.
-  intros.
-Abort.
-
-Lemma consDSL :
-  { f : PS () -> Word -> HeapDSL (PS ())
-  & forall w (r r' : PSH),
-      buffer_cons r w ↝ r' ->
-      HeapDSL_Computes (f (() <$ r) w) (psHeap r) (psHeap r')
-                       (() <$ r') }.
-Proof.
-  exists buffer_consM.
+  eexists buffer_consM.
   unfold buffer_cons, buffer_consM.
   intros w r r' H.
   destruct r.
@@ -355,20 +440,11 @@ Proof.
     intros; simpl in H.
     computes_to_inv; subst.
     eapply CJoin.
-      apply HAlloc with (addr:=v).
-      unfold alloc; simpl.
+      apply HRealloc.
+      unfold realloc; simpl.
       computes_to_econstructor.
         exact H.
       constructor.
-    eapply CJoin.
-      apply HMemcpy.
-      higher_order_reflexivity.
-    eapply CJoin.
-      apply HFree.
-      unfold free.
-      simpl.
-      higher_order_reflexivity.
-    unfold poke_at_offsetM.
     eapply CJoin.
       simpl.
       apply HPoke.
@@ -397,6 +473,80 @@ Defined.
 
 Definition consDSL' := Eval simpl in projT1 consDSL.
 Print consDSL'.
+
+Axiom IO : Type -> Type.
+Axiom fmapIO : forall {a b : Type}, (a -> b) -> IO a -> IO b.
+Axiom returnIO : forall {a : Type}, a -> IO a.
+Axiom joinIO : forall {a : Type}, IO (IO a) -> IO a.
+
+Program Instance IO_Functor : Functor IO := {
+  fmap := fun _ _ => fmapIO
+}.
+
+Program Instance IO_Applicative : Applicative IO := {
+  pure := fun _ => returnIO;
+  ap   := fun _ _ mf mx =>
+            joinIO (fmapIO (fun f => fmapIO (fun x => f x) mx) mf)
+}.
+
+Program Instance IO_Monad : Monad IO := {
+  join := fun _ => joinIO
+}.
+
+Axiom unsafeDupablePerformIO : forall {a : Type}, IO a -> a.
+Axiom malloc : Size -> IO (Ptr Word).
+Axiom free : Ptr Word -> IO ().
+Axiom realloc : Ptr Word -> Size -> IO (Ptr Word).
+Axiom peek   : Ptr Word -> IO Word.
+Axiom poke   : Ptr Word -> Word -> IO ().
+Axiom memcpy : Ptr Word -> Ptr Word -> Size -> IO ().
+Axiom memset : Ptr Word -> Size -> Word -> IO ().
+
+Definition ghcDenote {A : Type} : HeapDSL A -> A :=
+  let phi (c : HeapF (IO A)) :=
+    match c with
+    | Alloc len k             => malloc (` len) >>= k
+    | Free_ addr x            => free addr >> x
+    | Realloc addr len k      => realloc addr (` len) >>= k
+    | Peek addr k             => peek addr >>= k
+    | Poke addr w x           => poke addr w >> x
+    | Memcpy addr addr2 len x => memcpy addr addr2 len >> x
+    | Memset addr len w x     => memset addr len w >> x
+    end in
+  unsafeDupablePerformIO \o iter phi \o fmap returnIO.
+
+Corollary bind_If `{Monad f} : forall A B (k : A -> f B) b t e,
+  ((If b Then t Else e) >>= k) = If b Then t >>= k Else e >>= k.
+Proof. destruct b; reflexivity. Qed.
+
+Corollary fmap_If `{Functor f} : forall A B (k : A -> B) b t e,
+  fmap k (If b Then t Else e) = If b Then fmap k t Else fmap k e.
+Proof. destruct b; reflexivity. Qed.
+
+Corollary iter_If `{Functor f} : forall A (phi : f A -> A) b t e,
+  iter phi (If b Then t Else e) = If b Then iter phi t Else iter phi e.
+Proof. destruct b; reflexivity. Qed.
+
+Lemma ghcConsDSL :
+  { f : PSU -> Word -> PSU
+  & forall bs w, f bs w = ghcDenote (consDSL' bs w) }.
+Proof.
+  eexists.
+  intros.
+  unfold consDSL', ghcDenote, buffer_consM, compose, comp.
+  symmetry.
+  rewrite !bind_If.
+  do 3 rewrite fmap_If.
+  etransitivity.
+    do 3 setoid_rewrite iter_If.
+    simpl.
+    unfold If_Then_Else, compose, comp; simpl.
+    reflexivity.
+  reflexivity.
+Defined.
+
+Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
+Print ghcConsDSL'.
 
 End Refined.
 

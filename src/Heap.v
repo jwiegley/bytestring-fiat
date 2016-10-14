@@ -39,13 +39,13 @@ Definition HeapSpec := Def ADT {
      specify error handling at this level, when certain errors -- such as
      exhausting memory -- do not belong here, since a mathematical machine has
      no such limits. *)
-  Def Method1 allocS (r : rep) (len : Size | 0 < len) : rep * Ptr :=
+  Def Method1 allocS (r : rep) (len : Size | 0 < len) : rep * Ptr Word :=
     addr <- find_free_block (` len) (resvs r);
     ret ({| resvs := M.add addr (` len) (resvs r)
           ; bytes := bytes r |}, addr),
 
   (* Freeing an unallocated block is a no-op. *)
-  Def Method1 freeS (r : rep) (addr : Ptr) : rep * unit :=
+  Def Method1 freeS (r : rep) (addr : Ptr Word) : rep * unit :=
     ret ({| resvs := M.remove addr (resvs r)
           ; bytes := bytes r |}, tt),
 
@@ -53,8 +53,8 @@ Definition HeapSpec := Def ADT {
      identify an allociated region, a new memory block is returned without any
      bytes moved. If a block did exist previously, as many bytes as possible
      are copied to the new block. *)
-  Def Method2 reallocS (r : rep) (addr : Ptr) (len : Size | 0 < len) :
-    rep * Ptr :=
+  Def Method2 reallocS (r : rep) (addr : Ptr Word) (len : Size | 0 < len) :
+    rep * Ptr Word :=
     naddr <- find_free_block (` len) (M.remove addr (resvs r));
     ret ({| resvs := M.add naddr (` len) (M.remove addr (resvs r))
           ; bytes :=
@@ -63,24 +63,24 @@ Definition HeapSpec := Def ADT {
               Else bytes r |}, naddr),
 
   (* Peeking an uninitialized address allows any value to be returned. *)
-  Def Method1 peekS (r : rep) (addr : Ptr) : rep * Word :=
+  Def Method1 peekS (r : rep) (addr : Ptr Word) : rep * Word :=
     p <- { p : Word | forall v, M.MapsTo addr v (bytes r) -> p = v };
     ret (r, p),
 
-  Def Method2 pokeS (r : rep) (addr : Ptr) (w : Word) : rep * unit :=
+  Def Method2 pokeS (r : rep) (addr : Ptr Word) (w : Word) : rep * unit :=
     ret ({| resvs := resvs r
           ; bytes := M.add addr w (bytes r) |}, tt),
 
   (* Data may only be copied from one allocated block to another (or within
      the same block), and the region must fit within both source and
      destination. Otherwise, the operation is a no-op. *)
-  Def Method3 memcpyS (r : rep) (addr1 : Ptr) (addr2 : Ptr) (len : Size) :
+  Def Method3 memcpyS (r : rep) (addr1 : Ptr Word) (addr2 : Ptr Word) (len : Size) :
     rep * unit :=
     ret ({| resvs := resvs r
           ; bytes := copy_bytes addr1 addr2 len (bytes r) |}, tt),
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
-  Def Method3 memsetS (r : rep) (addr : Ptr) (len : Size) (w : Word) :
+  Def Method3 memsetS (r : rep) (addr : Ptr Word) (len : Size) (w : Word) :
     rep * unit :=
     ret ({| resvs := resvs r
           ; bytes :=
@@ -95,36 +95,101 @@ Definition empty : Comp (Rep HeapSpec) :=
   Eval simpl in callCons HeapSpec emptyS.
 
 Definition alloc (r : Rep HeapSpec) (len : Size | 0 < len) :
-  Comp (Rep HeapSpec * Ptr) :=
+  Comp (Rep HeapSpec * Ptr Word) :=
   Eval simpl in callMeth HeapSpec allocS r len.
 
-Definition free (r : Rep HeapSpec) (addr : Ptr) :
+Definition free (r : Rep HeapSpec) (addr : Ptr Word) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec freeS r addr.
 
-Definition realloc (r : Rep HeapSpec) (addr : Ptr) (len : Size | 0 < len) :
-  Comp (Rep HeapSpec * Ptr) :=
+Definition realloc (r : Rep HeapSpec) (addr : Ptr Word) (len : Size | 0 < len) :
+  Comp (Rep HeapSpec * Ptr Word) :=
   Eval simpl in callMeth HeapSpec reallocS r addr len.
 
-Definition peek (r : Rep HeapSpec) (addr : Ptr) :
+Definition peek (r : Rep HeapSpec) (addr : Ptr Word) :
   Comp (Rep HeapSpec * Word) :=
   Eval simpl in callMeth HeapSpec peekS r addr.
 
-Definition poke (r : Rep HeapSpec) (addr : Ptr) (w : Word) :
+Definition poke (r : Rep HeapSpec) (addr : Ptr Word) (w : Word) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec pokeS r addr w.
 
-Definition memcpy (r : Rep HeapSpec) (addr : Ptr) (addr2 : Ptr) (len : Size) :
+Definition memcpy (r : Rep HeapSpec) (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memcpyS r addr addr2 len.
 
-Definition memset (r : Rep HeapSpec) (addr : Ptr) (len : Ptr) (w : Word) :
+Definition memset (r : Rep HeapSpec) (addr : Ptr Word) (len : Ptr Word) (w : Word) :
   Comp (Rep HeapSpec * unit) :=
   Eval simpl in callMeth HeapSpec memsetS r addr len w.
 
 (**
  ** Theorems related to the Heap specification.
  **)
+
+Axiom Extensionality_FMap : forall (elt : Type) (A B : M.t elt),
+  M.Equal (elt:=elt) A B -> A = B.
+
+(* Reallocation is just an optimization over alloc/memcpy/free. It optimizes
+   the case where the newly allocated block resides at the same location, and
+   thus no copying is needed. *)
+Lemma refine_realloc : forall addr len r,
+  forall sz, M.MapsTo addr sz (resvs r)
+    -> 0 < sz
+    -> sz <= ` len
+    -> refine (realloc r addr len)
+              (`(r, addr') <- alloc r len;
+               `(r, _) <- memcpy r addr addr' sz;
+               `(r, _) <- free r addr;
+               ret (r, addr')).
+Proof.
+  intros.
+  destruct len; simpl in *.
+  unfold Bind2.
+  autorewrite with monad laws.
+  unfold realloc, find_free_block.
+  autorewrite with monad laws.
+  simpl.
+  apply F.find_mapsto_iff in H.
+  rewrite H; simpl.
+  intros ??.
+  computes_to_inv; subst.
+  computes_to_econstructor.
+    Local Transparent Pick.
+    Local Transparent computes_to.
+    unfold Pick, computes_to; simpl.
+    apply for_all_remove.
+      relational.
+    apply H2.
+  apply eq_ret_compute.
+  f_equal.
+  f_equal.
+    apply Extensionality_FMap.
+    destruct (N.eq_dec v0 addr); subst.
+      unfold is_true in H1.
+      revert H1.
+      remember (fun _ _ => _) as P.
+      cut (Proper (eq ==> eq ==> eq) P).
+        intros HP ?.
+        apply F.find_mapsto_iff in H.
+        pose proof (proj1 (@P.for_all_iff _ P HP (resvs r)) H2 addr sz H) as H3.
+        rewrite HeqP in H3.
+        nomega.
+      relational.
+    apply F.Equal_mapsto_iff; split; intros.
+      simplify_maps.
+        simplify_maps.
+        split.
+          intuition.
+        simplify_maps.
+      repeat simplify_maps.
+      split.
+        intuition.
+      simplify_maps.
+    repeat simplify_maps.
+    right.
+    intuition.
+  rewrite N.min_l; trivial.
+Qed.
 
 Ltac inspect :=
   destruct_computations; simpl in *;

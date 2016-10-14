@@ -21,7 +21,7 @@ Open Scope N_scope.
 
 Record PS (heapType : Type) := makePS {
   psHeap   : heapType;
-  psBuffer : Ptr;
+  psBuffer : Ptr Word;
   psBufLen : Size;
   psOffset : Size;
   psLength : Size
@@ -51,9 +51,7 @@ Program Definition make_room_by_growing_buffer (r : PSH) (n : N | 0 < n) :
   Comp PSH :=
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
-  `(h, a) <- alloc (psHeap r) (psLength r + n);
-  `(h, _) <- memcpy h (psBuffer r) (a + n) (psLength r);
-  `(h, _) <- free h (psBuffer r);
+  `(h, a) <- realloc (psHeap r) (psBuffer r) (psLength r + n);
   ret {| psHeap   := h
        ; psBuffer := a
        ; psBufLen := psLength r + n
@@ -206,16 +204,13 @@ Proof.
       apply H4; trivial.
       nomega.
     nomega.
-  - simpl; intros; destruct_computations;
+  - 
+    simpl; intros; destruct_computations;
     destruct_AbsR AbsR; construct_AbsR;
     (right; split; [nomega|]; split; [nomega|]).
     rewrite H0, N.add_0_r in *; clear H0;
     tsubst; simpl in *.
     split.
-      simplify_maps.
-      split.
-        apply_for_all; relational.
-        nomega.
       simplify_maps.
     intros.
     simplify_maps.
@@ -223,14 +218,18 @@ Proof.
       left; nomega.
     right; split; [nomega|].
     rewrite N2Nat.inj_succ in *; simpl.
-    apply copy_bytes_mapsto.
-    destruct (within_bool (x0 + 1) (@psLength HeapState r_n)
-                          (x0 + N.succ i)) eqn:Heqe1; simpl.
-      replace (x0 + N.succ i - (x0 + 1) + @psBuffer HeapState r_n)
-         with (@psBuffer _ r_n + i) by nomega.
-      apply H4; trivial.
-      nomega.
-    nomega.
+    destruct (M.find _ _) eqn:Heqe; simpl in *.
+      apply copy_bytes_mapsto.
+      destruct (within_bool x0 _ (x0 + N.succ i)) eqn:Heqe4; simpl.
+        replace (x0 + N.succ i - (x0 + 1) + @psBuffer HeapState r_n)
+           with (@psBuffer _ r_n + i) by nomega.
+        admit.
+        (* apply H4; trivial. *)
+        (* nomega. *)
+      admit.
+      (* nomega. *)
+    admit.
+    (* nomega. *)
   - simpl; intros; destruct_computations;
     destruct_AbsR AbsR; construct_AbsR;
     (right; split; [nomega|]; split; [nomega|]).
@@ -244,7 +243,7 @@ Proof.
       left; nomega.
     right; split; [nomega|].
     rewrite N2Nat.inj_succ in *; nomega.
-Qed.
+Admitted.
 
 Lemma buffer_uncons_sound : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
