@@ -126,71 +126,6 @@ Definition memset (r : Rep HeapSpec) (addr : Ptr Word) (len : Ptr Word) (w : Wor
  ** Theorems related to the Heap specification.
  **)
 
-Axiom Extensionality_FMap : forall (elt : Type) (A B : M.t elt),
-  M.Equal (elt:=elt) A B -> A = B.
-
-(* Reallocation is just an optimization over alloc/memcpy/free. It optimizes
-   the case where the newly allocated block resides at the same location, and
-   thus no copying is needed. *)
-Lemma refine_realloc : forall addr len r,
-  forall sz, M.MapsTo addr sz (resvs r)
-    -> 0 < sz
-    -> sz <= ` len
-    -> refine (realloc r addr len)
-              (`(r, addr') <- alloc r len;
-               `(r, _) <- memcpy r addr addr' sz;
-               `(r, _) <- free r addr;
-               ret (r, addr')).
-Proof.
-  intros.
-  destruct len; simpl in *.
-  unfold Bind2.
-  autorewrite with monad laws.
-  unfold realloc, find_free_block.
-  autorewrite with monad laws.
-  simpl.
-  apply F.find_mapsto_iff in H.
-  rewrite H; simpl.
-  intros ??.
-  computes_to_inv; subst.
-  computes_to_econstructor.
-    Local Transparent Pick.
-    Local Transparent computes_to.
-    unfold Pick, computes_to; simpl.
-    apply for_all_remove.
-      relational.
-    apply H2.
-  apply eq_ret_compute.
-  f_equal.
-  f_equal.
-    apply Extensionality_FMap.
-    destruct (N.eq_dec v0 addr); subst.
-      unfold is_true in H1.
-      revert H1.
-      remember (fun _ _ => _) as P.
-      cut (Proper (eq ==> eq ==> eq) P).
-        intros HP ?.
-        apply F.find_mapsto_iff in H.
-        pose proof (proj1 (@P.for_all_iff _ P HP (resvs r)) H2 addr sz H) as H3.
-        rewrite HeqP in H3.
-        nomega.
-      relational.
-    apply F.Equal_mapsto_iff; split; intros.
-      simplify_maps.
-        simplify_maps.
-        split.
-          intuition.
-        simplify_maps.
-      repeat simplify_maps.
-      split.
-        intuition.
-      simplify_maps.
-    repeat simplify_maps.
-    right.
-    intuition.
-  rewrite N.min_l; trivial.
-Qed.
-
 Ltac inspect :=
   destruct_computations; simpl in *;
   repeat breakdown;
@@ -312,6 +247,71 @@ Proof.
   simplify_maps.
   specialize (H1 _ _ H4 H3).
   nomega.
+Qed.
+
+Axiom Extensionality_FMap : forall (elt : Type) (A B : M.t elt),
+  M.Equal (elt:=elt) A B -> A = B.
+
+(* Reallocation is just an optimization over alloc/memcpy/free. It optimizes
+   the case where the newly allocated block resides at the same location, and
+   thus no copying is needed. *)
+Lemma refine_realloc : forall addr len r,
+  forall sz, M.MapsTo addr sz (resvs r)
+    -> 0 < sz
+    -> sz <= ` len
+    -> refine (realloc r addr len)
+              (`(r, addr') <- alloc r len;
+               `(r, _) <- memcpy r addr addr' sz;
+               `(r, _) <- free r addr;
+               ret (r, addr')).
+Proof.
+  intros.
+  destruct len; simpl in *.
+  unfold Bind2.
+  autorewrite with monad laws.
+  unfold realloc, find_free_block.
+  autorewrite with monad laws.
+  simpl.
+  apply F.find_mapsto_iff in H.
+  rewrite H; simpl.
+  intros ??.
+  computes_to_inv; subst.
+  computes_to_econstructor.
+    Local Transparent Pick.
+    Local Transparent computes_to.
+    unfold Pick, computes_to; simpl.
+    apply for_all_remove.
+      relational.
+    apply H2.
+  apply eq_ret_compute.
+  f_equal.
+  f_equal.
+    apply Extensionality_FMap.
+    destruct (N.eq_dec v0 addr); subst.
+      unfold is_true in H1.
+      revert H1.
+      remember (fun _ _ => _) as P.
+      cut (Proper (eq ==> eq ==> eq) P).
+        intros HP ?.
+        apply F.find_mapsto_iff in H.
+        pose proof (proj1 (@P.for_all_iff _ P HP (resvs r)) H2 addr sz H) as H3.
+        rewrite HeqP in H3.
+        nomega.
+      relational.
+    apply F.Equal_mapsto_iff; split; intros.
+      simplify_maps.
+        simplify_maps.
+        split.
+          intuition.
+        simplify_maps.
+      repeat simplify_maps.
+      split.
+        intuition.
+      simplify_maps.
+    repeat simplify_maps.
+    right.
+    intuition.
+  rewrite N.min_l; trivial.
 Qed.
 
 End Heap.
