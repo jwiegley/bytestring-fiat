@@ -51,7 +51,9 @@ Program Definition make_room_by_growing_buffer (r : PSH) (n : N | 0 < n) :
   Comp PSH :=
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
-  `(h, a) <- realloc (psHeap r) (psBuffer r) (psLength r + n);
+  `(h, a) <- alloc (psHeap r) (psLength r + n);
+  `(h, _) <- memcpy h (psBuffer r) (a + n) (psLength r);
+  `(h, _) <- free h (psBuffer r);
   ret {| psHeap   := h
        ; psBuffer := a
        ; psBufLen := psLength r + n
@@ -116,10 +118,10 @@ Definition ByteString_list_AbsR (or : Rep ByteStringSpec) (nr : PSH) :=
   else fits (psBuffer nr) (psBufLen nr)
             (psBuffer nr + psOffset nr) (psLength nr) /\
        M.MapsTo (psBuffer nr) (psBufLen nr) (resvs (psHeap nr)) /\
-       (forall i x, i < psLength nr
-          -> nth (N.to_nat i) or x = x
-          -> M.MapsTo (psBuffer nr + psOffset nr + i) x
-                      (bytes (psHeap nr))).
+       (forall i, i < psLength nr
+          -> forall x, nth (N.to_nat i) or x = x
+          -> forall n, psBuffer nr + psOffset nr + i = n
+          -> M.MapsTo n x (bytes (psHeap nr))).
 
 Ltac destruct_AbsR H :=
   let H1 := fresh "H1" in
@@ -129,9 +131,49 @@ Ltac destruct_AbsR H :=
   let H4 := fresh "H4" in
   let data := fresh "data" in
   destruct H2 as [[H [H2 H3]]|[H [H2 [H3 H4]]]];
-  [ rewrite ?H, ?H2 in * | ].
+  [ rewrite ?H, ?H2 in * |].
 
 Ltac construct_AbsR := split; try split; simpl; try nomega.
+
+Corollary If_Then_Else_computes_to : forall b A (t e : Comp A) (v : A),
+  (If b Then t Else e) ↝ v -> If b Then (t ↝ v) Else (e ↝ v).
+Proof. destruct b; trivial. Qed.
+
+Ltac if_computes_to_inv :=
+  match goal with
+    [ H : (If ?B Then _ Else _) ↝ _ |- _ ] =>
+    let Heqe := fresh "Heqe" in
+    destruct B eqn:Heqe;
+    simpl in H;
+    computes_to_inv
+  end.
+
+Tactic Notation "by" tactic(H) :=
+  H; first [ tauto
+           | discriminate
+           | auto
+           | congruence
+           | eauto
+           | intuition
+           | firstorder ].
+
+Ltac reduce_peano i :=
+  destruct i using N.peano_ind;
+  [ left; nomega
+  | right; split; [nomega|] ];
+  try rewrite N2Nat.inj_succ in *.
+
+Ltac prepare_AbsR AbsR :=
+  destruct_computations; simpl in *;
+  destruct_AbsR AbsR; construct_AbsR;
+  right; split; [nomega|]; split; [nomega|];
+  split; trivial; intros; simplify_maps.
+
+Corollary If_Then_Else_MapsTo : forall b k k' elt (e : elt) r,
+  (If b
+   Then M.MapsTo k  e r
+   Else M.MapsTo k' e r) = M.MapsTo (If b Then k Else k') e r.
+Proof. destruct b; trivial. Qed.
 
 Lemma buffer_cons_sound : forall r_o r_n,
   ByteString_list_AbsR r_o r_n
@@ -139,111 +181,35 @@ Lemma buffer_cons_sound : forall r_o r_n,
     -> ByteString_list_AbsR (x :: r_o) r_n'.
 Proof.
   unfold buffer_cons; intros ? ? AbsR ???.
-  apply refine_computes_to in H.
-  rewrite refineEquiv_If_Then_Else_Bind in H.
-  apply refine_If_Then_Else_bool in H.
-  destruct (0 <? psOffset r_n) eqn:Heqe.
-    apply computes_to_refine in H.
-    {
-      destruct_computations; simpl in *.
-      destruct_AbsR AbsR; construct_AbsR.
-      right; split; trivial; split; [nomega|].
-      split; intros.
-        simpl; trivial.
-      simplify_maps.
-      destruct i using N.peano_ind.
-        left; nomega.
-      right; split; [nomega|].
-      rewrite <- N.add_assoc.
-      rewrite <- N.add_sub_swap; [|nomega].
-      rewrite <- N.add_sub_assoc; [|nomega].
-      rewrite N.add_assoc.
-      apply H4; [nomega|].
-      rewrite N2Nat.inj_sub.
-      replace (N.to_nat 1) with 1%nat; [|nomega].
-      simpl; rewrite N2Nat.inj_succ in *; simpl.
-      rewrite Nat.sub_0_r; assumption.
-    }
-  assert (psOffset r_n = 0) by nomega; clear Heqe.
-  rewrite refineEquiv_If_Then_Else_Bind in H.
-  apply refine_If_Then_Else_bool in H.
-  destruct (psLength r_n + alloc_quantum <=? psBufLen r_n) eqn:Heqe2;
-  [| rewrite refineEquiv_If_Then_Else_Bind in H;
-     destruct (0 <? psBufLen r_n) eqn:Heqe3; simpl in H ];
-  apply computes_to_refine in H; revert H;
-  unfold make_room_by_shifting_up, make_room_by_growing_buffer,
-         allocate_buffer, poke_at_offset;
-  autorewrite with monad laws; simpl;
-  rewrite ?N.add_0_r.
-  - simpl; intros; destruct_computations;
-    destruct_AbsR AbsR; construct_AbsR;
-    (right; split; [nomega|]; split; [nomega|]).
-    rewrite H0, N.add_0_r in *; clear H0;
-    tsubst; simpl in *; subst.
-    destruct (@psLength HeapState r_n =? 0) eqn:Heqe.
-      assert (@psLength HeapState r_n = 0) by nomega.
-      rewrite H in *; clear H.
-      split; trivial.
-      intros; simplify_maps.
-      destruct i using N.peano_ind.
-        left; nomega.
-      nomega.
-    split; trivial.
-    intros; simplify_maps.
-    destruct i using N.peano_ind.
-      left; nomega.
-    right; split; [nomega|].
-    rewrite N2Nat.inj_succ in *; simpl.
+  computes_to_inv.
+  if_computes_to_inv; subst.
+    prepare_AbsR AbsR.
+    reduce_peano i; clear IHi.
+    eapply H4; eauto; nomega.
+  if_computes_to_inv; subst.
+    prepare_AbsR AbsR.
+    reduce_peano i; clear IHi.
     apply copy_bytes_mapsto.
-    destruct (within_bool
-                (@psBuffer HeapState r_n + 1) (@psLength HeapState r_n)
-                (@psBuffer HeapState r_n + N.succ i)) eqn:Heqe1; simpl.
-      replace (@psBuffer HeapState r_n + N.succ i -
-               (@psBuffer HeapState r_n + 1) + @psBuffer HeapState r_n)
-         with (@psBuffer HeapState r_n + i) by nomega.
-      apply H4; trivial.
-      nomega.
+    destruct (within_bool _ _ n) eqn:Heqe1; simpl;
+    eapply H4; eauto; nomega.
+  if_computes_to_inv; subst.
+    prepare_AbsR AbsR.
+      split.
+        apply_for_all; nomega.
+      simplify_maps.
+    reduce_peano i; clear IHi.
+    apply copy_bytes_mapsto.
+    rewrite If_Then_Else_MapsTo.
+    apply H4 with (i:=i); try nomega.
+    assert (psOffset r_n = 0) as HA by nomega.
+    rewrite HA, <- H6, !N.add_0_r in *; clear HA H6 n.
+    setoid_replace (x1 + N.succ i - (x1 + 1) + psBuffer r_n)
+      with (psBuffer r_n + i) by nomega.
+    destruct (within_bool _ _ _) eqn:Heqe2; simpl; trivial.
     nomega.
-  - 
-    simpl; intros; destruct_computations;
-    destruct_AbsR AbsR; construct_AbsR;
-    (right; split; [nomega|]; split; [nomega|]).
-    rewrite H0, N.add_0_r in *; clear H0;
-    tsubst; simpl in *.
-    split.
-      simplify_maps.
-    intros.
-    simplify_maps.
-    destruct i using N.peano_ind.
-      left; nomega.
-    right; split; [nomega|].
-    rewrite N2Nat.inj_succ in *; simpl.
-    destruct (M.find _ _) eqn:Heqe; simpl in *.
-      apply copy_bytes_mapsto.
-      destruct (within_bool x0 _ (x0 + N.succ i)) eqn:Heqe4; simpl.
-        replace (x0 + N.succ i - (x0 + 1) + @psBuffer HeapState r_n)
-           with (@psBuffer _ r_n + i) by nomega.
-        admit.
-        (* apply H4; trivial. *)
-        (* nomega. *)
-      admit.
-      (* nomega. *)
-    admit.
-    (* nomega. *)
-  - simpl; intros; destruct_computations;
-    destruct_AbsR AbsR; construct_AbsR;
-    (right; split; [nomega|]; split; [nomega|]).
-    destruct_computations; tsubst; simpl in *.
-    rewrite ?N.add_0_r in *; simpl.
-    split.
-      simplify_maps.
-    intros.
-    simplify_maps.
-    destruct i using N.peano_ind.
-      left; nomega.
-    right; split; [nomega|].
-    rewrite N2Nat.inj_succ in *; nomega.
-Admitted.
+  prepare_AbsR AbsR.
+  reduce_peano i; nomega.
+Qed.
 
 Lemma buffer_uncons_sound : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
@@ -271,18 +237,12 @@ Proof.
     try (eexists; split; [exact H4|]; nomega).
     split; trivial; intros.
     destruct i using N.peano_ind.
-      rewrite N.add_0_r, N.add_assoc.
-      apply H4; trivial.
-      nomega.
-    replace (@psBuffer HeapState r_n +
-             (@psOffset HeapState r_n + 1) + N.succ i)
-       with (@psBuffer HeapState r_n +
-             @psOffset HeapState r_n + (N.succ i + 1)) by nomega.
-    apply H4.
-      nomega.
-    rewrite N.add_succ_l.
-    rewrite N2Nat.inj_succ in *; simpl.
-    rewrite N2Nat.inj_add, Nat.add_1_r; trivial.
+      simpl in *.
+      rewrite N.add_0_r, N.add_assoc in H7.
+      rewrite <- H7.
+      eapply H4; eauto; nomega.
+    apply H4 with (i:=N.succ (N.succ i)); try nomega.
+    by rewrite !N2Nat.inj_succ in *.
   apply computes_to_refine in H0.
   destruct_computations.
   destruct_AbsR H; construct_AbsR;
@@ -313,8 +273,7 @@ Proof.
     apply H0.
     replace (@psBuffer HeapState r_n + @psOffset HeapState r_n)
        with (@psBuffer HeapState r_n + @psOffset HeapState r_n + 0) by nomega.
-    apply H4; trivial.
-    nomega.
+    eapply H4; eauto; nomega.
   apply computes_to_refine in H0.
   apply Return_inv in H0.
   destruct a; tsubst; simpl in *.

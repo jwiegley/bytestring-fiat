@@ -5,6 +5,7 @@ Require Import
   ByteString.Heap
   ByteString.ByteString
   ByteString.ByteStringCanon
+  ByteString.FFI.ByteStringFFI
   Coq.Strings.Ascii
   Coq.Strings.String
   Coq.FSets.FMapList
@@ -303,4 +304,6 @@ Extraction "ByteStringExt.hs"
 
   emptyBS
   consBS
-  unconsBS.
+  unconsBS
+
+  ghcConsDSL'.

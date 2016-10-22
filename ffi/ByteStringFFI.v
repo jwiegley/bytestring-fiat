@@ -182,7 +182,9 @@ Program Definition make_room_by_growing_bufferM (r : PSU) (n : N | 0 < n) :
   HeapDSL PSU :=
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
-  a <- reallocM (psBuffer r) (psLength r + n);
+  a <- allocM (psLength r + n);
+  _ <- memcpyM (psBuffer r) (a + n) (psLength r);
+  _ <- freeM (psBuffer r);
   pure {| psHeap   := tt
         ; psBuffer := a
         ; psBufLen := psLength r + n
@@ -340,7 +342,7 @@ Proof.
   rewrite denote_If; simpl.
   rewrite refineEquiv_If_Then_Else_Bind.
   apply refine_If_Then_Else.
-    unfold make_room_by_growing_bufferM, reallocM; simpl.
+    unfold make_room_by_growing_bufferM, allocM, memcpyM, freeM; simpl.
     autorewrite with monad laws; reflexivity.
   unfold allocate_bufferM; simpl.
   autorewrite with monad laws; reflexivity.
@@ -440,11 +442,20 @@ Proof.
     intros; simpl in H.
     computes_to_inv; subst.
     eapply CJoin.
-      apply HRealloc.
-      unfold realloc; simpl.
+      apply HAlloc with (addr:=v).
+      unfold alloc; simpl.
       computes_to_econstructor.
         exact H.
       constructor.
+    eapply CJoin.
+      apply HMemcpy.
+      higher_order_reflexivity.
+    eapply CJoin.
+      apply HFree.
+      unfold free.
+      simpl.
+      higher_order_reflexivity.
+    unfold poke_at_offsetM.
     eapply CJoin.
       simpl.
       apply HPoke.
@@ -546,7 +557,7 @@ Proof.
 Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
-Print ghcConsDSL'.
+(* Print ghcConsDSL'. *)
 
 End Refined.
 

@@ -323,6 +323,15 @@ Proof.
     assumption.
 Qed.
 
+Lemma for_all_remove_inv_2 : forall (m : M.t elt) (k : M.key),
+  P.for_all P (M.remove k m) = true
+    -> forall k' e, M.MapsTo k' e m -> ~ E.eq k' k -> P k' e = true.
+Proof.
+  intros.
+  eapply P.for_all_iff; eauto.
+  simplify_maps.
+Qed.
+
 Lemma for_all_impl : forall (P' : M.key -> elt -> bool) m,
   P.for_all P m = true
     -> Proper (E.eq ==> eq ==> eq) P'

@@ -218,4 +218,23 @@ Proof.
   revert H; replace (k - d + d) with k by nomega; trivial.
 Qed.
 
+Lemma increase_heap_ceiling : forall n m r,
+  P.for_all (fun addr sz => addr + sz <=? n) r ->
+  P.for_all (fun addr sz => addr + sz <=? n + m) r.
+Proof.
+  intros.
+  eapply for_all_impl; auto;
+  relational; eauto; nomega.
+Qed.
+
+Lemma Equal_If_Opt_Then_Else_Proper:
+  forall (A B : Type) (c : option A),
+    Proper (pointwise_relation A M.Equal ==> @M.Equal B ==> M.Equal)
+           (If_Opt_Then_Else c).
+Proof.
+  intros.
+  relational.
+  destruct c; eauto.
+Qed.
+
 End HeapState.
