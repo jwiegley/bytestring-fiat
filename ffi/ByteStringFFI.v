@@ -387,6 +387,18 @@ Proof.
   auto.
 Qed.
 
+Definition reflect_computation `(c : Rep HeapSpec -> Comp (Rep HeapSpec * A)) :=
+  { f : HeapDSL A & forall r r' v, c r ↝ (r', v) -> HeapDSL_Computes f r r' v }.
+
+Lemma reflect_computation' {A : Type} (v : A) :
+  { f : HeapDSL A & forall r, ret (r, v) ↝ (r, v) -> HeapDSL_Computes f r r v }.
+Proof.
+  intros.
+  exists (pure v).
+  intros.
+  eapply CPure.
+Defined.
+
 Lemma consDSL :
   { f : PS () -> Word -> HeapDSL (PS ())
   & forall w (r r' : PSH),
@@ -394,7 +406,7 @@ Lemma consDSL :
       HeapDSL_Computes (f (() <$ r) w) (psHeap r) (psHeap r')
                        (() <$ r') }.
 Proof.
-  eexists buffer_consM.
+  exists buffer_consM.
   unfold buffer_cons, buffer_consM.
   intros w r r' H.
   destruct r.
@@ -483,46 +495,37 @@ Proof.
 Defined.
 
 Definition consDSL' := Eval simpl in projT1 consDSL.
-Print consDSL'.
 
 Axiom IO : Type -> Type.
-Axiom fmapIO : forall {a b : Type}, (a -> b) -> IO a -> IO b.
+
+Axiom fmapIO   : forall {a b : Type}, (a -> b) -> IO a -> IO b.
+Axiom bindIO   : forall {a b : Type}, IO a -> (a -> IO b) -> IO b.
 Axiom returnIO : forall {a : Type}, a -> IO a.
-Axiom joinIO : forall {a : Type}, IO (IO a) -> IO a.
+Axiom joinIO   : forall {a : Type}, IO (IO a) -> IO a.
 
-Program Instance IO_Functor : Functor IO := {
-  fmap := fun _ _ => fmapIO
-}.
-
-Program Instance IO_Applicative : Applicative IO := {
-  pure := fun _ => returnIO;
-  ap   := fun _ _ mf mx =>
-            joinIO (fmapIO (fun f => fmapIO (fun x => f x) mx) mf)
-}.
-
-Program Instance IO_Monad : Monad IO := {
-  join := fun _ => joinIO
-}.
+Axiom bindIO_returnIO : forall {a b : Type} (f : a -> b) (x : IO a),
+  bindIO x (fun a => returnIO (f a)) = fmapIO f x.
 
 Axiom unsafeDupablePerformIO : forall {a : Type}, IO a -> a.
-Axiom malloc : Size -> IO (Ptr Word).
-Axiom free : Ptr Word -> IO ().
+
+Axiom malloc  : Size -> IO (Ptr Word).
+Axiom free    : Ptr Word -> IO ().
 Axiom realloc : Ptr Word -> Size -> IO (Ptr Word).
-Axiom peek   : Ptr Word -> IO Word.
-Axiom poke   : Ptr Word -> Word -> IO ().
-Axiom memcpy : Ptr Word -> Ptr Word -> Size -> IO ().
-Axiom memset : Ptr Word -> Size -> Word -> IO ().
+Axiom peek    : Ptr Word -> IO Word.
+Axiom poke    : Ptr Word -> Word -> IO ().
+Axiom memcpy  : Ptr Word -> Ptr Word -> Size -> IO ().
+Axiom memset  : Ptr Word -> Size -> Word -> IO ().
 
 Definition ghcDenote {A : Type} : HeapDSL A -> A :=
   let phi (c : HeapF (IO A)) :=
     match c with
-    | Alloc len k             => malloc (` len) >>= k
-    | Free_ addr x            => free addr >> x
-    | Realloc addr len k      => realloc addr (` len) >>= k
-    | Peek addr k             => peek addr >>= k
-    | Poke addr w x           => poke addr w >> x
-    | Memcpy addr addr2 len x => memcpy addr addr2 len >> x
-    | Memset addr len w x     => memset addr len w >> x
+    | Alloc len k             => bindIO (malloc (` len)) k
+    | Free_ addr x            => bindIO (free addr) (fun _ => x)
+    | Realloc addr len k      => bindIO (realloc addr (` len)) k
+    | Peek addr k             => bindIO (peek addr) k
+    | Poke addr w x           => bindIO (poke addr w) (fun _ => x)
+    | Memcpy addr addr2 len x => bindIO (memcpy addr addr2 len) (fun _ => x)
+    | Memset addr len w x     => bindIO (memset addr len w) (fun _ => x)
     end in
   unsafeDupablePerformIO \o iter phi \o fmap returnIO.
 
@@ -553,6 +556,7 @@ Proof.
     simpl.
     unfold If_Then_Else, compose, comp; simpl.
     reflexivity.
+  rewrite !bindIO_returnIO.
   reflexivity.
 Defined.
 

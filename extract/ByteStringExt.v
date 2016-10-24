@@ -12,7 +12,7 @@ Require Import
   Coq.Structures.OrderedTypeEx.
 
 Module Import M  := FMapList.Make(N_as_OT).
-Module Import BS := ByteStringFMap M.
+Module Import BM := ByteStringFMap M.
 
 Import ByteStringHeap.
 Import HeapCanonical.
@@ -27,21 +27,21 @@ Open Scope N_scope.
 
 Definition emptyHeap   : crep :=
   Eval compute in CallConstructor impl emptyS.
-Definition allocHeap (r : crep) (len : Size | 0 < len) : crep * Ptr :=
+Definition allocHeap (r : crep) (len : Size | 0 < len) : crep * Ptr Word :=
   Eval compute in CallMethod impl allocS r len.
-Definition freeHeap (r : crep) (addr : Ptr) : crep :=
+Definition freeHeap (r : crep) (addr : Ptr Word) : crep :=
   Eval compute in fst (CallMethod impl freeS r addr).
-Definition reallocHeap (r : crep) (addr : Ptr) (len : Size | 0 < len) :
-  crep * Ptr :=
+Definition reallocHeap (r : crep) (addr : Ptr Word) (len : Size | 0 < len) :
+  crep * Ptr Word :=
   Eval compute in CallMethod impl reallocS r addr len.
-Definition peekHeap (r : crep) (addr : Ptr) : crep * Word :=
+Definition peekHeap (r : crep) (addr : Ptr Word) : crep * Word :=
   Eval compute in CallMethod impl peekS r addr.
-Definition pokeHeap (r : crep) (addr : Ptr) (w : Word) : crep :=
+Definition pokeHeap (r : crep) (addr : Ptr Word) (w : Word) : crep :=
   Eval compute in fst (CallMethod impl pokeS r addr w).
-Definition memcpyHeap (r : crep) (addr : Ptr) (addr2 : Ptr) (len : Size) :
+Definition memcpyHeap (r : crep) (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) :
   crep :=
   Eval compute in fst (CallMethod impl memcpyS r addr addr2 len).
-Definition memsetHeap (r : crep) (addr : Ptr) (len : Size) (w : Word) : crep :=
+Definition memsetHeap (r : crep) (addr : Ptr Word) (len : Size) (w : Word) : crep :=
   Eval compute in fst (CallMethod impl memsetS r addr len w).
 
 Section ByteStringExt.
@@ -280,6 +280,26 @@ Extract Inlined Constant ascii_of_pos => "Data.Char.chr".
 
 Extract Constant Common.If_Then_Else     => "\c t e -> if c then t else e".
 Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
+
+(** Haskell IO *)
+
+Module Import BS := ByteStringFFI M.
+
+Extract Constant IO "'a" => "Prelude.IO 'a".
+
+Extract Inlined Constant unsafeDupablePerformIO => "System.Unsafe.unsafeDupablePerformIO".
+
+Extract Inlined Constant fmapIO   => "Prelude.fmap".
+Extract Inlined Constant bindIO   => "Prelude.(>>=)".
+Extract Inlined Constant returnIO => "Prelude.return".
+Extract Inlined Constant joinIO   => "Prelude.join".
+Extract Inlined Constant malloc   => "malloc".
+Extract Inlined Constant free     => "free".
+Extract Inlined Constant realloc  => "realloc".
+Extract Inlined Constant peek     => "peek".
+Extract Inlined Constant poke     => "poke".
+Extract Inlined Constant memcpy   => "memcpy".
+Extract Inlined Constant memset   => "memset".
 
 (** Final extraction *)
 
