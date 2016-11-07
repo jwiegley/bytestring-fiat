@@ -158,9 +158,10 @@ Definition memsetM (addr : Ptr Word) (len : Ptr Word) (w : Word) : HeapDSL () :=
 
 Inductive HeapF_Computes :
   forall {A}, HeapF A -> Rep HeapSpec -> Rep HeapSpec -> A -> Prop :=
-  | HAlloc len addr (r r' : Rep HeapSpec) A (k : Ptr Word -> A) :
+  | HAlloc len addr (r r' : Rep HeapSpec) A (k : Ptr Word -> A) x :
       alloc r len ↝ (r', addr) ->
-      HeapF_Computes (Alloc len k) r r' (k addr)
+      x = k addr ->
+      HeapF_Computes (Alloc len k) r r' x
 
   | HFree addr (r r' : Rep HeapSpec) A (x : A) :
       free r addr ↝ (r', tt) ->
@@ -191,8 +192,9 @@ Inductive Free_Computes `{Functor f} {R : Type}
   forall {A}, Free f A -> R -> R -> A -> Prop :=
   | CPure r A (v : A) : Free_Computes crel (Pure v) r r v
   | CJoin r r'' B (v' : B) :
-      forall A t k r' v, crel A t r r' v
-        -> Free_Computes crel (k v) r' r'' v'
+      forall A t k r' v,
+        Free_Computes crel (k v) r' r'' v'
+        -> crel A t r r' v
         -> Free_Computes crel (Join k t) r r'' v'.
 
 Lemma Free_If `{Functor f}
@@ -334,8 +336,8 @@ Proof.
   destruct H1; simpl.
   unfold comp.
   eapply CJoin.
-    apply H1.
-  apply H.
+    apply H.
+  apply H2.
   assumption.
 Qed.
 
@@ -382,32 +384,43 @@ Proof.
   simplify_reflection.
     simplify_reflection.
     prepare_reflection.
-    eapply CJoin. apply HPoke; eassumption.
+    eapply CJoin.
     apply CPure.
+    apply HPoke; eassumption.
 
   simplify_reflection.
     simplify_reflection.
     prepare_reflection.
-    eapply CJoin. apply HMemcpy; eassumption.
-    eapply CJoin. apply HPoke; eassumption.
-    apply CPure.
+    eapply CJoin.
+    eapply CJoin.
+    eapply CPure.
+    apply HPoke; eassumption.
+    apply HMemcpy; eassumption.
 
   simplify_reflection.
     simplify_reflection.
     prepare_reflection.
-    eapply CJoin. apply HAlloc; eassumption.
-    eapply CJoin. apply HMemcpy; eassumption.
-    instantiate (1 := fun p => Join _ _).
-    eapply CJoin. apply HFree; eassumption.
-    eapply CJoin. apply HPoke; eassumption.
-    apply CPure.
+    eapply CJoin.
+    eapply CJoin.
+    eapply CJoin.
+    eapply CJoin.
+    eapply CPure.
+    apply HPoke; eassumption.
+    apply HFree; eassumption.
+    apply HMemcpy; eassumption.
+    eapply HAlloc.
+      apply H.
+    higher_order_reflexivity.
 
   simplify_reflection.
   prepare_reflection.
-  eapply CJoin. apply HAlloc; eassumption.
-  eapply CJoin. apply HPoke; eassumption.
-  instantiate (1 := fun p => Pure (_, ())).
+  eapply CJoin.
+  eapply CJoin.
   apply CPure.
+  apply HPoke; eassumption.
+  eapply HAlloc.
+    apply H.
+  higher_order_reflexivity.
 Fail Defined.           (* jww (2016-11-06): what's happening here? *)
 Admitted.
 
