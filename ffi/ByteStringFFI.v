@@ -16,76 +16,6 @@ Require Import
   Hask.Control.Monad.Trans.FiatState
   Hask.Control.Monad.Free.
 
-Program Instance Comp_Functor : Functor Comp := {
-  fmap := fun A B f (x : Comp A) => (v <- x; ret (f v))%comp
-}.
-
-Program Instance Comp_Applicative : Applicative Comp := {
-  pure := fun _ x => (ret x)%comp;
-  ap   := fun A B mf mx => (f <- mf; x <- mx; ret (f x))%comp
-}.
-
-Program Instance Comp_Monad : Monad Comp := {
-  join := fun A m => (m >>= id)%comp
-}.
-
-Module CompLaws.
-
-Axiom prop_ext : forall (P Q : Prop), (P <-> Q) -> P = Q.
-
-Ltac shatter :=
-  unfold comp, id in *;
-  repeat
-    match goal with
-    | [ H : and _ _            |- _ ] => destruct H
-    | [ H : Bind _ _ _         |- _ ] => destruct H
-    | [ H : Ensembles.In _ _ _ |- _ ] => destruct H
-    | [ H : Datatypes.prod _ _ |- _ ] => destruct H
-    | [ |- and _ _                     ] => split
-    | [ |- Bind _ _ _                  ] => eexists
-    | [ |- Ensembles.In _ _ _          ] => constructor
-    | [ |- Ensembles.In _ _ _          ] => solve [ eauto ]
-    | [ |- Ensembles.In _ (Bind _ _) _ ] => eexists
-    | [ |- Ensembles.In _ _ _          ] => econstructor
-    end;
-  simpl in *.
-
-(** jww (2016-04-05): Until the FunctorLaws are expressed in terms of some
-    arbitrary equivalence, we need to use functional and propositional
-    extensionality. *)
-
-Ltac simplify_comp :=
-  repeat let x := fresh "x" in extensionality x;
-  try (apply prop_ext; split; intros);
-  repeat shatter;
-  try constructor; eauto.
-
-Local Obligation Tactic := simpl; intros; simplify_comp.
-
-Import MonadLaws.
-
-Program Instance Comp_FunctorLaws : FunctorLaws Comp.
-Program Instance Comp_ApplicativeLaws : ApplicativeLaws Comp.
-Program Instance Comp_MonadLaws : MonadLaws Comp.
-
-Lemma fmap_pure_bind `{FunctorLaws f} : forall A B (k : A -> B) v,
-  Free_bind id (fmap[Free f] (fun x => Pure (k x)) v) = fmap k v.
-Proof.
-  intros.
-  rewrite <- fmap_comp_x.
-  unfold bind, comp, id.
-  simpl.
-  unfold comp; simpl.
-  induction v; simpl.
-    reflexivity.
-  unfold comp; simpl.
-  f_equal.
-  extensionality x0.
-  apply H1.
-Qed.
-
-End CompLaws.
-
 Module ByteStringFFI (M : WSfun N_as_DT).
 
 Module Import ByteStringHeap := ByteStringHeap M.
@@ -120,41 +50,7 @@ Program Instance HeapF_Functor : Functor HeapF := {
     end
 }.
 
-Import CompLaws.
-Import MonadLaws.
-
-Program Instance HeapF_FunctorLaws : FunctorLaws HeapF.
-Obligation 1.
-  extensionality x.
-  destruct x; auto.
-Qed.
-Obligation 2.
-  extensionality x.
-  destruct x; auto.
-Qed.
-
 Definition HeapDSL := Free HeapF.
-
-Definition allocM (len : Size | 0 < len) : HeapDSL N :=
-  liftF (Alloc len id).
-
-Definition freeM (addr : Ptr Word) : HeapDSL () :=
-  liftF (Free_ addr ()).
-
-Definition reallocM (addr : Ptr Word) (len : Size | 0 < len) : HeapDSL (Ptr Word) :=
-  liftF (Realloc addr len id).
-
-Definition peekM (addr : Ptr Word) : HeapDSL Word :=
-  liftF (Peek addr id).
-
-Definition pokeM (addr : Ptr Word) (w : Word) : HeapDSL () :=
-  liftF (Poke addr w ()).
-
-Definition memcpyM (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) : HeapDSL () :=
-  liftF (Memcpy addr addr2 len ()).
-
-Definition memsetM (addr : Ptr Word) (len : Ptr Word) (w : Word) : HeapDSL () :=
-  liftF (Memset addr len w ()).
 
 Inductive HeapF_Computes :
   forall {A}, HeapF A -> Rep HeapSpec -> Rep HeapSpec -> A -> Prop :=
@@ -197,60 +93,10 @@ Inductive Free_Computes `{Functor f} {R : Type}
         -> crel A t r r' v
         -> Free_Computes crel (Join k t) r r'' v'.
 
-Lemma Free_If `{Functor f}
-      {R : Type} (crel : forall A, f A -> R -> R -> A -> Prop)
-      b r r' B t tr tv e er ev (v : B) :
-     (b = true  -> Free_Computes crel t r tr tv)
-  -> (b = false -> Free_Computes crel e r er ev)
-  -> r' = (if b then tr else er)
-  -> v  = (if b then tv else ev)
-  -> Free_Computes crel (if b then t else e) r r' v.
-Proof.
-  intros.
-  subst.
-  destruct b; eauto.
-Qed.
-
-Ltac retract comp :=
-  match goal with
-    [ |- Free Comp ?T ?TS ] =>
-    assert { c : Comp T
-           & { f : Free Comp T TS & refineEquiv (retract f) c } }
-      as freeified
-      by (exists comp;
-          eexists;
-          unfold comp;
-          repeat
-            match goal with
-            | [ |- refineEquiv (retract _) (Bind ?C _) ] =>
-              instantiate (1 := Join _ C); unfold id; simpl;
-              autorewrite with monad laws;
-              apply refineEquiv_bind; [ reflexivity |];
-              intros ?; unfold id; simpl
-            | [ |- refineEquiv (retract (_ ?X)) (Bind ?C _) ] =>
-              instantiate (1 := fun X => Join _ C); unfold id; simpl;
-              autorewrite with monad laws;
-              apply refineEquiv_bind; [ reflexivity |];
-              intros ?; unfold id; simpl
-            | [ |- refineEquiv (retract _) (Return _) ] =>
-              instantiate (1 := fun _ => Pure _); unfold id; simpl;
-              autorewrite with monad laws;
-              reflexivity
-            end);
-    exact (projT1 (projT2 freeified))
-  end.
-
 Definition HeapDSL_Computes `(h : HeapDSL A) :=
   Free_Computes (@HeapF_Computes) h.
 
 Definition ByteString (r : Rep HeapSpec) := Rep (projT1 (ByteStringHeap r)).
-
-Definition cons (r : Rep HeapSpec) (w : Word) (bs : ByteString r) :
-  Comp (ByteString r) :=
-  Eval simpl in
-    (p <- callMeth (projT1 (ByteStringHeap r)) consS bs w; ret (fst p)).
-
-(**************************************************************************)
 
 Definition reflect_Heap_DSL_computation {A : Type}
            (c : Rep HeapSpec * PS -> Comp ((Rep HeapSpec * PS) * A)) :=
@@ -274,7 +120,7 @@ Proof.
   exists (projT1 c_DSL); intros.
   pose proof (projT2 c_DSL); simpl in *.
   apply H0; apply refine_c_c'; auto.
-Qed.
+Defined.
 
 Lemma reflect_Heap_DSL_computation_If_Then_Else
       {B : Type} c c' (t e : _ -> Comp (_ * B))
@@ -299,47 +145,7 @@ Proof.
   destruct k_DSL.
   simpl in *.
   apply h; assumption.
-Qed.
-
-Lemma HeapDSL_Computes_inv {A}
-  : forall (c : HeapDSL A) r r' v
-    (H : HeapDSL_Computes c r r' v),
-    match c with
-    | Pure a => a = v /\ r = r'
-    | Join B f f0 => exists r'' v'',
-                       HeapF_Computes f0 r r'' v''
-                       /\ HeapDSL_Computes (f v'') r'' r' v
-    end.
-Proof.
-  intros.
-  refine (match H with
-          | CPure _ _ _ => _
-          | CJoin a b c d e f g h i j k => _
-          end); auto.
-  eexists _, _; eauto.
-Qed.
-
-Lemma benjamin r r' r'' bs bs' A (c' : PS -> HeapDSL (PS * A))
-      B (f : PS * A -> HeapDSL (PS * B)) (v' : B) x :
-  HeapDSL_Computes (c' bs) r r' x
-    -> HeapDSL_Computes (f x) r' r'' (bs', v')
-    -> HeapDSL_Computes (Free_bind f (c' bs)) r r'' (bs', v').
-Proof.
-  intros.
-  generalize dependent r.
-  induction (c' bs); intros.
-    eapply HeapDSL_Computes_inv in H.
-    destruct H; subst.
-    assumption.
-  eapply HeapDSL_Computes_inv in H1.
-  destruct_ex.
-  destruct H1; simpl.
-  unfold comp.
-  eapply CJoin.
-    apply H.
-  apply H2.
-  assumption.
-Qed.
+Defined.
 
 Hint Unfold id.
 Hint Unfold bind.
@@ -378,11 +184,9 @@ Ltac DSL_term :=
           | econstructor; [eassumption|higher_order_reflexivity] ]
   end.
 
-Variable admit : forall A, A.
-
 Definition consDSL w :
   reflect_Heap_DSL_computation
-    (fun r => r' <- buffer_cons (fst r) (snd r) w; ret (r', ())).
+    (fun r => r' <- buffer_cons (fst r) (snd r) w; ret (r', ()))%comp.
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -429,84 +233,6 @@ Proof.
     DSL_term.
   DSL_term.
 Defined.
-
-(**************************************************************************)
-
-Definition simply_widen_regionM (r : PS) : PS :=
-  {| psBuffer := psBuffer r
-   ; psBufLen := psBufLen r
-   ; psOffset := psOffset r - 1
-   ; psLength := psLength r + 1 |}.
-
-Program Definition make_room_by_shifting_upM (r : PS) (n : N | 0 < n) :
-  (* We could maybe be smarter by shifting the block so it sits mid-way within
-     the buffer. *)
-  HeapDSL PS :=
-  _ <- memcpyM (psBuffer r) (psBuffer r + n) (psLength r);
-  pure {| psBuffer := psBuffer r
-        ; psBufLen := psBufLen r
-        ; psOffset := 0
-        ; psLength := psLength r + n |}.
-
-Program Definition make_room_by_growing_bufferM (r : PS) (n : N | 0 < n) :
-  HeapDSL PS :=
-  (* We can make a trade-off here by allocating extra bytes in anticipation of
-     future calls to [buffer_cons]. *)
-  a <- allocM (psLength r + n);
-  _ <- memcpyM (psBuffer r) (a + n) (psLength r);
-  _ <- freeM (psBuffer r);
-  pure {| psBuffer := a
-        ; psBufLen := psLength r + n
-        ; psOffset := 0
-        ; psLength := psLength r + n |}.
-Obligation 1. nomega. Defined.
-
-Program Definition allocate_bufferM (r : PS) (len : N | 0 < len) :
-  HeapDSL PS :=
-  a <- allocM len;
-  pure {| psBuffer := a
-        ; psBufLen := len
-        ; psOffset := 0
-        ; psLength := len |}.
-
-Definition poke_at_offsetM (r : PS) (d : Word) : HeapDSL PS :=
-  _ <- pokeM (psBuffer r + psOffset r) d;
-  pure {| psBuffer := psBuffer r
-        ; psBufLen := psBufLen r
-        ; psOffset := psOffset r
-        ; psLength := psLength r |}.
-
-(* This defines how much a buffer is grown by when more space is needed to
-   [cons] on a new element. *)
-Definition alloc_quantum := 1.
-Arguments alloc_quantum /.
-
-Program Definition buffer_consM (r : PS) (d : Word) : HeapDSL PS :=
-  ps <- If 0 <? psOffset r
-        Then pure (simply_widen_regionM r)
-        Else
-        If psLength r + alloc_quantum <=? psBufLen r
-        Then make_room_by_shifting_upM r alloc_quantum
-        Else
-        If 0 <? psBufLen r
-        Then make_room_by_growing_bufferM r alloc_quantum
-        Else allocate_bufferM r alloc_quantum;
-  poke_at_offsetM ps d.
-Obligation 1. nomega. Defined.
-Obligation 2. nomega. Defined.
-Obligation 3. nomega. Defined.
-
-Corollary refineEquiv_Pure : forall A (x : A),
-  refineEquiv (ret x) (retract (Pure x)).
-Proof. reflexivity. Qed.
-
-Corollary refineEquiv_Join {A B : Type} (c : Comp A) (f : A -> Comp B) :
-  refineEquiv (Bind c f) (retract (Join (liftF \o f) c)).
-Proof.
-  simpl.
-  autorewrite with monad laws.
-  reflexivity.
-Qed.
 
 Definition denote {A : Type} :
   HeapDSL A -> Rep HeapSpec -> Comp (Rep HeapSpec * A) :=
@@ -558,34 +284,10 @@ Corollary denote_If : forall b A (t e : HeapDSL A) r,
               (If b Then denote t r Else denote e r).
 Proof. destruct b; simpl; reflexivity. Qed.
 
-Theorem consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
-  refine (buffer_cons r bs w)
-         (denote (buffer_consM bs w) r).
-Proof.
-  intros.
-  destruct r.
-  unfold buffer_cons, buffer_consM; simpl.
-  repeat rewrite denote_Free_bind; simpl.
-  rewrite denote_If; simpl.
-  unfold Bind2.
-  do 1 rewrite refineEquiv_bind_bind.
-  do 4 rewrite refineEquiv_If_Then_Else_Bind.
-  apply refine_If_Then_Else.
-    unfold poke_at_offsetM, simply_widen_regionM; simpl.
-    autorewrite with monad laws; reflexivity.
-  rewrite denote_If; simpl.
-  rewrite refineEquiv_If_Then_Else_Bind.
-  apply refine_If_Then_Else.
-    unfold make_room_by_shifting_upM, memcpyM; simpl.
-    autorewrite with monad laws; reflexivity.
-  rewrite denote_If; simpl.
-  rewrite refineEquiv_If_Then_Else_Bind.
-  apply refine_If_Then_Else.
-    unfold make_room_by_growing_bufferM, allocM, memcpyM, freeM; simpl.
-    autorewrite with monad laws; reflexivity.
-  unfold allocate_bufferM; simpl.
-  autorewrite with monad laws; reflexivity.
-Qed.
+Corollary denote_if : forall (b : bool) A (t e : HeapDSL A) r,
+  refineEquiv (denote (if b then t else e) r)
+              (if b then denote t r else denote e r).
+Proof. destruct b; simpl; reflexivity. Qed.
 
 Lemma HeapDSL_Computes_denotation : forall A f r r' (v : A),
   denote f r ↝ (r', v) -> HeapDSL_Computes f r r' v.
@@ -608,126 +310,46 @@ Proof.
   destruct v0;
   eapply CJoin;
   simpl in H0';
-  [ apply HAlloc   | apply H; eauto
-  | apply HFree    | apply H; eauto
-  | apply HRealloc | apply H; eauto
-  | apply HPeek    | apply H; eauto
-  | apply HPoke    | apply H; eauto
-  | apply HMemcpy  | apply H; eauto
-  | apply HMemset  | apply H; eauto ];
+  [ apply H; eauto | eapply HAlloc
+  | apply H; eauto | apply HFree
+  | apply H; eauto | apply HRealloc
+  | apply H; eauto | apply HPeek
+  | apply H; eauto | apply HPoke
+  | apply H; eauto | apply HMemcpy
+  | apply H; eauto | apply HMemset ];
   try destruct u;
-  auto.
+  eauto.
 Qed.
 
-Definition reflect_computation `(c : Rep HeapSpec -> Comp (Rep HeapSpec * A)) :=
-  { f : HeapDSL A & forall r r' v, c r ↝ (r', v) -> HeapDSL_Computes f r r' v }.
-
-Lemma reflect_computation' {A : Type} (v : A) :
-  { f : HeapDSL A & forall r, ret (r, v) ↝ (r, v) -> HeapDSL_Computes f r r v }.
+Theorem consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
+  refine (buffer_cons r bs w)
+         (res <- denote (projT1 (consDSL w) bs) r;
+          ret (fst res, fst (snd res))).
 Proof.
   intros.
-  exists (pure v).
-  intros.
-  eapply CPure.
-Defined.
-
-Lemma consDSL' :
-  { f : PS -> Word -> HeapDSL PS
-  & forall w (r r' : Rep HeapSpec) (bs bs' : PS),
-      buffer_cons r bs w ↝ (r', bs') ->
-      HeapDSL_Computes (f bs w) r r' bs' }.
-Proof.
-  Transparent poke.
-  Transparent alloc.
-  Transparent free.
-  Transparent peek.
-  Transparent memcpy.
-  exists buffer_consM.
-  unfold buffer_cons, buffer_consM, Bind2.
-  intros w r r' bs bs' H.
   destruct r.
-  revert H.
-  destruct (0 <? psOffset bs) eqn:Heqe1;
-  simpl If_Then_Else.
-    unfold poke_at_offset, simply_widen_region,
-           poke_at_offsetM, simply_widen_regionM.
-    autorewrite with monad laws.
-    intros; simpl in H.
-    eapply CJoin.
-      apply HPoke.
-      unfold poke.
-      higher_order_reflexivity.
-    computes_to_inv; tsubst; simpl.
-    unfold id.
-    apply CPure.
-  destruct (psLength bs + 1 <=? psBufLen bs) eqn:Heqe2;
-  simpl If_Then_Else.
-    unfold make_room_by_shifting_up, make_room_by_shifting_upM.
-    simpl If_Then_Else.
-    autorewrite with monad laws.
-    intros; simpl in H.
-    eapply CJoin.
-      apply HMemcpy.
-      unfold memcpy; simpl.
-      higher_order_reflexivity.
-    unfold poke_at_offsetM.
-    eapply CJoin.
-      simpl.
-      apply HPoke.
-      higher_order_reflexivity.
-    computes_to_inv; tsubst; simpl.
-    apply CPure.
-  destruct (0 <? psBufLen bs) eqn:Heqe3;
-  simpl If_Then_Else.
-    unfold make_room_by_growing_buffer, make_room_by_growing_bufferM.
-    simpl If_Then_Else.
-    unfold Bind2.
-    simpl alloc; simpl memcpy.
-    autorewrite with monad laws.
-    intros; simpl in H.
-    computes_to_inv; subst.
-    eapply CJoin.
-      apply HAlloc with (addr:=v).
-      unfold alloc; simpl.
-      computes_to_econstructor.
-        exact H.
-      constructor.
-    eapply CJoin.
-      apply HMemcpy.
-      higher_order_reflexivity.
-    eapply CJoin.
-      apply HFree.
-      unfold free.
-      simpl.
-      higher_order_reflexivity.
-    unfold poke_at_offsetM.
-    eapply CJoin.
-      simpl.
-      apply HPoke.
-      higher_order_reflexivity.
-    computes_to_inv; tsubst; simpl.
-    apply CPure.
-  unfold allocate_buffer, allocate_bufferM.
+  unfold buffer_cons, consDSL; simpl.
+  repeat rewrite denote_Free_bind; simpl.
+  rewrite denote_if; simpl.
   unfold Bind2.
-  autorewrite with monad laws.
-  intros; simpl in H.
-  computes_to_inv; subst.
-  eapply CJoin.
-    apply HAlloc with (addr:=v).
-    unfold alloc; simpl.
-    computes_to_econstructor.
-      exact H.
-    constructor.
-  unfold poke_at_offsetM.
-  eapply CJoin.
-    simpl.
-    apply HPoke.
-    higher_order_reflexivity.
-  computes_to_inv; tsubst; simpl.
-  apply CPure.
-Defined.
-
-Definition consDSL'' := Eval simpl in projT1 consDSL'.
+  do 1 rewrite refineEquiv_bind_bind.
+  do 4 rewrite refineEquiv_If_Then_Else_Bind.
+  apply refine_If_Then_Else.
+    unfold poke_at_offsetM, simply_widen_regionM; simpl.
+    autorewrite with monad laws; reflexivity.
+  rewrite denote_If; simpl.
+  rewrite refineEquiv_If_Then_Else_Bind.
+  apply refine_If_Then_Else.
+    unfold make_room_by_shifting_upM, memcpyM; simpl.
+    autorewrite with monad laws; reflexivity.
+  rewrite denote_If; simpl.
+  rewrite refineEquiv_If_Then_Else_Bind.
+  apply refine_If_Then_Else.
+    unfold make_room_by_growing_bufferM, allocM, memcpyM, freeM; simpl.
+    autorewrite with monad laws; reflexivity.
+  unfold allocate_bufferM; simpl.
+  autorewrite with monad laws; reflexivity.
+Qed.
 
 Axiom IO : Type -> Type.
 
@@ -794,7 +416,7 @@ Proof.
 Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
-(* Print ghcConsDSL'. *)
+Print ghcConsDSL'.
 
 End Refined.
 
