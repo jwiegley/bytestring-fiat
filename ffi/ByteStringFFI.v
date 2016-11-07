@@ -369,6 +369,13 @@ Ltac prepare_reflection :=
   | [ H : () |- _ ] => destruct H
   end; simpl in *.
 
+Ltac DSL_term :=
+  repeat match goal with
+    [ H : _ ↝ (?R, _) |- HeapF_Computes _ _ ?R _ ] =>
+    solve [ econstructor; eassumption
+          | econstructor; [eassumption|higher_order_reflexivity] ]
+  end.
+
 Definition consDSL w :
   reflect_Heap_DSL_computation
     (fun r => r' <- buffer_cons (fst r) (snd r) w; ret (r', ())).
@@ -386,43 +393,38 @@ Proof.
     prepare_reflection.
     eapply CJoin.
     apply CPure.
-    apply HPoke; eassumption.
+    DSL_term.
 
   simplify_reflection.
     simplify_reflection.
     prepare_reflection.
     eapply CJoin.
-    eapply CJoin.
-    eapply CPure.
-    apply HPoke; eassumption.
-    apply HMemcpy; eassumption.
+      eapply CJoin.
+        eapply CPure.
+      DSL_term.
+    DSL_term.
 
   simplify_reflection.
     simplify_reflection.
     prepare_reflection.
     eapply CJoin.
-    eapply CJoin.
-    eapply CJoin.
-    eapply CJoin.
-    eapply CPure.
-    apply HPoke; eassumption.
-    apply HFree; eassumption.
-    apply HMemcpy; eassumption.
-    eapply HAlloc.
-      apply H.
-    higher_order_reflexivity.
+      eapply CJoin.
+        eapply CJoin.
+          eapply CJoin.
+            eapply CPure.
+          DSL_term.
+        DSL_term.
+      DSL_term.
+    DSL_term.
 
   simplify_reflection.
   prepare_reflection.
   eapply CJoin.
-  eapply CJoin.
-  apply CPure.
-  apply HPoke; eassumption.
-  eapply HAlloc.
-    apply H.
-  higher_order_reflexivity.
-Fail Defined.           (* jww (2016-11-06): what's happening here? *)
-Admitted.
+    eapply CJoin.
+      apply CPure.
+    DSL_term.
+  DSL_term.
+Defined.
 
 (**************************************************************************)
 
