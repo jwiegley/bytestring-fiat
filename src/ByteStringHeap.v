@@ -56,7 +56,7 @@ Program Definition make_room_by_growing_buffer
            ; psBufLen := psLength r + n
            ; psOffset := 0
            ; psLength := psLength r + n |}).
-Obligation 1. nomega. Defined.
+Obligation 1. nomega_. Defined.
 
 Program Definition allocate_buffer (h : Rep HeapSpec) (len : N | 0 < len) :
   Comp (Rep HeapSpec * PS) :=
@@ -93,9 +93,9 @@ Program Definition buffer_cons (h : Rep HeapSpec) (r : PS) (d : Word) :
     Then make_room_by_growing_buffer h r alloc_quantum
     Else allocate_buffer h alloc_quantum;
   poke_at_offset h ps d.
-Obligation 1. nomega. Defined.
-Obligation 2. nomega. Defined.
-Obligation 3. nomega. Defined.
+Obligation 1. nomega_. Defined.
+Obligation 2. nomega_. Defined.
+Obligation 3. nomega_. Defined.
 
 Definition buffer_uncons (h : Rep HeapSpec) (r : PS) :
   Comp ((Rep HeapSpec * PS) * option Word) :=

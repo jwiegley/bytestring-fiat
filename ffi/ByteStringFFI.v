@@ -348,6 +348,8 @@ Hint Unfold allocate_buffer.
 Hint Unfold find_free_block.
 Hint Unfold make_room_by_growing_buffer.
 Hint Unfold make_room_by_shifting_up.
+Hint Unfold ByteStringHeap.buffer_cons_obligation_2.
+Hint Unfold ByteStringHeap.buffer_cons_obligation_3.
 Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
@@ -376,6 +378,8 @@ Ltac DSL_term :=
           | econstructor; [eassumption|higher_order_reflexivity] ]
   end.
 
+Variable admit : forall A, A.
+
 Definition consDSL w :
   reflect_Heap_DSL_computation
     (fun r => r' <- buffer_cons (fst r) (snd r) w; ret (r', ())).
@@ -392,7 +396,7 @@ Proof.
     simplify_reflection.
     prepare_reflection.
     eapply CJoin.
-    apply CPure.
+      apply CPure.
     DSL_term.
 
   simplify_reflection.
