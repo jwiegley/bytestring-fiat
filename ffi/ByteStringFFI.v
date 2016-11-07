@@ -349,95 +349,63 @@ Hint Unfold make_room_by_shifting_up.
 Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
+Ltac simplify_reflection :=
+  eapply reflect_Heap_DSL_computation_simplify;
+  [ set_evars; intros;
+    autorewrite with monad laws; simpl;
+    try rewrite refineEquiv_If_Then_Else_Bind;
+    finish honing
+  | try (eapply reflect_Heap_DSL_computation_If_Then_Else;
+         [| | let r := fresh "r" in
+              intro r; destruct r; simpl; reflexivity]) ].
+
+Ltac prepare_reflection :=
+  repeat match goal with
+  | [ |- reflect_Heap_DSL_computation _ ] =>
+    eexists; intros; try computes_to_inv; tsubst
+  | [ H : _ * _ |- _ ] => destruct H
+  | [ H : () |- _ ] => destruct H
+  end; simpl in *.
+
 Definition consDSL w :
   reflect_Heap_DSL_computation
     (fun r => r' <- buffer_cons (fst r) (snd r) w; ret (r', ())).
 Proof.
-  repeat (autounfold; simpl).
   Local Opaque poke.
   Local Opaque alloc.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
 
-  eapply reflect_Heap_DSL_computation_simplify.
-    set_evars; intros.
-    rewrite !refineEquiv_bind_bind,
-            refineEquiv_If_Then_Else_Bind.
-    finish honing.
-  eapply reflect_Heap_DSL_computation_If_Then_Else;
-  [| |intros; destruct r; simpl; reflexivity].
-    eapply reflect_Heap_DSL_computation_simplify.
-      set_evars; intros.
-      autorewrite with monad laws; simpl.
-      finish honing.
-    eexists; intros.
-    computes_to_inv; tsubst.
-    destruct v0, u; simpl in *.
-    eapply CJoin.
-      apply HPoke, H.
+  repeat (autounfold; simpl).
+
+  simplify_reflection.
+    simplify_reflection.
+    prepare_reflection.
+    eapply CJoin. apply HPoke; eassumption.
     apply CPure.
 
-  eapply reflect_Heap_DSL_computation_simplify.
-    set_evars; intros.
-    rewrite refineEquiv_If_Then_Else_Bind.
-    finish honing.
-  eapply reflect_Heap_DSL_computation_If_Then_Else;
-  [| |intros; destruct r; simpl; reflexivity].
-    eapply reflect_Heap_DSL_computation_simplify.
-      set_evars; intros.
-      autorewrite with monad laws; simpl.
-      finish honing.
-    eexists; intros.
-    computes_to_inv; tsubst.
-    destruct v0, u; simpl in *.
-    destruct v1, u; simpl in *.
-    eapply CJoin.
-      apply HMemcpy, H.
-    eapply CJoin.
-      apply HPoke, H'.
+  simplify_reflection.
+    simplify_reflection.
+    prepare_reflection.
+    eapply CJoin. apply HMemcpy; eassumption.
+    eapply CJoin. apply HPoke; eassumption.
     apply CPure.
 
-  eapply reflect_Heap_DSL_computation_simplify.
-    set_evars; intros.
-    rewrite refineEquiv_If_Then_Else_Bind.
-    finish honing.
-  eapply reflect_Heap_DSL_computation_If_Then_Else;
-  [| |intros; destruct r; simpl; reflexivity].
-    eapply reflect_Heap_DSL_computation_simplify.
-      set_evars; intros.
-      autorewrite with monad laws; simpl.
-      finish honing.
-    eexists; intros.
-    computes_to_inv; tsubst.
-    destruct v0; simpl in *.
-    destruct v1, u; simpl in *.
-    destruct v2, u; simpl in *.
-    destruct v3, u; simpl in *.
-    eapply CJoin.
-      apply HAlloc, H.
-    eapply CJoin.
-      apply HMemcpy, H'.
+  simplify_reflection.
+    simplify_reflection.
+    prepare_reflection.
+    eapply CJoin. apply HAlloc; eassumption.
+    eapply CJoin. apply HMemcpy; eassumption.
     instantiate (1 := fun p => Join _ _).
-    eapply CJoin.
-      apply HFree, H''.
-    eapply CJoin.
-      apply HPoke, H'''.
+    eapply CJoin. apply HFree; eassumption.
+    eapply CJoin. apply HPoke; eassumption.
     apply CPure.
 
-  eapply reflect_Heap_DSL_computation_simplify.
-    set_evars; intros.
-    autorewrite with monad laws; simpl.
-    autounfold; simpl.
-    finish honing.
-  eexists; intros.
-  computes_to_inv; tsubst.
-  destruct v0; simpl in *.
-  destruct v1, u; simpl in *.
-  eapply CJoin.
-    apply HAlloc, H.
-  eapply CJoin.
-    apply HPoke, H'.
+  simplify_reflection.
+  prepare_reflection.
+  eapply CJoin. apply HAlloc; eassumption.
+  eapply CJoin. apply HPoke; eassumption.
   instantiate (1 := fun p => Pure (_, ())).
   apply CPure.
 Fail Defined.           (* jww (2016-11-06): what's happening here? *)
