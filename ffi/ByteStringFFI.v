@@ -131,9 +131,9 @@ Lemma reflect_Heap_DSL_computation_If_Then_Else
 Proof.
   intros.
   exists (fun bs : PS =>
-            if c' bs
-            then projT1 c_DSL bs
-            else projT1 k_DSL bs).
+            If c' bs
+            Then projT1 c_DSL bs
+            Else projT1 k_DSL bs).
   intros.
   rewrite H in H0.
   apply If_Then_Else_computes_to in H0.
@@ -284,11 +284,6 @@ Corollary denote_If : forall b A (t e : HeapDSL A) r,
               (If b Then denote t r Else denote e r).
 Proof. destruct b; simpl; reflexivity. Qed.
 
-Corollary denote_if : forall (b : bool) A (t e : HeapDSL A) r,
-  refineEquiv (denote (if b then t else e) r)
-              (if b then denote t r else denote e r).
-Proof. destruct b; simpl; reflexivity. Qed.
-
 Lemma HeapDSL_Computes_denotation : forall A f r r' (v : A),
   denote f r ↝ (r', v) -> HeapDSL_Computes f r r' v.
 Proof.
@@ -317,8 +312,7 @@ Proof.
   | apply H; eauto | apply HPoke
   | apply H; eauto | apply HMemcpy
   | apply H; eauto | apply HMemset ];
-  try destruct u;
-  eauto.
+  try destruct u; eauto.
 Qed.
 
 Theorem consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
@@ -330,24 +324,19 @@ Proof.
   destruct r.
   unfold buffer_cons, consDSL; simpl.
   repeat rewrite denote_Free_bind; simpl.
-  rewrite denote_if; simpl.
+  rewrite denote_If; simpl.
   unfold Bind2.
-  do 1 rewrite refineEquiv_bind_bind.
   do 4 rewrite refineEquiv_If_Then_Else_Bind.
   apply refine_If_Then_Else.
-    unfold poke_at_offsetM, simply_widen_regionM; simpl.
     autorewrite with monad laws; reflexivity.
   rewrite denote_If; simpl.
   rewrite refineEquiv_If_Then_Else_Bind.
   apply refine_If_Then_Else.
-    unfold make_room_by_shifting_upM, memcpyM; simpl.
     autorewrite with monad laws; reflexivity.
   rewrite denote_If; simpl.
   rewrite refineEquiv_If_Then_Else_Bind.
   apply refine_If_Then_Else.
-    unfold make_room_by_growing_bufferM, allocM, memcpyM, freeM; simpl.
     autorewrite with monad laws; reflexivity.
-  unfold allocate_bufferM; simpl.
   autorewrite with monad laws; reflexivity.
 Qed.
 
@@ -396,13 +385,14 @@ Corollary iter_If `{Functor f} : forall A (phi : f A -> A) b t e,
   iter phi (If b Then t Else e) = If b Then iter phi t Else iter phi e.
 Proof. destruct b; reflexivity. Qed.
 
+(*
 Lemma ghcConsDSL :
   { f : PS -> Word -> PS
-  & forall bs w, f bs w = ghcDenote (consDSL'' bs w) }.
+  & forall bs w, f bs w = fst (ghcDenote (projT1 (consDSL w) bs)) }.
 Proof.
   eexists.
   intros.
-  unfold consDSL'', ghcDenote, buffer_consM, compose, comp.
+  unfold consDSL, ghcDenote, compose, comp.
   symmetry.
   rewrite !bind_If.
   do 3 rewrite fmap_If.
@@ -417,6 +407,7 @@ Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
 Print ghcConsDSL'.
+*)
 
 End Refined.
 
