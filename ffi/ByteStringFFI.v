@@ -26,8 +26,6 @@ Import Heap.
 Import HeapState.
 Import FMapExt.
 
-Section Refined.
-
 Inductive HeapF (r : Type) : Type :=
   | Alloc   : forall (len : Size | 0 < len) (k : N -> r), HeapF r
   | Free_   : forall (addr : Ptr Word), r -> HeapF r
@@ -406,8 +404,6 @@ Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
 Print ghcConsDSL'.
-
-End Refined.
 
 End ByteStringFFI.
 
