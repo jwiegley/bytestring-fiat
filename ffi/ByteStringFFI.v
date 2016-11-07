@@ -385,17 +385,16 @@ Corollary iter_If `{Functor f} : forall A (phi : f A -> A) b t e,
   iter phi (If b Then t Else e) = If b Then iter phi t Else iter phi e.
 Proof. destruct b; reflexivity. Qed.
 
-(*
 Lemma ghcConsDSL :
   { f : PS -> Word -> PS
-  & forall bs w, f bs w = fst (ghcDenote (projT1 (consDSL w) bs)) }.
+  & forall bs w, f bs w = ghcDenote (fst <$> projT1 (consDSL w) bs) }.
 Proof.
   eexists.
   intros.
   unfold consDSL, ghcDenote, compose, comp.
   symmetry.
-  rewrite !bind_If.
-  do 3 rewrite fmap_If.
+  simpl projT1.
+  do 6 rewrite fmap_If.
   etransitivity.
     do 3 setoid_rewrite iter_If.
     simpl.
@@ -407,7 +406,6 @@ Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
 Print ghcConsDSL'.
-*)
 
 End Refined.
 
