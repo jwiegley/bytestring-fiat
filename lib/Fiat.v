@@ -5,6 +5,9 @@ Require Export
   Fiat.ADTRefinement
   Fiat.ADTRefinement.BuildADTRefinements.
 
+Definition getADTSig {sig : DecoratedADTSig} : ADT sig -> DecoratedADTSig :=
+  fun _ => sig.
+
 Tactic Notation "refine" "method" constr(name) :=
   match goal with
     | [ _ : constructorType ?A (consDom {| consID := name
