@@ -136,10 +136,6 @@ Ltac destruct_AbsR H :=
 
 Ltac construct_AbsR := split; try split; simpl; try nomega.
 
-Corollary If_Then_Else_computes_to : forall b A (t e : Comp A) (v : A),
-  (If b Then t Else e) ↝ v -> If b Then (t ↝ v) Else (e ↝ v).
-Proof. destruct b; trivial. Qed.
-
 Ltac if_computes_to_inv :=
   match goal with
     [ H : (If ?B Then _ Else _) ↝ _ |- _ ] =>
