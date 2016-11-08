@@ -18,8 +18,8 @@ Open Scope string_scope.
 
 Definition emptyS   := "empty".
 Definition allocS   := "alloc".
-Definition reallocS := "realloc".
 Definition freeS    := "free".
+Definition reallocS := "realloc".
 Definition peekS    := "peek".
 Definition pokeS    := "poke".
 Definition memcpyS  := "memcpy".
