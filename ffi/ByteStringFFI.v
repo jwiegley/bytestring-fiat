@@ -557,17 +557,43 @@ Proof.
   unfold buffer_cons, consDSL, Bind2; simpl.
   remember (exist (fun len : Size => 0 < len)
                   (psLength bs + 1) _) as ev.
-  Time rewrite denote_If, !refineEquiv_If_Then_Else_Bind; simpl.
+  rewrite denote_If, !refineEquiv_If_Then_Else_Bind; simpl.
   apply refine_If_Then_Else.
     Time autorewrite with monad laws; reflexivity.
-  Time rewrite denote_If, refineEquiv_If_Then_Else_Bind; simpl.
+  rewrite denote_If, refineEquiv_If_Then_Else_Bind; simpl.
   apply refine_If_Then_Else.
-    Time autorewrite with monad laws; reflexivity.
-  Time rewrite denote_If, refineEquiv_If_Then_Else_Bind; simpl.
+    rewrite denote_Join.
+    unfold denote; simpl.
+    unfold Bind2, id; simpl.
+    do 3 rewrite refineEquiv_bind_unit; simpl.
+    rewrite refineEquiv_bind_unit; simpl.
+    unfold id; simpl.
+    do 3 rewrite refineEquiv_bind_unit; simpl.
+    rewrite refineEquiv_bind_unit; simpl.
+    autorewrite with monad laws; reflexivity.
+  rewrite denote_If, refineEquiv_If_Then_Else_Bind; simpl.
   apply refine_If_Then_Else.
-    Time autorewrite with monad laws; reflexivity.
+    rewrite denote_Join.
+    unfold denote; simpl.
+    unfold Bind2, id; simpl.
+    unfold HeapState.find_free_block.
+    do 5 rewrite refineEquiv_bind_bind.
+    setoid_rewrite refineEquiv_bind_unit; simpl.
+    unfold make_room_by_growing_buffer, alloc, HeapState.find_free_block.
+    unfold Bind2, id; simpl.
+    rewrite refineEquiv_bind_bind.
+    rewrite refineEquiv_bind_bind.
+    do 4 setoid_rewrite refineEquiv_bind_unit; simpl.
+    do 2 setoid_rewrite refineEquiv_bind_unit; simpl.
+    unfold id; simpl.
+    do 3 setoid_rewrite refineEquiv_bind_unit; simpl.
+    unfold id; simpl.
+    do 3 setoid_rewrite refineEquiv_bind_unit; simpl.
+    setoid_rewrite refineEquiv_bind_unit; simpl.
+    rewrite Heqev; simpl.
+    reflexivity.
   Time autorewrite with monad laws; reflexivity.
-Qed.
+Time Qed.
 
 (****************************************************************************
  * Denote a [ClientDSL HeapSpec] term into a GHC computation
