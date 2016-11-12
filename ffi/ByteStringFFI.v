@@ -22,6 +22,15 @@ Require Import
  * ClientDSL: DSL that represents a series of calls against an ADT signature
  ****************************************************************************)
 
+Ltac tsubst :=
+  repeat
+    match goal with
+    | [ H : (_, _) = (_, _) |- _ ] => inv H
+    | [ H : (_, _, _) = (_, _, _) |- _ ] => inv H
+    | [ H : (_, _, _, _) = (_, _, _, _) |- _ ] => inv H
+    end;
+  subst.
+
 Section ClientDSL.
 
 Variable sig : ADTSig.
@@ -75,55 +84,7 @@ Inductive MethodCall_Computes :
              (H2 : snd (MethodDomCod sig midx) = Some A),
       meth = rew [fun T => methodType (Rep adt) T (Some A)] H1
                in rew H2 in Methods adt midx ->
-      MethodCall_Computes (Call midx H1 H2 args k) r r' x
-
-  | CallCompute1 (midx : MethodIndex sig) T1
-                 A (meth : methodType (Rep adt) [T1] (Some A)) :
-      forall (r r' : Rep adt) (v : A) (a1 : T1),
-        meth r a1 ↝ (r', v) ->
-      forall B (k : A -> B) x, x = k v ->
-      forall (H1 : fst (MethodDomCod sig midx) = [T1])
-             (H2 : snd (MethodDomCod sig midx) = Some A),
-      meth = rew [fun T => methodType (Rep adt) T (Some A)] H1
-               in rew H2 in Methods adt midx ->
-      MethodCall_Computes
-        (Call midx H1 H2 (HCons a1 HNil) k) r r' x
-
-  | CallCompute2 (midx : MethodIndex sig) T1 T2
-                 A (meth : methodType (Rep adt) [T1; T2] (Some A)) :
-      forall (r r' : Rep adt) (v : A) (a1 : T1) (a2 : T2),
-        meth r a1 a2 ↝ (r', v) ->
-      forall B (k : A -> B) x, x = k v ->
-      forall (H1 : fst (MethodDomCod sig midx) = [T1; T2])
-             (H2 : snd (MethodDomCod sig midx) = Some A),
-      meth = rew [fun T => methodType (Rep adt) T (Some A)] H1
-               in rew H2 in Methods adt midx ->
-      MethodCall_Computes
-        (Call midx H1 H2 (HCons a1 (HCons a2 HNil)) k) r r' x
-
-  | CallCompute3 (midx : MethodIndex sig) T1 T2 T3
-                 A (meth : methodType (Rep adt) [T1; T2; T3] (Some A)) :
-      forall (r r' : Rep adt) (v : A) (a1 : T1) (a2 : T2) (a3 : T3),
-             meth r a1 a2 a3 ↝ (r', v) ->
-      forall B (k : A -> B) x, x = k v ->
-      forall (H1 : fst (MethodDomCod sig midx) = [T1; T2; T3])
-             (H2 : snd (MethodDomCod sig midx) = Some A),
-      meth = rew [fun T => methodType (Rep adt) T (Some A)] H1
-               in rew H2 in Methods adt midx ->
-      MethodCall_Computes
-        (Call midx H1 H2 (HCons a1 (HCons a2 (HCons a3 HNil))) k) r r' x
-
-  | CallCompute4 (midx : MethodIndex sig) T1 T2 T3 T4
-                 A (meth : methodType (Rep adt) [T1; T2; T3; T4] (Some A)) :
-      forall (r r' : Rep adt) (v : A) (a1 : T1) (a2 : T2) (a3 : T3) (a4 : T4),
-             meth r a1 a2 a3 a4 ↝ (r', v) ->
-      forall B (k : A -> B) x, x = k v ->
-      forall (H1 : fst (MethodDomCod sig midx) = [T1; T2; T3; T4])
-             (H2 : snd (MethodDomCod sig midx) = Some A),
-      meth = rew [fun T => methodType (Rep adt) T (Some A)] H1
-               in rew H2 in Methods adt midx ->
-      MethodCall_Computes
-        (Call midx H1 H2 (HCons a1 (HCons a2 (HCons a3 (HCons a4 HNil)))) k) r r' x.
+      MethodCall_Computes (Call midx H1 H2 args k) r r' x.
 
 Inductive Free_Computes `{Functor f} {R : Type}
           (crel : forall {A}, f A -> R -> R -> A -> Prop) :
@@ -135,6 +96,132 @@ Inductive Free_Computes `{Functor f} {R : Type}
         -> Free_Computes crel (Join k t) r r'' v'.
 
 Definition ADT_Computes {A : Type} := Free_Computes (A:=A) MethodCall_Computes.
+
+(****************************************************************************
+ * Denote a [ClientDSL] term into a Fiat computation for a particular ADT.
+ * This is strictly the inverse of compilation.
+ ****************************************************************************)
+
+Program Instance ADT_Method_Functor :
+  Functor (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
+  fmap := fun _ _ f x r => `(r', a) <- x r; ret (r', f a)
+}.
+
+Program Instance ADT_Method_Applicative :
+  Applicative (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
+  pure := fun _ x r => ret (r, x);
+  ap := fun _ _ mf mx r => `(r', f) <- mf r;
+                           `(r', x) <- mx r';
+                           ret (r', f x)
+}.
+
+Program Instance ADT_Method_Monad :
+  Monad (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
+  join := fun _ mm r => `(r', m) <- mm r; m r'
+}.
+
+Import EqNotations.
+
+Definition denote {A : Type} : ClientDSL A -> Rep adt -> Comp (Rep adt * A) :=
+  foldFree (fun T (c : MethodCall T) =>
+              match c with
+              | Call midx _ _ H1 H2 args k =>
+                fun r =>
+                  `(r', x) <- applyArgs (rew H2 in Methods adt midx)
+                                        (rew <- H1 in args) r;
+                  ret (r', k x)
+              end).
+
+Corollary denote_Pure : forall A (x : A) r,
+  refineEquiv (denote (Pure x) r) (ret (r, x)).
+Proof. reflexivity. Qed.
+
+Lemma denote_Join :
+  forall A B (k : A -> ClientDSL B) (h : MethodCall A) r,
+  refineEquiv (denote (Join k h) r)
+              (denote (liftF h) r >>= fun p => denote (k (snd p)) (fst p)).
+Proof.
+  intros.
+  destruct h.
+  autorewrite with monad laws.
+  reflexivity.
+Qed.
+
+Lemma denote_Free_bind :
+  forall A (x : ClientDSL A) B (k : A -> ClientDSL B) r,
+    refineEquiv (denote (Free_bind k x) r)
+                (denote x r >>= fun p => denote (k (snd p)) (fst p)).
+Proof.
+  intros.
+  generalize dependent r.
+  induction x; simpl; intros.
+    rewrite denote_Pure.
+    autorewrite with monad laws; simpl.
+    reflexivity.
+  rewrite denote_Join.
+  setoid_rewrite H.
+  rewrite denote_Join.
+  autorewrite with monad laws; simpl.
+  reflexivity.
+Qed.
+
+Corollary denote_If :
+  forall b A (t e : ClientDSL A) r,
+    refineEquiv (denote (If b Then t Else e) r)
+                (If b Then denote t r Else denote e r).
+Proof. destruct b; simpl; reflexivity. Qed.
+
+Lemma ADT_Computes_denotation : forall A f r r' (v : A),
+  denote f r ↝ (r', v) <-> ADT_Computes f r r' v.
+Proof.
+  split; intros.
+    generalize dependent r.
+    induction f; intros.
+      apply denote_Pure in H.
+      computes_to_inv; tsubst.
+      apply CPure.
+    apply denote_Join in H0.
+    computes_to_inv; tsubst.
+    destruct v0; simpl in *.
+    destruct f0;
+    revert H0;
+    unfold denote; simpl;
+    unfold compose, comp, Bind2, Free_bind; simpl;
+    intro H0;
+    computes_to_inv; tsubst;
+    destruct v2;
+    eapply CJoin;
+    simpl in H0'.
+      apply H; eauto.
+    simpl in *.
+    computes_to_inv; tsubst.
+    eapply CallComputes; eauto.
+  generalize dependent r.
+  induction f; intros.
+    apply computes_to_refine.
+    rewrite denote_Pure.
+    inv H.
+    apply inj_pair2 in H2; subst.
+    apply inj_pair2 in H5; subst.
+    reflexivity.
+  apply computes_to_refine.
+  rewrite denote_Join.
+  inv H0.
+  apply inj_pair2 in H2; subst.
+  apply inj_pair2 in H2; subst.
+  apply inj_pair2 in H5; subst.
+  apply inj_pair2 in H8; subst.
+  destruct H9.
+  - unfold denote at 1; simpl.
+    unfold Bind2; simpl.
+    autorewrite with monad laws; simpl.
+    rewrite H4 in H0.
+    apply refine_computes_to in H0.
+    subst; simpl in *.
+    rewrite H0; clear H0.
+    autorewrite with monad laws; simpl.
+    apply refine_computes_to, H, H7.
+Qed.
 
 (****************************************************************************
  * reflect_ADT_DSL_computation: Helper lemmas to abstract a Fiat
@@ -206,162 +293,178 @@ Ltac wrapup :=
 Ltac solve_for1 :=
   match goal with
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute1
-              with (midx := Fin.F1); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.F1)
+                   (args := HCons A HNil); wrapup ]
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute1
-              with (midx := Fin.FS Fin.F1); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS Fin.F1)
+                   (args := HCons A HNil); wrapup ]
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute1
-              with (midx := Fin.FS (Fin.FS Fin.F1)); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS Fin.F1))
+                   (args := HCons A HNil); wrapup ]
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute1
-              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1)))
+                   (args := HCons A HNil); wrapup ]
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute1
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+                   (args := HCons A HNil); wrapup ]
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute1
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
+                   (args := HCons A HNil); wrapup ]
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute1
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))));
-                wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+                   (args := HCons A HNil); wrapup ]
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
     solve [
-      eapply CallCompute1
-        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))));
-          wrapup ]
+      eapply CallComputes
+        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+             (args := HCons A HNil); wrapup ]
   | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
     solve [
-      eapply CallCompute1
+      eapply CallComputes
         with (midx :=
-                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))));
+                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+             (args := HCons A HNil);
           wrapup ]
   end.
 
 Ltac solve_for2 :=
   match goal with
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute2
-              with (midx := Fin.F1); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.F1)
+                   (args := HCons A (HCons B HNil)); wrapup ]
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute2
-              with (midx := Fin.FS Fin.F1); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS Fin.F1)
+                   (args := HCons A (HCons B HNil)); wrapup ]
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute2
-              with (midx := Fin.FS (Fin.FS Fin.F1)); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS Fin.F1))
+                   (args := HCons A (HCons B HNil)); wrapup ]
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute2
-              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1)))
+                   (args := HCons A (HCons B HNil)); wrapup ]
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute2
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+                   (args := HCons A (HCons B HNil)); wrapup ]
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute2
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
+                   (args := HCons A (HCons B HNil)); wrapup ]
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute2
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))));
-                wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+                   (args := HCons A (HCons B HNil)); wrapup ]
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
     solve [
-      eapply CallCompute2
-        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))));
-          wrapup ]
+      eapply CallComputes
+        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+             (args := HCons A (HCons B HNil)); wrapup ]
   | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
     solve [
-      eapply CallCompute2
+      eapply CallComputes
         with (midx :=
-                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))));
-          wrapup ]
+                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+             (args := HCons A (HCons B HNil)); wrapup ]
   end.
 
 Ltac solve_for3 :=
   match goal with
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute3
-              with (midx := Fin.F1); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.F1)
+                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute3
-              with (midx := Fin.FS Fin.F1); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS Fin.F1)
+                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute3
-              with (midx := Fin.FS (Fin.FS Fin.F1)); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS Fin.F1))
+                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute3
-              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1)))
+                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute3
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute3
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
+                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute3
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))));
-                wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
     solve [
-      eapply CallCompute3
-        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))));
-          wrapup ]
+      eapply CallComputes
+        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+             (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
     solve [
-      eapply CallCompute3
+      eapply CallComputes
         with (midx :=
-                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))));
-          wrapup ]
+                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+             (args := HCons A (HCons B (HCons C HNil))); wrapup ]
   end.
 
 Ltac solve_for4 :=
   match goal with
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute4
-              with (midx := Fin.F1); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.F1)
+                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute4
-              with (midx := Fin.FS Fin.F1); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS Fin.F1)
+                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute4
-              with (midx := Fin.FS (Fin.FS Fin.F1)); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS Fin.F1))
+                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute4
-              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1)))
+                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute4
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute4
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))); wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
+                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallCompute4
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))));
-                wrapup ]
+    solve [ eapply CallComputes
+              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
     solve [
-      eapply CallCompute4
-        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))));
-          wrapup ]
+      eapply CallComputes
+        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+             (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
     solve [
-      eapply CallCompute4
+      eapply CallComputes
         with (midx :=
-                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))));
-          wrapup ]
+                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+             (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
   end.
 
 Ltac solve_for_call :=
   first [ solve_for1 | solve_for2 | solve_for3 | solve_for4 ].
-
-Ltac tsubst :=
-  repeat
-    match goal with
-    | [ H : (_, _) = (_, _) |- _ ] => inv H
-    | [ H : (_, _, _) = (_, _, _) |- _ ] => inv H
-    | [ H : (_, _, _, _) = (_, _, _, _) |- _ ] => inv H
-    end;
-  subst.
 
 Ltac build_computational_spine :=
   repeat match goal with
@@ -396,114 +499,6 @@ Ltac simplify_reflection :=
 Ltac compile_term :=
   repeat (autounfold; simpl);
   repeat (repeat simplify_reflection; build_computational_spine).
-
-(****************************************************************************
- * Denote a [ClientDSL] term into a Fiat computation for a particular ADT.
- * This is strictly the inverse of compilation.
- ****************************************************************************)
-
-Section Denotation.
-
-Variable sig : ADTSig.
-Variable adt : ADT sig.
-
-Program Instance ADT_Method_Functor :
-  Functor (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
-  fmap := fun _ _ f x r => `(r', a) <- x r; ret (r', f a)
-}.
-
-Program Instance ADT_Method_Applicative :
-  Applicative (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
-  pure := fun _ x r => ret (r, x);
-  ap := fun _ _ mf mx r => `(r', f) <- mf r;
-                           `(r', x) <- mx r';
-                           ret (r', f x)
-}.
-
-Program Instance ADT_Method_Monad :
-  Monad (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
-  join := fun _ mm r => `(r', m) <- mm r; m r'
-}.
-
-Import EqNotations.
-
-Definition denote {A : Type} : ClientDSL sig A -> Rep adt -> Comp (Rep adt * A) :=
-  foldFree (fun T (c : MethodCall T) =>
-              match c with
-              | Call midx _ _ H1 H2 args k =>
-                fun r =>
-                  `(r', x) <- applyArgs (rew H2 in Methods adt midx)
-                                        (rew <- H1 in args) r;
-                  ret (r', k x)
-              end).
-
-Corollary denote_Pure : forall A (x : A) r,
-  refineEquiv (denote (Pure x) r) (ret (r, x)).
-Proof. reflexivity. Qed.
-
-Lemma denote_Join :
-  forall A B (k : A -> ClientDSL sig B) (h : MethodCall A) r,
-  refineEquiv (denote (Join k h) r)
-              (denote (liftF h) r >>= fun p => denote (k (snd p)) (fst p)).
-Proof.
-  intros.
-  destruct h.
-  autorewrite with monad laws.
-  reflexivity.
-Qed.
-
-Lemma denote_Free_bind :
-  forall A (x : ClientDSL sig A) B (k : A -> ClientDSL sig B) r,
-    refineEquiv (denote (Free_bind k x) r)
-                (denote x r >>= fun p => denote (k (snd p)) (fst p)).
-Proof.
-  intros.
-  generalize dependent r.
-  induction x; simpl; intros.
-    rewrite denote_Pure.
-    autorewrite with monad laws; simpl.
-    reflexivity.
-  rewrite denote_Join.
-  setoid_rewrite H.
-  rewrite denote_Join.
-  autorewrite with monad laws; simpl.
-  reflexivity.
-Qed.
-
-Corollary denote_If :
-  forall b A (t e : ClientDSL sig A) r,
-    refineEquiv (denote (If b Then t Else e) r)
-                (If b Then denote t r Else denote e r).
-Proof. destruct b; simpl; reflexivity. Qed.
-
-Lemma ADT_Computes_denotation : forall A f r r' (v : A),
-  denote f r ↝ (r', v) -> ADT_Computes adt f r r' v.
-Proof.
-  intros.
-  generalize dependent r.
-  induction f; intros.
-    apply denote_Pure in H.
-    computes_to_inv; tsubst.
-    apply CPure.
-  apply denote_Join in H0.
-  computes_to_inv; tsubst.
-  destruct v0; simpl in *.
-  destruct f0;
-  revert H0;
-  unfold denote; simpl;
-  unfold compose, comp, Bind2, Free_bind; simpl;
-  intro H0;
-  computes_to_inv; tsubst;
-  destruct v2;
-  eapply CJoin;
-  simpl in H0'.
-    apply H; eauto.
-  simpl in *.
-  computes_to_inv; tsubst.
-  eapply CallComputes; eauto.
-Qed.
-
-End Denotation.
 
 (****************************************************************************
  * Compile [buffer_cons] into a [ClientDSL] term
@@ -546,7 +541,7 @@ Proof.
   Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
-Defined.
+Time Defined.
 
 Theorem consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
   refine (buffer_cons r bs w)
