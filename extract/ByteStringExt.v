@@ -294,21 +294,23 @@ Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
 
 Module Import BS := ByteStringFFI M.
 
-Extract Constant IO "'a" => "Prelude.IO 'a".
+Extract Constant IO "a" => "Prelude.IO a".
+Extract Constant Ptr "a" => "Foreign.Ptr.Ptr Data.Word.Word8".
 
-Extract Inlined Constant unsafeDupablePerformIO => "System.Unsafe.unsafeDupablePerformIO".
+(* Extract Inlined Constant unsafeDupablePerformIO => "System.IO.Unsafe.unsafeDupablePerformIO". *)
+Extract Inlined Constant unsafeDupablePerformIO => "System.IO.Unsafe.unsafePerformIO".
 
 Extract Inlined Constant fmapIO   => "Prelude.fmap".
-Extract Inlined Constant bindIO   => "Prelude.(>>=)".
+Extract Inlined Constant bindIO   => "(>>=)".
 Extract Inlined Constant returnIO => "Prelude.return".
 Extract Inlined Constant joinIO   => "Prelude.join".
-Extract Inlined Constant malloc   => "malloc".
-Extract Inlined Constant free     => "free".
-Extract Inlined Constant realloc  => "realloc".
-Extract Inlined Constant peek     => "peek".
-Extract Inlined Constant poke     => "poke".
-Extract Inlined Constant memcpy   => "memcpy".
-Extract Inlined Constant memset   => "memset".
+Extract Inlined Constant malloc   => "Foreign.Marshal.Alloc.mallocBytes".
+Extract Inlined Constant free     => "Foreign.Marshal.Alloc.free".
+Extract Inlined Constant realloc  => "Foreign.Marshal.Alloc.realloc".
+Extract Inlined Constant peek     => "Foreign.Storable.peek".
+Extract Inlined Constant poke     => "Foreign.Storable.poke".
+Extract Inlined Constant memcpy   => "Foreign.Marshal.Utils.copyBytes".
+Extract Inlined Constant memset   => "Foreign.Marshal.Utils.fillBytes".
 
 (** Final extraction *)
 
@@ -319,20 +321,20 @@ Set Extraction AutoInline.
 Set Extraction Optimize.
 Set Extraction AccessOpaque.
 
-Extraction "ByteStringExt.hs"
-  emptyHeap
-  allocHeap
-  freeHeap
-  reallocHeap
-  peekHeap
-  pokeHeap
-  memcpyHeap
-  memsetHeap
-  N.of_nat
-  N.to_nat
+Extraction "ByteStringExt2.hs"
+  (* emptyHeap *)
+  (* allocHeap *)
+  (* freeHeap *)
+  (* reallocHeap *)
+  (* peekHeap *)
+  (* pokeHeap *)
+  (* memcpyHeap *)
+  (* memsetHeap *)
+  (* N.of_nat *)
+  (* N.to_nat *)
 
-  emptyBS
-  consBS
-  unconsBS
+  (* emptyBS *)
+  (* consBS *)
+  (* unconsBS *)
 
   ghcConsDSL'.
