@@ -140,6 +140,15 @@ Extract Constant Z.div =>
 Extract Constant Z.modulo =>
   "(\n m -> if m Prelude.== 0 then 0 else Prelude.mod n m)".
 
+Extract Inductive N => "Prelude.Int" [ "0" "(\x -> x)" ]
+  "(\fO fP n -> if n Prelude.== 0 then fO () else fP n)".
+
+Extract Inlined Constant N.add       => "(Prelude.+)".
+Extract Inlined Constant N.sub       => "(Prelude.-)".
+Extract Inlined Constant N.mul       => "(Prelude.*)".
+Extract Inlined Constant N.max       => "Prelude.max".
+Extract Inlined Constant N.min       => "Prelude.min".
+
 Extract Inductive Q => "(GHC.Real.Ratio Prelude.Int)" [ "(GHC.Real.:%)" ].
 
 Extract Inlined Constant Qplus  => "(Prelude.+)".
