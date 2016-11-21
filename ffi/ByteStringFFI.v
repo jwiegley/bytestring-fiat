@@ -513,200 +513,392 @@ Ltac wrapup :=
     reflexivity ].
 
 Ltac solve_for1 :=
-  match goal with
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.F1)
-                   (args := HCons A HNil); wrapup ]
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS Fin.F1)
-                   (args := HCons A HNil); wrapup ]
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS Fin.F1))
-                   (args := HCons A HNil); wrapup ]
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1)))
-                   (args := HCons A HNil); wrapup ]
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                   (args := HCons A HNil); wrapup ]
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
-                   (args := HCons A HNil); wrapup ]
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-                   (args := HCons A HNil); wrapup ]
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [
-      eapply CallComputes
-        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-             (args := HCons A HNil); wrapup ]
-  | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [
-      eapply CallComputes
-        with (midx :=
-                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-             (args := HCons A HNil);
-          wrapup ]
-  end.
+ match goal with
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec Fin.F1)
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS Fin.F1))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A HNil);
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+ end.
 
 Ltac solve_for2 :=
-  match goal with
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.F1)
-                   (args := HCons A (HCons B HNil)); wrapup ]
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS Fin.F1)
-                   (args := HCons A (HCons B HNil)); wrapup ]
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS Fin.F1))
-                   (args := HCons A (HCons B HNil)); wrapup ]
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1)))
-                   (args := HCons A (HCons B HNil)); wrapup ]
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                   (args := HCons A (HCons B HNil)); wrapup ]
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
-                   (args := HCons A (HCons B HNil)); wrapup ]
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-                   (args := HCons A (HCons B HNil)); wrapup ]
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [
-      eapply CallComputes
-        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-             (args := HCons A (HCons B HNil)); wrapup ]
-  | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [
-      eapply CallComputes
-        with (midx :=
-                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-             (args := HCons A (HCons B HNil)); wrapup ]
-  end.
+ match goal with
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec Fin.F1)
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS Fin.F1))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+ end.
 
 Ltac solve_for3 :=
-  match goal with
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.F1)
-                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS Fin.F1)
-                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS Fin.F1))
-                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1)))
-                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
-                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-                   (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [
-      eapply CallComputes
-        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-             (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [
-      eapply CallComputes
-        with (midx :=
-                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-             (args := HCons A (HCons B (HCons C HNil))); wrapup ]
-  end.
+ match goal with
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec Fin.F1)
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS Fin.F1))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HCons C HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+ end.
 
 Ltac solve_for4 :=
-  match goal with
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.F1)
-                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS Fin.F1)
-                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS Fin.F1))
-                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS Fin.F1)))
-                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
-                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [ eapply CallComputes
-              with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-                   (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [
-      eapply CallComputes
-        with (midx := Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-             (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes _ _ _ ?R _ ] =>
-    solve [
-      eapply CallComputes
-        with (midx :=
-                Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-             (args := HCons A (HCons B (HCons C (HCons D HNil)))); wrapup ]
-  end.
+ match goal with
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec Fin.F1)
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS Fin.F1))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D (HCons C (HCons D HNil))))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))))
+      with (r := R') (r' := R);
+        first
+          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D (HCons C (HCons D HNil))))));
+           [ | eapply H]
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    end.
 
 Ltac solve_for_call :=
   first [ solve_for1 | solve_for2 | solve_for3 | solve_for4 ].
 
+Ltac solve_for_call' :=
+      match goal with
+       | H : ADT_Computes _ _ _ _ _ |- _ =>
+         simpl in H; inversion H; subst;
+         repeat match goal with
+                | H : existT _ _ _ = existT _ _ _ |- _ =>
+                  apply inj_pair2 in H; subst
+                end;
+         clear H
+       | H : Free_Computes _ _ _ _ _ |- _ =>
+         inversion H; subst;
+         repeat match goal with
+                | H : existT _ _ _ = existT _ _ _ |- _ =>
+                  apply inj_pair2 in H; subst
+                end;
+         clear H
+       | H : MethodCall_Computes _ _ _ _ _ |- _ =>
+      inversion H; simpl in *; subst;
+        repeat match goal with
+               | H : existT _ _ _ = existT _ _ _ |- _ =>
+                 apply inj_pair2 in H; subst
+               end;
+        clear H
+    | H : methodType_Computes _ _ _ _ _ _ |- _ =>
+      apply methodType_computes_inv in H; destruct_ex; intuition; subst;
+      simpl in *; unfold id in *; simpl in *
+      end;
+      try computes_to_econstructor; injections; try eassumption.
+
 Ltac build_computational_spine :=
-  repeat match goal with
-  | [ |- reflect_ADT_DSL_computation _ _ ] => eexists; intros
-  | H : {a' | @?P a'} ↝ _ |- _ => apply Pick_inv in H
-  | H : Return ?a ↝ _ |- _ =>
-    apply Return_inv in H; tsubst; try apply CPure
-  | H : Bind (A := ?A) ?ca ?k ↝ _ |- _ =>
-    apply Bind_inv in H;
-    let a' := fresh "v" in
-    let H' := fresh H "'" in
-    destruct H as [a' [H H'] ];
-    eapply CJoin
-  end;
-  computes_to_inv; tsubst; simpl in *;
-  repeat match goal with
-  | [ H : _ * _ |- _ ] => destruct H
-  | [ H : () |- _ ] => destruct H
-  end;
-  first [ solve_for_call | simpl in *; solve_for_call ].
+repeat match goal with
+           | [ |- reflect_ADT_DSL_computation _ _ ] => eexists; split; intros
+           | H : {a' | @?P a'} ↝ _ |- _ => apply Pick_inv in H
+           | H : Return ?a ↝ _ |- _ =>
+             apply Return_inv in H; tsubst; try apply CPure
+           | H : Bind (A := ?A) ?ca ?k ↝ _ |- _ =>
+             apply Bind_inv in H;
+               let r' := fresh "r" in
+               let v' := fresh "v" in
+               let H' := fresh H "'" in
+               destruct H as [ [r' v'] [H H'] ];
+                 simpl in *;
+                 eapply (@CJoin _ _ _ _  _ _ _ _ _ _ _ r' v')
+     end.
 
 Ltac simplify_reflection :=
   eapply reflect_ADT_DSL_computation_simplify;
@@ -720,7 +912,8 @@ Ltac simplify_reflection :=
 
 Ltac compile_term :=
   repeat (autounfold; simpl);
-  repeat (repeat simplify_reflection; build_computational_spine).
+  repeat simplify_reflection; build_computational_spine;
+  first [ solve_for_call | repeat solve_for_call' ].
 
 (****************************************************************************
  * Compile [buffer_cons] into a [ClientDSL] term
@@ -755,250 +948,7 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-  repeat (autounfold; simpl).
-  repeat simplify_reflection.
-  - repeat match goal with
-           | [ |- reflect_ADT_DSL_computation _ _ ] => eexists; split; intros
-           | H : {a' | @?P a'} ↝ _ |- _ => apply Pick_inv in H
-           | H : Return ?a ↝ _ |- _ =>
-             apply Return_inv in H; tsubst; try apply CPure
-           | H : Bind (A := ?A) ?ca ?k ↝ _ |- _ =>
-             apply Bind_inv in H;
-               let r' := fresh "r" in
-               let v' := fresh "v" in
-               let H' := fresh H "'" in
-               destruct H as [ [r' v'] [H H'] ];
-                 simpl in *;
-                 eapply (@CJoin _ _ _ _  _ _ _ _ _ _ _ r' v')
-     end.
-    + eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ (HCons _ HNil));
-        try eapply H;
-        instantiate (1 := id); reflexivity.
-    + simpl in H; inversion H; subst.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      inversion H8; simpl in *; subst.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      apply methodType_computes_inv in H7; destruct_ex; intuition; subst.
-      repeat (computes_to_econstructor; try eassumption).
-      inversion H6; subst.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      injections; computes_to_econstructor.
-  - repeat match goal with
-           | [ |- reflect_ADT_DSL_computation _ _ ] => eexists; split; intros
-           | H : {a' | @?P a'} ↝ _ |- _ => apply Pick_inv in H
-           | H : Return ?a ↝ _ |- _ =>
-             apply Return_inv in H; tsubst; try apply CPure
-           | H : Bind (A := ?A) ?ca ?k ↝ _ |- _ =>
-             apply Bind_inv in H;
-               let r' := fresh "r" in
-               let v' := fresh "v" in
-               let H' := fresh H "'" in
-               destruct H as [ [r' v'] [H H'] ];
-                 simpl in *;
-                 eapply (@CJoin _ _ _ _  _ _ _ _ _ _ _ r' v')
-     end.
-    + eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ (HCons _ HNil));
-        try eapply H';
-        instantiate (1 := id); reflexivity.
-    + eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ (HCons _ (HCons _ HNil)));
-        try eapply H;
-        instantiate (1 := id); reflexivity.
-    + inversion H; clear H.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      inversion H8; clear H8; simpl in *.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      apply methodType_computes_inv in H5; destruct_ex; intuition; subst.
-      inversion H6; clear H6.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      inversion H9; clear H9; simpl in *.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      apply methodType_computes_inv in H6; destruct_ex; intuition; subst.
-      inversion H7; clear H7;
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      injections.
-      repeat (computes_to_econstructor; try eassumption).
-  - repeat match goal with
-           | [ |- reflect_ADT_DSL_computation _ _ ] => eexists; split; intros
-           | H : {a' | @?P a'} ↝ _ |- _ => apply Pick_inv in H
-           | H : Return ?a ↝ _ |- _ =>
-             apply Return_inv in H; tsubst; try apply CPure
-           | H : Bind (A := ?A) ?ca ?k ↝ _ |- _ =>
-             apply Bind_inv in H;
-               let r' := fresh "r" in
-               let v' := fresh "v" in
-               let H' := fresh H "'" in
-               destruct H as [ [r' v'] [H H'] ];
-                 simpl in *;
-                 eapply (@CJoin _ _ _ _  _ _ _ _ _ _ _ r' v')
-     end.
-    + eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ (HCons _ HNil));
-        try eapply H''';
-        instantiate (1 := id); reflexivity.
-    + eapply (CallComputes HeapSpec (Fin.FS Fin.F1)
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ HNil);
-        try eapply H'';
-        instantiate (1 := id); reflexivity.
-    + eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ (HCons _ (HCons _ HNil)));
-        try eapply H';
-        instantiate (1 := id); reflexivity.
-    + eapply (CallComputes HeapSpec (Fin.F1)
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ HNil);
-        try eapply H;
-        instantiate (1 := id); reflexivity.
-    + inversion H; clear H.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      inversion H8; clear H8; simpl in *.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      apply methodType_computes_inv in H5; destruct_ex; intuition; subst.
-      inversion H6; clear H6.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      inversion H9; clear H9; simpl in *.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      apply methodType_computes_inv in H6; destruct_ex; intuition; subst.
-      inversion H7; clear H7;
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      inversion H10; subst;
-        repeat match goal with
-               | H : existT _ _ _ = existT _ _ _ |- _ =>
-                 apply inj_pair2 in H; subst
-               end.
-      apply methodType_computes_inv in H7; destruct_ex; intuition; subst.
-      inversion H8; clear H8;
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      injections.
-      simpl in *.
-      inversion H12; subst;
-        repeat match goal with
-               | H : existT _ _ _ = existT _ _ _ |- _ =>
-                 apply inj_pair2 in H; subst
-               end.
-      simpl in *;
-      apply methodType_computes_inv in H8; destruct_ex; intuition; subst.
-      repeat (computes_to_econstructor; try eassumption).
-      simpl in *.
-      inversion H9; subst;
-        repeat match goal with
-               | H : existT _ _ _ = existT _ _ _ |- _ =>
-                 apply inj_pair2 in H; subst
-               end.
-      injections; computes_to_econstructor.
-  - repeat match goal with
-           | [ |- reflect_ADT_DSL_computation _ _ ] => eexists; split; intros
-           | H : {a' | @?P a'} ↝ _ |- _ => apply Pick_inv in H
-           | H : Return ?a ↝ _ |- _ =>
-             apply Return_inv in H; tsubst; try apply CPure
-           | H : Bind (A := ?A) ?ca ?k ↝ _ |- _ =>
-             apply Bind_inv in H;
-               let r' := fresh "r" in
-               let v' := fresh "v" in
-               let H' := fresh H "'" in
-               destruct H as [ [r' v'] [H H'] ];
-                 simpl in *;
-                 eapply (@CJoin _ _ _ _  _ _ _ _ _ _ _ r' v')
-     end.
-    + eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ (HCons _ HNil));
-        try eapply H';
-        instantiate (1 := id); reflexivity.
-    + eapply (CallComputes HeapSpec (Fin.F1)
-                           (r := _)
-                           (r' := _)).
-      eapply CallSome with (args := HCons _ HNil);
-        try eapply H;
-        instantiate (1 := id); reflexivity.
-    + inversion H; clear H.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      inversion H8; clear H8; simpl in *.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      apply methodType_computes_inv in H5; destruct_ex; intuition; subst.
-      inversion H6; clear H6.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      inversion H9; clear H9; simpl in *.
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      apply methodType_computes_inv in H6; destruct_ex; intuition; subst.
-      inversion H7; clear H7;
-      repeat match goal with
-             | H : existT _ _ _ = existT _ _ _ |- _ =>
-               apply inj_pair2 in H; subst
-             end.
-      injections.
-      repeat (computes_to_econstructor; try eassumption).
-
+  compile_term.
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
