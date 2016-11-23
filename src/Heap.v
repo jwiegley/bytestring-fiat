@@ -30,7 +30,7 @@ Definition HeapSpec := Def ADT {
      offsets to initialized bytes. *)
   rep := HeapState,
 
-  Def Constructor0 emptyS : rep := ret newHeapState,,
+  Def Constructor0 emptyS : rep := ret newHeapState,
 
   (* Allocation returns the address for the newly allocated block.
      NOTE: conditions such as out-of-memory are not handled here; the final
@@ -92,7 +92,7 @@ Definition HeapSpec := Def ADT {
 }%ADTParsing.
 
 Definition empty : Comp (Rep HeapSpec) :=
-  Eval simpl in callCons HeapSpec emptyS.
+  Eval simpl in callMeth HeapSpec emptyS.
 
 Definition alloc (r : Rep HeapSpec) (len : Size | 0 < len) :
   Comp (Rep HeapSpec * Ptr Word) :=

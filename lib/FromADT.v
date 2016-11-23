@@ -1,70 +1,5 @@
 Require Import ByteString.Lib.Fiat.
 
-Definition get_ctor
-           {dSig : DecoratedADTSig}
-           (adt : DecoratedADT dSig)
-           (idxMap : BoundedIndex (ConstructorNames dSig)
-                       -> ConstructorIndex dSig)
-           (idx : BoundedIndex (ConstructorNames dSig)) :
-  ConstructorIndex dSig :=
-  idxMap idx.
-
-Notation "adt @@ idx" :=
-  (get_ctor adt (fun idx => ibound (indexb idx)) {| bindex := idx |})
-  (at level 100) : comp_scope.
-
-Lemma refine_constructor_fromADT
-      A (c : Comp (A)) (P : A -> Prop)
-      (f : forall v : A, c ↝ v -> P v) :
-  refine (r_o' <- c; {r_n0 : {r : A | P r} | r_o' = ` r_n0})
-         { r_n0 : { r : A | P r } | c ↝ ` r_n0 }.
-Proof.
-  intros x ?.
-  apply Pick_inv in H.
-  apply BindComputes with (a:=` x); trivial.
-  apply PickComputes; reflexivity.
-Qed.
-
-Fixpoint annotate_Constructor
-         {oldRep}
-         (dom : list Type)
-         (P : oldRep -> Prop)
-         (newRep := { r : oldRep | P r }%type)
-         {struct dom}
-  : (constructorType oldRep dom)
-    -> (constructorType newRep dom) :=
-  match dom return
-        constructorType oldRep dom ->
-        constructorType _ dom
-  with
-  | nil => fun oldMeth v => oldMeth (` v)
-  | cons domT dom' =>
-    fun oldMeth d =>
-      annotate_Constructor dom' P (oldMeth d)
-  end.
-
-Definition annotate_ConsDef
-           {oldRep}
-           (Sig : consSig)
-           (oldCons : @consDef oldRep Sig)
-           (P : oldRep -> Prop)
-  : @consDef _ Sig :=
-  {| consBody := annotate_Constructor _ P (consBody oldCons) |}.
-
-Tactic Notation "apply" "constructor" "knowledge" "for" constr(meth) :=
-  apply (fromADTConstructor _ meth _); simpl;
-  repeat
-    match goal with
-      [ |- fromConstructor _ _ ] => econstructor
-    end; eauto.
-
-Tactic Notation "resolve" "constructor" constr(meth) :=
-  subst; subst_evars;
-  etransitivity;
-  [ apply refine_constructor_fromADT; intros;
-    apply constructor knowledge for meth
-  | finish honing ].
-
 Definition get_method
            {dSig : DecoratedADTSig}
            (adt : DecoratedADT dSig)
@@ -119,12 +54,13 @@ Fixpoint annotate_Method'
 
 Definition annotate_Method
            {oldRep}
+           (arity : nat)
            (dom : list Type)
            (cod : option Type)
-           (oldMethod : methodType oldRep dom cod)
+           (oldMethod : methodType arity oldRep dom cod)
            (P : oldRep -> Prop)
            (newRep := { r : oldRep | P r }%type)
-  : methodType newRep dom cod :=
+  : methodType arity newRep dom cod :=
   fun r => annotate_Method' dom cod P (oldMethod (` r)).
 
 Definition annotate_MethDef

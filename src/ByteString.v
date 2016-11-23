@@ -16,7 +16,7 @@ Definition unconsS := "uncons".
 Definition ByteStringSpec := Def ADT {
   rep := list Word,
 
-  Def Constructor0 emptyS : rep := ret []%list,,
+  Def Constructor0 emptyS : rep := ret []%list,
 
   Def Method1 consS (r : rep) (w : Word) : rep * unit :=
     ret (cons w r, tt),
@@ -31,7 +31,7 @@ Definition ByteStringSpec := Def ADT {
 Definition ByteString := Rep ByteStringSpec.
 
 Definition empty : Comp ByteString :=
-  Eval simpl in callCons ByteStringSpec emptyS.
+  Eval simpl in callMeth ByteStringSpec emptyS.
 
 Definition cons (w : Word) (bs : ByteString) : Comp ByteString :=
   Eval simpl in (p <- callMeth ByteStringSpec consS bs w; ret (fst p)).

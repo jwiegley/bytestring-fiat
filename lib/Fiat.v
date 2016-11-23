@@ -10,10 +10,8 @@ Definition getADTSig {sig : DecoratedADTSig} : ADT sig -> DecoratedADTSig :=
 
 Tactic Notation "refine" "method" constr(name) :=
   match goal with
-    | [ _ : constructorType ?A (consDom {| consID := name
-                                         ; consDom := _ |}) |- _ ] =>
-      idtac
-    | [ _ : methodType ?A (methDom {| methID := name
+  | [ _ : methodType ?A (methDom {| methArity := _;
+                                    methID := name
                                     ; methDom := _
                                     ; methCod := _ |})  _ |- _ ] =>
       idtac
