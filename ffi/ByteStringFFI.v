@@ -856,33 +856,33 @@ Ltac solve_for_call :=
   first [ solve_for1 | solve_for2 | solve_for3 | solve_for4 ].
 
 Ltac solve_for_call' :=
-      match goal with
-       | H : ADT_Computes _ _ _ _ _ |- _ =>
-         simpl in H; inversion H; subst;
-         repeat match goal with
-                | H : existT _ _ _ = existT _ _ _ |- _ =>
-                  apply inj_pair2 in H; subst
-                end;
-         clear H
-       | H : Free_Computes _ _ _ _ _ |- _ =>
-         inversion H; subst;
-         repeat match goal with
-                | H : existT _ _ _ = existT _ _ _ |- _ =>
-                  apply inj_pair2 in H; subst
-                end;
-         clear H
-       | H : MethodCall_Computes _ _ _ _ _ |- _ =>
-      inversion H; simpl in *; subst;
-        repeat match goal with
-               | H : existT _ _ _ = existT _ _ _ |- _ =>
-                 apply inj_pair2 in H; subst
-               end;
-        clear H
-    | H : methodType_Computes _ _ _ _ _ _ |- _ =>
-      apply methodType_computes_inv in H; destruct_ex; intuition; subst;
-      simpl in *; unfold id in *; simpl in *
-      end;
-      try computes_to_econstructor; injections; try eassumption.
+  match goal with
+  | H : ADT_Computes _ _ _ _ _ |- _ =>
+    simpl in H; inversion H; subst;
+    repeat match goal with
+           | H : existT _ _ _ = existT _ _ _ |- _ =>
+             apply inj_pair2 in H; subst
+           end;
+    clear H
+  | H : Free_Computes _ _ _ _ _ |- _ =>
+    inversion H; subst;
+    repeat match goal with
+           | H : existT _ _ _ = existT _ _ _ |- _ =>
+             apply inj_pair2 in H; subst
+           end;
+    clear H
+  | H : MethodCall_Computes _ _ _ _ _ |- _ =>
+    inversion H; simpl in *; subst;
+    repeat match goal with
+           | H : existT _ _ _ = existT _ _ _ |- _ =>
+             apply inj_pair2 in H; subst
+           end;
+    clear H
+  | H : methodType_Computes _ _ _ _ _ _ |- _ =>
+    apply methodType_computes_inv in H; destruct_ex; intuition; subst;
+    simpl in *; unfold id in *; simpl in *
+  end;
+  try computes_to_econstructor; injections; try eassumption.
 
 Ltac build_computational_spine :=
 repeat match goal with
@@ -948,7 +948,9 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-  compile_term.
+
+  Time compile_term.
+
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
@@ -965,6 +967,61 @@ Proof.
   rewrite <- denote_refineEquiv; simpl.
   apply refine_under_bind; intros.
   destruct a; simpl; reflexivity.
+Qed.
+
+Hint Unfold buffer_uncons.
+
+Definition unconsDSL :
+  reflect_ADT_DSL_computation HeapSpec
+    (fun r => buffer_uncons (fst r) (snd r))%comp.
+Proof.
+  Local Opaque poke.
+  Local Opaque alloc.
+  Local Opaque free.
+  Local Opaque peek.
+  Local Opaque memcpy.
+
+  repeat (autounfold; simpl).
+  simplify_reflection.
+    eexists; split; intros.
+      simpl in H.
+      computes_to_inv; tsubst.
+      destruct v0.
+      Local Transparent peek.
+      unfold peek in H.
+      computes_to_inv; tsubst.
+      econstructor.
+        econstructor.
+      eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+        with (r := h) (r' := h).
+      eapply CallSome with (args := HCons (psBuffer bs + psOffset bs) HNil).
+        instantiate (1 := w).
+        higher_order_reflexivity.
+      simpl; unfold id; simpl.
+      computes_to_econstructor.
+        computes_to_econstructor.
+        exact H.
+      econstructor.
+    simpl.
+    admit.
+  compile_term.
+  auto.
+
+  Local Transparent poke.
+  Local Transparent alloc.
+  Local Transparent free.
+  Local Transparent peek.
+  Local Transparent memcpy.
+Time Admitted.
+
+Theorem unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
+  refine (buffer_uncons r bs)
+         (res <- denote HeapSpec (projT1 unconsDSL bs) r;
+          ret (fst res, fst (snd res), snd (snd res))).
+Proof.
+  intros.
+  rewrite <- denote_refineEquiv; simpl.
+  reflexivity.
 Qed.
 
 (****************************************************************************
