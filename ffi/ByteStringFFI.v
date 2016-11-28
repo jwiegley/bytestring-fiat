@@ -1003,16 +1003,30 @@ Proof.
         exact H.
       econstructor.
     simpl.
+    destruct v.
+      solve_for_call'.
+        solve_for_call'.
+          solve_for_call'.
+          solve_for_call'.
+          computes_to_inv; tsubst.
+          rewrite (H1 _ H); clear H1 H.
+          higher_order_reflexivity.
+        solve_for_call'.
+      solve_for_call'.
+      solve_for_call'.
+      solve_for_call'.
+      computes_to_inv; tsubst.
+      higher_order_reflexivity.
     solve_for_call'.
       solve_for_call'.
         solve_for_call'.
         solve_for_call'.
         computes_to_inv; tsubst.
-        rewrite (H1 _ H); clear H1 H.
-        Fail higher_order_reflexivity.
-        admit.
-      admit.
-    admit.
+      higher_order_reflexivity.
+    solve_for_call'.
+    solve_for_call'.
+    solve_for_call'.
+    computes_to_inv; tsubst.
   compile_term.
   auto.
 
@@ -1021,7 +1035,10 @@ Proof.
   Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
-Time Admitted.
+
+  Unshelve.
+  exact Zero.
+Defined.
 
 Theorem unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
   refine (buffer_uncons r bs)
