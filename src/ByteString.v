@@ -12,6 +12,7 @@ Open Scope string_scope.
 Definition emptyS  := "empty".
 Definition consS   := "cons".
 Definition unconsS := "uncons".
+Definition appendS := "append".
 
 Definition ByteStringSpec := Def ADT {
   rep := list Word,
@@ -24,7 +25,10 @@ Definition ByteStringSpec := Def ADT {
     ret (match r with
          | nil => (r, None)
          | cons x xs => (xs, Some x)
-         end)
+         end),
+
+  Def Method1 appendS (r1 : rep) (r2 : rep) : rep * unit :=
+    ret ((r1 ++ r2)%list, tt)
 
 }%ADTParsing.
 
@@ -38,3 +42,6 @@ Definition cons (w : Word) (bs : ByteString) : Comp ByteString :=
 
 Definition uncons (bs : ByteString) : Comp (ByteString * option Word) :=
   Eval simpl in callMeth ByteStringSpec unconsS bs.
+
+Definition append (bs1 bs2 : ByteString) : Comp (ByteString * unit) :=
+  Eval simpl in callMeth ByteStringSpec appendS bs1 bs2.

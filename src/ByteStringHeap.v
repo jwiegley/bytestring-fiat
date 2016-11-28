@@ -26,11 +26,11 @@ Record PS := makePS {
   psLength : Size
 }.
 
-Definition simply_widen_region (r : PS) : PS :=
+Definition simply_widen_region (r : PS) (n : N) : PS :=
   {| psBuffer := psBuffer r
    ; psBufLen := psBufLen r
-   ; psOffset := psOffset r - 1
-   ; psLength := psLength r + 1 |}.
+   ; psOffset := psOffset r - n
+   ; psLength := psLength r + n |}.
 
 Definition make_room_by_shifting_up
         (h : Rep HeapSpec) (r : PS) (n : N | 0 < n) :
@@ -84,7 +84,7 @@ Program Definition buffer_cons (h : Rep HeapSpec) (r : PS) (d : Word) :
   Comp (Rep HeapSpec * PS) :=
   `(h, ps) <-
     If 0 <? psOffset r
-    Then ret (h, simply_widen_region r)
+    Then ret (h, simply_widen_region r 1)
     Else
     If psLength r + alloc_quantum <=? psBufLen r
     Then make_room_by_shifting_up h r alloc_quantum
@@ -281,6 +281,26 @@ Proof.
   nomega.
 Qed.
 
+Program Definition buffer_append
+        (h1 : Rep HeapSpec) (r1 : PS)
+        (h2 : Rep HeapSpec) (r2 : PS) :
+  Comp (Rep HeapSpec * PS).
+Admitted.
+  (* `(h, ps) <- *)
+  (*   If psLength r2 <? psOffset r1 *)
+  (*   Then ret (h, simply_widen_region r (psLength r1)) *)
+  (*   Else *)
+  (*   If psLength r1 + psLength r2 <=? psBufLen r *)
+  (*   Then make_room_by_shifting_up h r alloc_quantum *)
+  (*   Else *)
+  (*   If 0 <? psBufLen r *)
+  (*   Then make_room_by_growing_buffer h r alloc_quantum *)
+  (*   Else allocate_buffer h alloc_quantum; *)
+  (* poke_at_offset h ps d. *)
+(* Obligation 1. nomega_. Defined. *)
+(* Obligation 2. nomega_. Defined. *)
+(* Obligation 3. nomega_. Defined. *)
+
 Theorem ByteStringHeap (heap : Rep HeapSpec) :
   { adt : _ & refineADT ByteStringSpec adt }.
 Proof.
@@ -331,7 +351,30 @@ Proof.
     finish honing.
   }
 
+  {
+    (* jww (2016-11-28): [d] is a [list Word] here, when it should be a
+       [HeapState * PS]. This is precisely what multi-arity methods will solve
+       for us. *)
+    simplify with monad laws.
+    etransitivity.
+      Fail eapply (refine_skip2 (dummy:=buffer_append (fst r_n) (snd r_n)
+                                                      (fst d) (snd d))).
+      admit.
+    (* etransitivity. *)
+    (*   apply refine_under_bind; intros; simpl. *)
+    (*   pose proof H1. *)
+    (*   eapply buffer_uncons_impl in H1; eauto. *)
+    (*   rewrite fst_match_list, snd_match_list, <- H1. *)
+    (*   refine pick val (fst a). *)
+    (*     simplify with monad laws. *)
+    (*     rewrite <- surjective_pairing. *)
+    (*     finish honing. *)
+    (*   eapply buffer_uncons_sound; eauto. *)
+    (* simplify with monad laws. *)
+    finish honing.
+  }
+
   apply reflexivityT.
-Defined.
+Admitted.
 
 End ByteStringHeap.
