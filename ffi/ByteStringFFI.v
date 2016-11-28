@@ -1003,6 +1003,15 @@ Proof.
         exact H.
       econstructor.
     simpl.
+    solve_for_call'.
+      solve_for_call'.
+        solve_for_call'.
+        solve_for_call'.
+        computes_to_inv; tsubst.
+        rewrite (H1 _ H); clear H1 H.
+        Fail higher_order_reflexivity.
+        admit.
+      admit.
     admit.
   compile_term.
   auto.
