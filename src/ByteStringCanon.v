@@ -38,36 +38,25 @@ Variable heap_AbsR : Heap_AbsR heap heap'.
    proof work that is done in HeapFMap.v). *)
 
 Lemma refine_ByteString_Heap_AbsR :
-  forall heap_resvs heap_bytes buffer buflen offset length B (k : _ -> Comp B),
+  forall heap pbuffer B (k : _ -> Comp B),
     refine
       (r_n' <- { r_n0 : cHeapRep * PS
-               | Heap_AbsR {| resvs := heap_resvs
-                            ; bytes := heap_bytes |} (fst r_n0) /\
-                 {| psBuffer := buffer
-                  ; psBufLen := buflen
-                  ; psOffset := offset
-                  ; psLength := length |} = snd r_n0 };
+               | Heap_AbsR heap (fst r_n0) /\
+                 pbuffer = snd r_n0 };
        k r_n')
-      (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
-       bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
+      (resvs' <- {resvs' : M.t Size | M.Equal (resvs heap) resvs'};
+       bytes' <- {bytes' : M.t Word | M.Equal (bytes heap) bytes'};
        brk'   <- {brk'   : N
                  | P.for_all (fun addr sz => addr + sz <=? brk') resvs' };
-       k ((brk', {| resvs := resvs'; bytes := bytes' |}),
-          {| psBuffer := buffer
-           ; psBufLen := buflen
-           ; psOffset := offset
-           ; psLength := length |})).
+       k ((brk', {| resvs := resvs'; bytes := bytes' |}), pbuffer)).
 Proof.
   intros; intros ??.
   destruct_computations.
-  revert H2.
-  remember (makePS _ _ _ _) as P; intros.
-  refine pick val ((x1, {| resvs := x; bytes := x0 |}), P).
+  refine pick val ((x1, {| resvs := x; bytes := x0 |}), pbuffer).
     apply computes_to_refine.
     simplify with monad laws.
     apply refine_computes_to.
     assumption.
-  rewrite HeqP.
   firstorder.
 Qed.
 
@@ -135,13 +124,13 @@ Proof.
   refine method ByteString.consS.
   {
     apply_ByteString_Heap_AbsR.
+    simplify_with_applied_monad_laws.
     fracture H; unfold find_free_block;
-    refine using ByteString_Heap_AbsR;
-    refine pick val (fst (fst r_n)); eauto;
-    try simplify with monad laws;
-    try finish honing;
-    refine using ByteString_Heap_AbsR.
-
+      refine using ByteString_Heap_AbsR;
+      try refine pick val (fst (fst r_n)); eauto;
+         try simplify with monad laws;
+         try finish honing;
+         refine using ByteString_Heap_AbsR.
     - refine pick val (fst (fst r_n) +
                        (psLength (snd r_n) + alloc_quantum)); eauto.
         simplify with monad laws.
@@ -181,7 +170,7 @@ Proof.
   {
     unfold buffer_uncons;
     apply_ByteString_Heap_AbsR;
-    fracture H;
+    fracture H.
     refine using ByteString_Heap_AbsR.
 
     - refine pick val (Ifopt M.find (psBuffer (snd r_n) + psOffset (snd r_n))

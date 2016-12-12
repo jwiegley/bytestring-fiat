@@ -20,6 +20,7 @@ Definition ByteStringSpec := Def ADT {
 
   Def Method1 consS (r : rep) (w : Word) : rep * unit :=
     ret (cons w r, tt),
+
   Def Method0 unconsS (r : rep) : rep * (option Word) :=
     ret (match r with
          | nil => (r, None)

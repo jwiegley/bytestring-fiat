@@ -309,7 +309,7 @@ Proof.
         simplify with monad laws.
         finish honing.
       eapply buffer_cons_sound; eauto.
-    simplify with monad laws; simpl.
+      try simplify with monad laws; simpl.
     finish honing.
   }
 
