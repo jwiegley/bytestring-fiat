@@ -38,7 +38,7 @@ Definition make_room_by_shifting_up
      the buffer. *)
   Comp (Rep HeapSpec * PS) :=
   res <- memcpy h (psBuffer r) (psBuffer r + ` n) (psLength r);
-  ret (fst res,
+  ret (res,
        {| psBuffer := psBuffer r
         ; psBufLen := psBufLen r
         ; psOffset := 0
@@ -50,8 +50,8 @@ Program Definition make_room_by_growing_buffer
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
   `(h, a) <- alloc h (psLength r + n);
-  `(h, _) <- memcpy h (psBuffer r) (a + n) (psLength r);
-  `(h, _) <- free h (psBuffer r);
+  h <- memcpy h (psBuffer r) (a + n) (psLength r);
+  h <- free h (psBuffer r);
   ret (h, {| psBuffer := a
            ; psBufLen := psLength r + n
            ; psOffset := 0
@@ -69,7 +69,7 @@ Program Definition allocate_buffer (h : Rep HeapSpec) (len : N | 0 < len) :
 Definition poke_at_offset (h : Rep HeapSpec) (r : PS) (d : Word) :
   Comp (Rep HeapSpec * PS) :=
   res <- poke h (psBuffer r + psOffset r) d;
-  ret (fst res,
+  ret (res,
        {| psBuffer := psBuffer r
         ; psBufLen := psBufLen r
         ; psOffset := psOffset r
@@ -325,8 +325,8 @@ Proof.
       eapply (refine_skip2 (dummy:=buffer_cons (fst r_n) (snd r_n) d)).
     etransitivity.
       apply refine_under_bind; intros; simpl.
+      set_evars.
       refine pick val a.
-        simplify with monad laws.
         finish honing.
       eapply buffer_cons_sound; eauto.
     simplify with monad laws; simpl.
@@ -357,8 +357,8 @@ Proof.
        for us. *)
     simplify with monad laws.
     etransitivity.
-      Fail eapply (refine_skip2 (dummy:=buffer_append (fst r_n) (snd r_n)
-                                                      (fst d) (snd d))).
+    eapply (refine_skip2 (dummy:=buffer_append (fst r_n) (snd r_n)
+                                                      (fst r_n0) (snd r_n0))).
       admit.
     (* etransitivity. *)
     (*   apply refine_under_bind; intros; simpl. *)

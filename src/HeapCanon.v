@@ -28,12 +28,23 @@ Open Scope N_scope.
 Theorem HeapCanonical : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
-
-  hone representation over HeapSpec using
-       (fun or nr =>
-          M.Equal (resvs or) (resvs (snd nr)) /\
-          M.Equal (bytes or) (bytes (snd nr)) /\
-          P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
+  eapply transitivityT.
+  eapply annotate_ADT with
+  (methDefs' := icons {|methBody :=  _|}
+               (icons {|methBody :=  _|}
+               (icons {|methBody :=  _|}
+               (icons {|methBody :=  _|}
+               (icons {|methBody :=  _|}
+               (icons {|methBody :=  _|}
+               (icons {|methBody :=  _|}
+               (icons {|methBody :=  _|} inil ) ) ) ) ) ) ) )
+               (AbsR :=
+     fun or nr =>
+        M.Equal (resvs or) (resvs (snd nr)) /\
+        M.Equal (bytes or) (bytes (snd nr)) /\
+        P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
+  simpl. repeat apply Build_prim_prod; simpl;
+           intros; try simplify with monad laws; set_evars.
 
   (*
   (* Taste of what this should look like with [annotate_ADT]. *)
@@ -84,12 +95,12 @@ Proof.
         finish honing.
 
       simpl in *; intuition.
-      rewrite H1; reflexivity.
+      rewrite H2; reflexivity.
       apply for_all_add_true; relational.
-        rewrite <- H1.
+        rewrite <- H2.
         destruct d.
         eapply allocations_no_overlap_r; eauto.
-        rewrite H1.
+        rewrite H2.
         eapply for_all_impl; eauto; relational; intros.
         nomega.
       split.
@@ -110,11 +121,11 @@ Proof.
     refine pick val (fst r_n,
                      {| resvs := M.remove d (resvs (snd r_n))
                       ; bytes := bytes (snd r_n) |}).
-      simplify with monad laws; simpl.
+    try simplify with monad laws; simpl.
       finish honing.
 
     simpl in *; intuition.
-    - rewrite H1; reflexivity.
+    - rewrite H2; reflexivity.
     - apply for_all_remove; relational.
   }
 
@@ -145,9 +156,10 @@ Proof.
             {| resvs := M.add (fst r_n) (` d0) (resvs (snd r_n))
              ; bytes := bytes (snd r_n) |})).
         simplify with monad laws.
+        simpl.
         finish honing.
 
-      simpl in *; intuition; rewrite ?H1;
+      simpl in *; intuition; rewrite ?H2;
       (destruct (M.find d _) as [sz|] eqn:Heqe;
        [ destruct (` d0 <=? sz) eqn:Heqe1;
          simpl; rewrite ?Heqe1 |]); simpl.
@@ -158,7 +170,7 @@ Proof.
           simplify_maps.
         simplify_maps; intuition.
         subst.
-        apply F.find_mapsto_iff in H2.
+        apply F.find_mapsto_iff in H1.
         congruence.
       - rewrite copy_bytes_idem; assumption.
       - rewrite N.min_l.
@@ -199,21 +211,25 @@ Proof.
      [ destruct (` d0 <=? sz) eqn:Heqe1;
        simpl; rewrite ?Heqe1 |]); simpl.
     - normalize.
-      rewrite <- H1 in Heqe.
-      pose proof (allocations_no_overlap Hfrom Heqe) as H2.
+      rewrite <- H2 in Heqe.
+      pose proof (allocations_no_overlap H Heqe) as H2'.
       apply P.for_all_iff; relational; intros.
       simplify_maps.
-      rewrite <- H1 in H6.
-      specialize (H2 _ _ H6 H5).
+      specialize (H2' _ _ H5 H3).
       nomega.
     - normalize.
       apply_for_all; relational.
       apply for_all_remove; relational.
       eapply for_all_impl; eauto;
-      relational; nomega.
+      relational; try nomega.
+      rewrite <- H2 in H4.
+      auto.
     - apply for_all_remove; relational.
       eapply for_all_impl; eauto;
-      relational; nomega.
+      relational; try nomega.
+      rewrite <- H2 in H4; auto.
+      apply H4.
+      nomega.
   }
 
   (* refine method peekS. *)
@@ -223,18 +239,18 @@ Proof.
                      Else Zero).
       simplify with monad laws.
       refine pick val r_n.
-        simplify with monad laws.
-        finish honing.
+      simplify with monad laws.
+      simpl; finish honing.
       simpl in *; intuition.
 
     simpl in *; intuition.
     destruct (M.find d _) as [sz|] eqn:Heqe;
     simpl; normalize.
-      rewrite H0 in H2.
-      pose proof (F.MapsTo_fun Heqe H2).
+    rewrite H0 in H1.
+      pose proof (F.MapsTo_fun Heqe H1).
       assumption.
-    rewrite H0 in H2.
-    apply F.find_mapsto_iff in H2.
+    rewrite H0 in H1.
+    apply F.find_mapsto_iff in H1.
     congruence.
   }
 
@@ -243,8 +259,8 @@ Proof.
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := M.add d d0 (bytes (snd r_n)) |}).
-      simplify with monad laws.
-      finish honing.
+    simpl.
+    finish honing.
 
     simpl in *; intuition;
     destruct (d <? fst r_n) eqn:Heqe; simpl; trivial;
@@ -256,7 +272,6 @@ Proof.
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := copy_bytes d d0 d1 (bytes (snd r_n)) |}).
-      simplify with monad laws.
       finish honing.
 
     simpl in *; intuition;
@@ -273,8 +288,7 @@ Proof.
                       (N.peano_rect (fun _ => M.t Word)
                                     (bytes (snd r_n))
                                     (fun i => M.add (d + i)%N d1) d0) |}).
-      simplify with monad laws.
-      finish honing.
+      simpl. finish honing.
 
     simpl in *; intuition.
     apply P.update_m; trivial.
@@ -282,8 +296,11 @@ Proof.
     rewrite !N.peano_rect_succ.
     apply F.add_m; trivial.
   }
+  constructor.
+  simpl.
 
   finish_SharpeningADT_WithoutDelegation.
+
 Defined.
 
 End HeapCanonical.
