@@ -301,6 +301,36 @@ Admitted.
 (* Obligation 2. nomega_. Defined. *)
 (* Obligation 3. nomega_. Defined. *)
 
+Lemma refine_skip2 {B} (dummy : Comp B) {A} (a : Comp A)
+  : refine a
+           (dummy>>
+                 a).
+Proof.
+  repeat first [ intro
+               | computes_to_inv
+               | assumption
+                 | econstructor; eassumption
+                 | econstructor; try eassumption; [] ].
+  eauto.
+Qed.
+
+Class RefineUnder {A : Type} (a a' : Comp A) :=
+  {rewrite_under : refine a a' }.
+
+Instance RefineUnder_Bind {A B : Type}
+         (ca ca' : Comp A)
+         (b b' : A -> Comp A)
+         (refine_a : refine ca ca')
+         (refine_b : forall a, ca ↝ a -> refine (b a) (b' a))
+  : RefineUnder (a <- ca; b a) (a' <- ca'; b' a') :=
+  {| rewrite_under := refine_under_bind_both b b' refine_a refine_b |}.
+
+Definition refine_skip2_pick {B} (dummy : Comp B) {A} (P : A -> Prop)
+  : refine {a | P a} (dummy >> {a | P a}) := @refine_skip2 _ _ _ _.
+
+Definition refine_skip2_bind {B} (dummy : Comp B) {A C} (ca : Comp A) (k : A -> Comp C)
+  : refine (ca >>= k) (dummy >> (ca >>= k)) := @refine_skip2 _ _ _ _.
+
 Theorem ByteStringHeap (heap : Rep HeapSpec) :
   { adt : _ & refineADT ByteStringSpec adt }.
 Proof.
@@ -321,34 +351,34 @@ Proof.
 
   {
     simplify with monad laws.
+    setoid_rewrite (@refine_skip2_pick _ (buffer_cons (fst r_n) (snd r_n) d)).
     etransitivity.
-      eapply (refine_skip2 (dummy:=buffer_cons (fst r_n) (snd r_n) d)).
-    etransitivity.
-      apply refine_under_bind; intros; simpl.
-      set_evars.
-      refine pick val a.
-        finish honing.
-      eapply buffer_cons_sound; eauto.
+    refine_under.
+    finish honing.
+    refine pick val a.
+    finish honing.
+    eapply buffer_cons_sound; eauto.
     simplify with monad laws; simpl.
     finish honing.
   }
 
   {
     simplify with monad laws.
+    setoid_rewrite (refine_skip2_bind (dummy:=buffer_uncons (fst r_n) (snd r_n))).
     etransitivity.
-      eapply (refine_skip2 (dummy:=buffer_uncons (fst r_n) (snd r_n))).
-    etransitivity.
-      apply refine_under_bind; intros; simpl.
-      pose proof H1.
-      eapply buffer_uncons_impl in H1; eauto.
-      rewrite fst_match_list, snd_match_list, <- H1.
-      refine pick val (fst a).
-        simplify with monad laws.
-        rewrite <- surjective_pairing.
+    - refine_under.
+      + finish honing.
+      + rewrite fst_match_list, snd_match_list;
+          erewrite <- buffer_uncons_impl by eauto.
+         refine pick val (fst a).
+         simplify with monad laws.
+         finish honing.
+         eapply buffer_uncons_sound; eauto.
+    - simpl.
+      unfold buffer_uncons.
+      rewrite refineEquiv_If_Then_Else_Bind.
+      refine_under; simplify with monad laws; simpl;
         finish honing.
-      eapply buffer_uncons_sound; eauto.
-    simplify with monad laws.
-    finish honing.
   }
 
   {
@@ -356,9 +386,9 @@ Proof.
        [HeapState * PS]. This is precisely what multi-arity methods will solve
        for us. *)
     simplify with monad laws.
-    etransitivity.
-    eapply (refine_skip2 (dummy:=buffer_append (fst r_n) (snd r_n)
-                                                      (fst r_n0) (snd r_n0))).
+    rewrite (refine_skip2_pick (dummy:=buffer_append (fst r_n) (snd r_n)
+                                                     (fst r_n0) (snd r_n0))).
+    refine_under.
       admit.
     (* etransitivity. *)
     (*   apply refine_under_bind; intros; simpl. *)

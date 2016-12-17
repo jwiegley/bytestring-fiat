@@ -92,6 +92,7 @@ Proof.
                        {| resvs := M.add (fst r_n) (` d) (resvs (snd r_n))
                         ; bytes := bytes (snd r_n) |}).
         simplify with monad laws; simpl.
+
         finish honing.
 
       simpl in *; intuition.
