@@ -9,6 +9,7 @@ lib/FMapExt.v
 lib/ADTInduction.v
 lib/FromADT.v
 lib/Fiat.v
+lib/HList.v
 lib/LibExt.v
 lib/Same_set.v
 lib/Relations.v
