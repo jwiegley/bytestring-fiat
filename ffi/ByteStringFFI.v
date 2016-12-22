@@ -1094,12 +1094,10 @@ Proof.
     exact (bindIO (poke (hlist_head h) (hlist_head (hlist_tail h))) y).
     exact (bindIO (memcpy (hlist_head h)
                          (hlist_head (hlist_tail h))
-                         (hlist_head (hlist_tail (hlist_tail h))))
-                  y).
+                         (hlist_head (hlist_tail (hlist_tail h)))) y).
     exact (bindIO (memset (hlist_head h)
                           (hlist_head (hlist_tail h))
-                          (hlist_head (hlist_tail (hlist_tail h))))
-                  y).
+                          (hlist_head (hlist_tail (hlist_tail h)))) y).
 Defined.
 
 Corollary bind_If `{Monad f} : forall A B (k : A -> f B) b t e,
