@@ -62,7 +62,7 @@ Record HeapIntf (Env : Type) := {
   free_correct : forall r env env' ptr,
     Mem_AbsR r env
       -> freeBytes ptr env = env'
-      -> forall r', free r ptr ↝ (r', tt) /\ Mem_AbsR r' env';
+      -> forall r', free r ptr ↝ r' /\ Mem_AbsR r' env';
 
   realloc_correct : forall r env env' old sz new,
     Mem_AbsR r env
@@ -77,17 +77,17 @@ Record HeapIntf (Env : Type) := {
   poke_correct : forall r env env' ptr w,
     Mem_AbsR r env
       -> pokePtr ptr w env = env'
-      -> forall r', poke r ptr w ↝ (r', tt) /\ Mem_AbsR r' env';
+      -> forall r', poke r ptr w ↝ r' /\ Mem_AbsR r' env';
 
   memcpy_correct : forall r env env' addr1 addr2 sz,
     Mem_AbsR r env
       -> copyBytes addr1 sz addr2 env = env'
-      -> forall r', memcpy r addr1 addr2 sz ↝ (r', tt) /\ Mem_AbsR r' env';
+      -> forall r', memcpy r addr1 addr2 sz ↝ r' /\ Mem_AbsR r' env';
 
   memset_correct : forall r env env' addr w sz,
     Mem_AbsR r env
       -> fillBytes addr w sz env = env'
-      -> forall r', memset r addr sz w ↝ (r', tt) /\ Mem_AbsR r' env'
+      -> forall r', memset r addr sz w ↝ r' /\ Mem_AbsR r' env'
 }.
 
 (** In order to refine to a computable heap, we have to add the notion of
