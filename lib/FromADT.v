@@ -458,7 +458,7 @@ Qed.
 
 Tactic Notation "remove" "dependency" constr(S) :=
   match goal with
-  | [ H : methodType _
+  | [ H : methodType _ _
             (methDom {| methID := ?M; methDom := _; methCod := _ |})
             (methCod {| methID := ?M; methDom := _; methCod := _ |}) |- _ ] =>
     strip_dependency_method;
