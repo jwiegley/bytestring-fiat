@@ -47,6 +47,25 @@ Lemma refine_If_Then_Else_bool :
       <-> refine (If b Then cpst Else cpse) res.
 Proof. split; intros; destruct b; auto. Qed.
 
+Definition IfDep_Then_Else (c : bool) {A} (t : c = true -> A) (e : c = false -> A) : A.
+Proof.
+  destruct c.
+    apply t.
+    reflexivity.
+  apply e.
+  reflexivity.
+Defined.
+
+Notation "'IfDep' c 'Then' t 'Else' e" := (@IfDep_Then_Else c _ t e) (at level 100).
+
+Lemma refine_IfDep_Then_Else_bool :
+  forall (b : bool) A cpst cpse (res : Comp A),
+    (if b as b0 return b = b0 -> Prop
+     then fun H => refine (cpst H) res
+     else fun H => refine (cpse H) res) eq_refl
+      <-> refine (IfDep b Then cpst Else cpse) res.
+Proof. split; intros; destruct b; auto. Qed.
+
 Ltac fracture H :=
   repeat (
     try simplify with monad laws; simpl;
