@@ -128,11 +128,13 @@ Ltac destruct_AbsR H :=
   let H1 := fresh "H1" in
   let H2 := fresh "H2" in
   destruct H as [H1 H2];
+  let H0 := fresh "H0" in
   let H3 := fresh "H3" in
   let H4 := fresh "H4" in
+  let H5 := fresh "H5" in
   let data := fresh "data" in
-  destruct H2 as [[H [H2 H3]]|[H [H2 [H3 H4]]]];
-  [ rewrite ?H, ?H2 in * |].
+  destruct H2 as [[H0 [H5 H3]]|[H0 [H5 [H3 H4]]]];
+  [ rewrite ?H0, ?H5 in * |].
 
 Ltac construct_AbsR := split; try split; simpl; try nomega.
 
@@ -199,8 +201,8 @@ Proof.
     rewrite If_Then_Else_MapsTo.
     apply H4 with (i:=i); try nomega.
     assert (psOffset (snd r_n) = 0) as HA by nomega.
-    rewrite HA, <- H6, !N.add_0_r in *; clear HA H6 n.
-    setoid_replace (x1 + N.succ i - (x1 + 1) + psBuffer (snd r_n))
+    rewrite HA, !N.add_0_r in *; clear HA H6.
+    setoid_replace (n - (x1 + 1) + psBuffer (snd r_n))
       with (psBuffer (snd r_n) + i) by nomega.
     destruct (within_bool _ _ _) eqn:Heqe2; simpl; trivial; nomega.
   prepare_AbsR AbsR.
@@ -236,8 +238,8 @@ Proof.
       simpl in *.
       rewrite N.add_0_r, N.add_assoc in H7.
       rewrite <- H7.
-      eapply H4; eauto; nomega.
-    apply H4 with (i:=N.succ (N.succ i)); try nomega.
+      eapply H5; eauto; nomega.
+    apply H5 with (i:=N.succ (N.succ i)); try nomega.
     by rewrite !N2Nat.inj_succ in *.
   apply computes_to_refine in H0.
   destruct_computations.
@@ -269,7 +271,7 @@ Proof.
     apply H0.
     replace (psBuffer (snd r_n) + psOffset (snd r_n))
        with (psBuffer (snd r_n) + psOffset (snd r_n) + 0) by nomega.
-    eapply H4; eauto; nomega.
+    eapply H5; eauto; nomega.
   apply computes_to_refine in H0.
   apply Return_inv in H0.
   destruct a; tsubst; simpl in *.
@@ -284,22 +286,62 @@ Qed.
 Program Definition buffer_append
         (h1 : Rep HeapSpec) (r1 : PS)
         (h2 : Rep HeapSpec) (r2 : PS) :
-  Comp (Rep HeapSpec * PS).
+  Comp (Rep HeapSpec * PS) :=
+  IfDep 0 <? psLength r1
+  Then fun _ =>
+    IfDep 0 <? psLength r2
+    Then fun _ =>
+      (* jww (2016-12-21): For now, just allocate and copy from both. *)
+      `(h, ps) <- allocate_buffer h1 (psLength r1 + psLength r2);
+      h <- memcpy h (psBuffer ps)
+                    (psBuffer r1 + psOffset r1) (psLength r1);
+      h <- memcpy h (psBuffer ps + psLength r1)
+                    (psBuffer r2 + psOffset r2) (psLength r2);
+      ret (h, ps)
+    Else fun _ =>
+      ret (h1, r1)
+  Else fun _ =>
+    ret (h2, r2).
+Obligation 1. nomega. Qed.
+
+Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2,
+  ByteString_list_AbsR r_o1 r_n1
+    -> ByteString_list_AbsR r_o2 r_n2
+    -> forall r_n',
+         buffer_append (fst r_n1) (snd r_n1) (fst r_n2) (snd r_n2) ↝ r_n'
+    -> ByteString_list_AbsR (r_o1 ++ r_o2) r_n'.
+Proof.
+  unfold buffer_append; intros.
+  apply refine_computes_to in H1.
+  apply refine_IfDep_Then_Else_bool in H1.
+  destruct r_n1, p; simpl in H1.
+  revert H1.
+  destruct psLength0 eqn:Heqe1; simpl; intros.
+    apply computes_to_refine in H1.
+    destruct_computations.
+    destruct_AbsR H; simpl;
+    destruct r_o1; simpl in *; try nomega.
+  destruct r_n2, p0; simpl in H1.
+  revert H1.
+  destruct psLength1 eqn:Heqe2; simpl; intros.
+    apply computes_to_refine in H1.
+    destruct_computations.
+    destruct_AbsR H0; simpl;
+    destruct r_o2; simpl in *; try nomega;
+    rewrite app_nil_r; trivial.
+  apply computes_to_refine in H1.
+  unfold Bind2 in H1.
+  destruct_computations.
+  simpl in *.
+  destruct_AbsR H; simpl;
+  destruct r_o1; simpl in *; try nomega.
+    pose proof (Pos2Nat.is_pos p).
+    nomega.
+  destruct_AbsR H0; simpl;
+  destruct r_o2; simpl in *; try nomega.
+    pose proof (Pos2Nat.is_pos p0).
+    nomega.
 Admitted.
-  (* `(h, ps) <- *)
-  (*   If psLength r2 <? psOffset r1 *)
-  (*   Then ret (h, simply_widen_region r (psLength r1)) *)
-  (*   Else *)
-  (*   If psLength r1 + psLength r2 <=? psBufLen r *)
-  (*   Then make_room_by_shifting_up h r alloc_quantum *)
-  (*   Else *)
-  (*   If 0 <? psBufLen r *)
-  (*   Then make_room_by_growing_buffer h r alloc_quantum *)
-  (*   Else allocate_buffer h alloc_quantum; *)
-  (* poke_at_offset h ps d. *)
-(* Obligation 1. nomega_. Defined. *)
-(* Obligation 2. nomega_. Defined. *)
-(* Obligation 3. nomega_. Defined. *)
 
 Lemma refine_skip2 {B} (dummy : Comp B) {A} (a : Comp A)
   : refine a
@@ -314,22 +356,24 @@ Proof.
   eauto.
 Qed.
 
-Class RefineUnder {A : Type} (a a' : Comp A) :=
-  {rewrite_under : refine a a' }.
+Class RefineUnder {A : Type} (a a' : Comp A) := {
+  rewrite_under : refine a a'
+}.
 
 Instance RefineUnder_Bind {A B : Type}
          (ca ca' : Comp A)
          (b b' : A -> Comp A)
          (refine_a : refine ca ca')
-         (refine_b : forall a, ca ↝ a -> refine (b a) (b' a))
-  : RefineUnder (a <- ca; b a) (a' <- ca'; b' a') :=
+         (refine_b : forall a, ca ↝ a -> refine (b a) (b' a)) :
+  RefineUnder (a <- ca; b a) (a' <- ca'; b' a') :=
   {| rewrite_under := refine_under_bind_both b b' refine_a refine_b |}.
 
-Definition refine_skip2_pick {B} (dummy : Comp B) {A} (P : A -> Prop)
-  : refine {a | P a} (dummy >> {a | P a}) := @refine_skip2 _ _ _ _.
+Definition refine_skip2_pick {B} (dummy : Comp B) {A} (P : A -> Prop) :
+  refine {a | P a} (dummy >> {a | P a}) := @refine_skip2 _ _ _ _.
 
-Definition refine_skip2_bind {B} (dummy : Comp B) {A C} (ca : Comp A) (k : A -> Comp C)
-  : refine (ca >>= k) (dummy >> (ca >>= k)) := @refine_skip2 _ _ _ _.
+Definition refine_skip2_bind {B} (dummy : Comp B)
+           {A C} (ca : Comp A) (k : A -> Comp C) :
+  refine (ca >>= k) (dummy >> (ca >>= k)) := @refine_skip2 _ _ _ _.
 
 Theorem ByteStringHeap (heap : Rep HeapSpec) :
   { adt : _ & refineADT ByteStringSpec adt }.
@@ -353,11 +397,11 @@ Proof.
     simplify with monad laws.
     setoid_rewrite (@refine_skip2_pick _ (buffer_cons (fst r_n) (snd r_n) d)).
     etransitivity.
-    refine_under.
-    finish honing.
-    refine pick val a.
-    finish honing.
-    eapply buffer_cons_sound; eauto.
+      refine_under.
+        finish honing.
+      refine pick val a.
+        finish honing.
+      eapply buffer_cons_sound; eauto.
     simplify with monad laws; simpl.
     finish honing.
   }
@@ -374,37 +418,25 @@ Proof.
          simplify with monad laws.
          finish honing.
          eapply buffer_uncons_sound; eauto.
-    - simpl.
-      unfold buffer_uncons.
+    - simpl; unfold buffer_uncons.
       rewrite refineEquiv_If_Then_Else_Bind.
-      refine_under; simplify with monad laws; simpl;
-        finish honing.
+      refine_under;
+      simplify with monad laws; simpl;
+      finish honing.
   }
 
   {
-    (* jww (2016-11-28): [d] is a [list Word] here, when it should be a
-       [HeapState * PS]. This is precisely what multi-arity methods will solve
-       for us. *)
     simplify with monad laws.
     rewrite (refine_skip2_pick (dummy:=buffer_append (fst r_n) (snd r_n)
                                                      (fst r_n0) (snd r_n0))).
     refine_under.
-      admit.
-    (* etransitivity. *)
-    (*   apply refine_under_bind; intros; simpl. *)
-    (*   pose proof H1. *)
-    (*   eapply buffer_uncons_impl in H1; eauto. *)
-    (*   rewrite fst_match_list, snd_match_list, <- H1. *)
-    (*   refine pick val (fst a). *)
-    (*     simplify with monad laws. *)
-    (*     rewrite <- surjective_pairing. *)
-    (*     finish honing. *)
-    (*   eapply buffer_uncons_sound; eauto. *)
-    (* simplify with monad laws. *)
-    finish honing.
+      finish honing.
+    refine pick val a.
+      finish honing.
+    eapply buffer_append_sound; eauto.
   }
 
   apply reflexivityT.
-Admitted.
+Defined.
 
 End ByteStringHeap.
