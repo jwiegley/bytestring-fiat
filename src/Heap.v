@@ -98,6 +98,13 @@ Definition alloc (r : Rep HeapSpec) (len : Size | 0 < len) :
   Comp (Rep HeapSpec * Ptr Word) :=
   Eval simpl in callMeth HeapSpec allocS r len.
 
+Corollary refineEquiv_unfold_alloc : forall r (x : Size) (H : 0 < x),
+  refineEquiv (alloc r (exist _ x H))
+              (addr <- find_free_block x (resvs r);
+               ret ({| resvs := M.add addr x (resvs r)
+                     ; bytes := bytes r |}, addr)).
+Proof. intros; reflexivity. Qed.
+
 Definition free (r : Rep HeapSpec) (addr : Ptr Word) :
   Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec freeS r addr.

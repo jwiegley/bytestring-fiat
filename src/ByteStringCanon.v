@@ -71,6 +71,37 @@ Proof.
   firstorder.
 Qed.
 
+Lemma refine_ByteString_Heap_AbsR' :
+  forall heap_resvs heap_bytes buffer buflen offset length,
+    refine
+      { r_n0 : cHeapRep * PS
+      | Heap_AbsR {| resvs := heap_resvs
+                   ; bytes := heap_bytes |} (fst r_n0) /\
+        {| psBuffer := buffer
+         ; psBufLen := buflen
+         ; psOffset := offset
+         ; psLength := length |} = snd r_n0 }
+      (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
+       bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
+       brk'   <- {brk'   : N
+                 | P.for_all (fun addr sz => addr + sz <=? brk') resvs' };
+       ret ((brk', {| resvs := resvs'; bytes := bytes' |}),
+            {| psBuffer := buffer
+             ; psBufLen := buflen
+             ; psOffset := offset
+             ; psLength := length |})).
+Proof.
+  intros; intros ??.
+  destruct_computations.
+  remember (makePS _ _ _ _) as P.
+  apply computes_to_refine.
+  refine pick val ((x1, {| resvs := x; bytes := x0 |}), P).
+    apply refine_computes_to.
+    constructor.
+  rewrite HeqP.
+  firstorder.
+Qed.
+
 Ltac apply_ByteString_Heap_AbsR :=
   match goal with
     | [ H : Heap_AbsR (fst ?O) (fst ?N) /\ snd ?X = snd ?Y |- _ ] =>
@@ -96,6 +127,9 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
         | [ |- refine (x <- { X : cHeapRep * PS
                             | Heap_AbsR _ (fst X) /\ _ = snd X }; _) _ ] =>
           rewrite refine_ByteString_Heap_AbsR
+        | [ |- refine { X : cHeapRep * PS
+                      | Heap_AbsR _ (fst X) /\ _ = snd X } _ ] =>
+          rewrite refine_ByteString_Heap_AbsR'
         | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
           apply refine_If_Then_Else
         | [ |- refine (x <- If ?B Then ?T Else ?E; _) _ ] =>
@@ -121,7 +155,6 @@ Proof.
   hone representation using
        (fun or nr => Heap_AbsR (fst or) (fst nr) /\ snd or = snd nr).
 
-  refine method ByteString.emptyS.
   {
     simplify with monad laws.
     refine pick val (heap', {| psBuffer := 0
@@ -132,7 +165,6 @@ Proof.
     firstorder.
   }
 
-  refine method ByteString.consS.
   {
     apply_ByteString_Heap_AbsR.
     fracture H; unfold find_free_block;
@@ -177,7 +209,6 @@ Proof.
       relational; nomega.
   }
 
-  refine method ByteString.unconsS.
   {
     unfold buffer_uncons;
     apply_ByteString_Heap_AbsR;
@@ -207,6 +238,41 @@ Proof.
         finish honing.
       split; trivial.
       constructor; auto.
+  }
+
+  {
+    unfold buffer_append;
+    apply_ByteString_Heap_AbsR;
+    fracture H;
+    refine using ByteString_Heap_AbsR.
+
+    destruct r_o, p; simpl in *; subst.
+    destruct r_n0, p; simpl in *; subst.
+    destruct r_n, p; simpl in *; subst.
+    destruct H0; inv H1.
+    etransitivity.
+      apply refine_IfDep_Then_Else_Bind.
+    etransitivity.
+      apply refine_IfDep_Then_Else.
+        intros.
+        etransitivity.
+          apply refineEquiv_IfDep_Then_Else_Bind.
+        apply refine_IfDep_Then_Else.
+          intros.
+          unfold allocate_buffer, Bind2, alloc, find_free_block; simpl.
+          simplify with monad laws; simpl.
+          finish honing.
+        intros.
+        simplify with monad laws; simpl.
+        finish honing.
+      intros.
+      simplify with monad laws; simpl.
+      finish honing.
+    apply refine_IfDep_Then_Else.
+    autorewrite with monad laws; simpl.
+    subst H.
+    finish honing.
+    admit.
   }
 
   (** Apply some common functional optimizations, such as common subexpression

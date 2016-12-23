@@ -283,6 +283,7 @@ Proof.
   nomega.
 Qed.
 
+(* jww (2016-12-21): For now, just allocate and copy from both. *)
 Program Definition buffer_append
         (h1 : Rep HeapSpec) (r1 : PS)
         (h2 : Rep HeapSpec) (r2 : PS) :
@@ -291,18 +292,79 @@ Program Definition buffer_append
   Then fun _ =>
     IfDep 0 <? psLength r2
     Then fun _ =>
-      (* jww (2016-12-21): For now, just allocate and copy from both. *)
-      `(h, ps) <- allocate_buffer h1 (psLength r1 + psLength r2);
-      h <- memcpy h (psBuffer ps)
-                    (psBuffer r1 + psOffset r1) (psLength r1);
-      h <- memcpy h (psBuffer ps + psLength r1)
-                    (psBuffer r2 + psOffset r2) (psLength r2);
-      ret (h, ps)
-    Else fun _ =>
-      ret (h1, r1)
-  Else fun _ =>
-    ret (h2, r2).
-Obligation 1. nomega. Qed.
+      `(h1, a) <- alloc h1 (psLength r1 + psLength r2);
+      h1 <- memcpy h1 (psBuffer r1 + psOffset r1) a (psLength r1);
+      let h1 := {| resvs := resvs h1
+                 ; bytes := copy_bytes_between_heaps
+                              (psBuffer r2 + psOffset r2) a (psLength r2)
+                              (bytes h2) (bytes h1) |} in
+      ret (h1, {| psBuffer := a
+                ; psBufLen := psLength r1 + psLength r2
+                ; psOffset := 0
+                ; psLength := psLength r1 + psLength r2 |})
+    Else fun _ => ret (h1, r1)
+  Else fun _ => ret (h2, r2).
+Obligation 1. nomega. Defined.
+
+Lemma refineEquiv_If_Then_Else :
+  forall (A : Type) (c : bool) (x y : Comp A),
+    refineEquiv x y ->
+    forall x0 y0 : Comp A, refineEquiv x0 y0 ->
+    refineEquiv (If c Then x Else x0) (If c Then y Else y0).
+Proof. intros; destruct c; auto. Qed.
+
+Lemma refineEquiv_buffer_append
+      (h1 : Rep HeapSpec) (r1 : PS)
+      (h2 : Rep HeapSpec) (r2 : PS) :
+  refineEquiv
+    (buffer_append h1 r1 h2 r2)
+    (If 0 <? psLength r1
+     Then If 0 <? psLength r2
+       Then
+         x0 <- find_free_block (psLength r1 + psLength r2) (resvs h1);
+         h0 <- memcpy {| resvs := M.add x0 (psLength r1 + psLength r2) (resvs h1)
+                       ; bytes := bytes h1 |}
+                      (psBuffer r1 + psOffset r1) x0 (psLength r1);
+         ret ({| resvs := resvs h0
+               ; bytes := copy_bytes_between_heaps
+                            (psBuffer r2 + psOffset r2) x0 (psLength r2)
+                            (bytes h2) (bytes h0) |},
+              {| psBuffer := x0
+               ; psBufLen := psLength r1 + psLength r2
+               ; psOffset := 0
+               ; psLength := psLength r1 + psLength r2 |})
+       Else ret (h1, r1)
+     Else ret (h2, r2)).
+Proof.
+  unfold buffer_append.
+  etransitivity.
+    apply refineEquiv_IfDep_Then_Else.
+      intros.
+      apply refineEquiv_IfDep_Then_Else.
+        intros.
+        unfold allocate_buffer, Bind2,
+               make_room_by_growing_buffer, Bind2.
+        rewrite refineEquiv_unfold_alloc; simpl.
+        Opaque memcpy.
+        Opaque free.
+        split.
+          simplify with monad laws; simpl.
+          finish honing.
+        simpl.
+        autorewrite with monad laws; simpl.
+        Transparent memcpy.
+        Transparent free.
+        reflexivity.
+      intros.
+      finish honing.
+    intros.
+    finish honing.
+  rewrite refineEquiv_strip_IfDep_Then_Else.
+  apply refineEquiv_If_Then_Else.
+    rewrite refineEquiv_strip_IfDep_Then_Else.
+    reflexivity.
+  reflexivity.
+Qed.
 
 Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2,
   ByteString_list_AbsR r_o1 r_n1
@@ -311,9 +373,10 @@ Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2,
          buffer_append (fst r_n1) (snd r_n1) (fst r_n2) (snd r_n2) ↝ r_n'
     -> ByteString_list_AbsR (r_o1 ++ r_o2) r_n'.
 Proof.
-  unfold buffer_append; intros.
+  intros.
   apply refine_computes_to in H1.
-  apply refine_IfDep_Then_Else_bool in H1.
+  rewrite refineEquiv_buffer_append in H1.
+  apply refine_If_Then_Else_bool in H1.
   destruct r_n1, p; simpl in H1.
   revert H1.
   destruct psLength0 eqn:Heqe1; simpl; intros.
@@ -329,24 +392,29 @@ Proof.
     destruct_AbsR H0; simpl;
     destruct r_o2; simpl in *; try nomega;
     rewrite app_nil_r; trivial.
+  revert H1.
+  unfold find_free_block, memcpy.
+  autorewrite with monad laws; simpl.
+  intro H1.
   apply computes_to_refine in H1.
-  unfold Bind2 in H1.
   destruct_computations.
-  simpl in *.
-  destruct_AbsR H; simpl;
-  destruct r_o1; simpl in *; try nomega.
-    pose proof (Pos2Nat.is_pos p).
-    nomega.
-  destruct_AbsR H0; simpl;
-  destruct r_o2; simpl in *; try nomega.
-    pose proof (Pos2Nat.is_pos p0).
-    nomega.
+  destruct_AbsR H; destruct_AbsR H0; construct_AbsR;
+  destruct r_o1, r_o2; simpl in *;
+  rewrite ?Pos2Nat.inj_add, <- ?H2, <- ?H3, ?app_length;
+  try nomega;
+  [ left; intuition;
+    rewrite <- positive_nat_N, Pos2Nat.inj_add; nomega
+  | right; intuition;
+    [ nomega
+    | rewrite <- positive_nat_N, Pos2Nat.inj_add; nomega
+    | rewrite <- !positive_nat_N, <- ?H2, <- ?H3 ] .. ].
+  - admit.
+  - admit.
+  - admit.
 Admitted.
 
-Lemma refine_skip2 {B} (dummy : Comp B) {A} (a : Comp A)
-  : refine a
-           (dummy>>
-                 a).
+Lemma refine_skip2 {B} (dummy : Comp B) {A} (a : Comp A) :
+  refine a (dummy >> a).
 Proof.
   repeat first [ intro
                | computes_to_inv

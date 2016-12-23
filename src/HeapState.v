@@ -237,4 +237,83 @@ Proof.
   destruct c; eauto.
 Qed.
 
+Definition copy_bytes_between_heaps {elt} (from to : M.key) (len : N)
+           (mfrom mto : M.t elt) : M.t elt :=
+  P.update (drop_range to len mto)
+           (M.fold (fun k e rest =>
+                      If within_bool from len k
+                      Then M.add (k - from + to) e rest
+                      Else rest)
+                   mfrom (M.empty _)).
+
+Lemma copy_bytes_between_heaps_mapsto :
+  forall elt k (e : elt) addr1 addr2 len m1 m2,
+    M.MapsTo k e (copy_bytes_between_heaps addr1 addr2 len m1 m2)
+      <-> (If within_bool addr2 len k
+           Then M.MapsTo ((k - addr2) + addr1) e m1
+           Else M.MapsTo (elt:=elt) k e m2).
+Proof.
+  unfold copy_bytes_between_heaps, drop_range, keep_range, keep_keys,
+         const, not, compose.
+  split; intros.
+    apply P.update_mapsto_iff in H.
+    destruct H.
+      revert H.
+      apply P.fold_rec_bis; simpl; intros; intuition.
+        destruct (within_bool addr2 len k) eqn:Heqe; simpl in *; trivial;
+        rewrite <- H; assumption.
+      destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
+        destruct (within_bool addr1 len k0) eqn:Heqe1; simpl in *.
+          simplify_maps.
+            simplify_maps.
+            nomega.
+          simplify_maps; right; split; [nomega|intuition].
+        simplify_maps; right; split; [nomega|intuition].
+      destruct (within_bool addr1 len k0) eqn:Heqe1; simpl in *.
+        simplify_maps.
+        nomega.
+      intuition.
+    destruct H.
+    destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
+      simplify_maps; relational.
+      nomega.
+    simplify_maps; relational.
+  apply P.update_mapsto_iff.
+  destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
+    left.
+    revert H.
+    apply P.fold_rec_bis; simpl; intros; intuition.
+      rewrite <- H in H1.
+      intuition.
+    destruct (within_bool addr1 len k0) eqn:Heqel; simpl.
+      simplify_maps.
+        simplify_maps.
+        nomega.
+      simplify_maps.
+      right.
+      split.
+        nomega.
+      intuition.
+    simplify_maps.
+    nomega.
+  right.
+  split.
+    simplify_maps; relational.
+    split; trivial.
+    nomega.
+  apply P.fold_rec_bis; simpl; intros; intuition.
+    inversion H0.
+    simplify_maps.
+  destruct (within_bool addr1 len k0) eqn:Heqel; simpl in *.
+    apply (proj1 (in_mapsto_iff _ _ _)) in H3.
+    destruct H3.
+    simplify_maps.
+      nomega.
+    contradiction H2.
+    apply in_mapsto_iff.
+    exists x.
+    assumption.
+  contradiction.
+Qed.
+
 End HeapState.

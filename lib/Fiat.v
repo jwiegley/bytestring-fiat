@@ -66,6 +66,57 @@ Lemma refine_IfDep_Then_Else_bool :
       <-> refine (IfDep b Then cpst Else cpse) res.
 Proof. split; intros; destruct b; auto. Qed.
 
+Lemma refine_IfDep_Then_Else :
+  forall (A : Type) (c : bool)
+         (tx ty : c = true -> Comp A),
+    (forall H : c = true, refine (tx H) (ty H)) ->
+    forall ex ey : c = false -> Comp A,
+      (forall H : c = false, refine (ex H) (ey H)) ->
+      refine (IfDep c Then tx Else ex) (IfDep c Then ty Else ey).
+Proof.
+  intros. destruct c; simpl; auto; reflexivity.
+Qed.
+
+Lemma refineEquiv_IfDep_Then_Else :
+  forall (A : Type) (c : bool)
+         (tx ty : c = true -> Comp A),
+    (forall H : c = true, refineEquiv (tx H) (ty H)) ->
+    forall ex ey : c = false -> Comp A,
+      (forall H : c = false, refineEquiv (ex H) (ey H)) ->
+      refineEquiv (IfDep c Then tx Else ex) (IfDep c Then ty Else ey).
+Proof.
+  intros. destruct c; simpl; auto; reflexivity.
+Qed.
+
+Lemma refineEquiv_strip_IfDep_Then_Else : forall (c : bool) A (t e : Comp A),
+  refineEquiv (IfDep c Then fun _ => t Else fun _ => e)
+              (If c Then t Else e).
+Proof. intros. destruct c; simpl; reflexivity. Qed.
+
+Lemma refine_IfDep_Then_Else_Bind:
+  forall (A B : Type) (i : bool)
+         (t : i = true -> Comp A) (e : i = false -> Comp A)
+         (b : A -> Comp B),
+  refine (a <- IfDep i Then t Else e;
+          b a) (IfDep i
+                Then fun H => a <- t H; b a
+                Else fun H => (a <- e H; b a)).
+Proof.
+  intros. destruct i; simpl; auto; reflexivity.
+Qed.
+
+Lemma refineEquiv_IfDep_Then_Else_Bind:
+  forall (A B : Type) (i : bool)
+         (t : i = true -> Comp A) (e : i = false -> Comp A)
+         (b : A -> Comp B),
+  refineEquiv (a <- IfDep i Then t Else e;
+               b a) (IfDep i
+                     Then fun H => a <- t H; b a
+                     Else fun H => (a <- e H; b a)).
+Proof.
+  intros. destruct i; simpl; auto; reflexivity.
+Qed.
+
 Ltac fracture H :=
   repeat (
     try simplify with monad laws; simpl;
