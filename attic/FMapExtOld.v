@@ -607,23 +607,6 @@ Corollary MapsTo_singleton : forall k elt (e : elt),
   M.MapsTo k e (singleton k e).
 Proof. unfold singleton; intros; simplify_maps. Qed.
 
-Lemma filter_empty : forall elt (m : M.t elt) P,
-  M.Empty (elt:=elt) m -> M.Empty (elt:=elt) (P.filter P m).
-Proof.
-  intros.
-  unfold P.filter.
-  revert H.
-  apply P.fold_rec; intros.
-    apply M.empty_1.
-  specialize (H1 k).
-  unfold P.Add in H1.
-  rewrite F.elements_o in H1.
-  apply P.elements_Empty in H3.
-  rewrite H3 in H1; simpl in H1.
-  rewrite F.add_eq_o in H1; [| apply E.eq_refl].
-  discriminate.
-Qed.
-
 Lemma filter_for_all : forall elt (m : M.t elt) P,
   Proper (E.eq ==> eq ==> eq) P
     -> M.Equal (P.filter P m) m <-> P.for_all P m = true.
@@ -651,27 +634,6 @@ Proof.
   rewrite <- H5 in H8.
   simplify_maps.
   intuition.
-Qed.
-
-Lemma filter_idempotent : forall elt (m : M.t elt) P,
-  Proper (E.eq ==> eq ==> eq) P
-    -> M.Equal (P.filter P (P.filter P m)) (P.filter P m).
-Proof.
-  intros.
-  unfold P.filter.
-  apply P.fold_rec; intros.
-    intro k.
-    apply P.elements_Empty in H0.
-    symmetry; rewrite F.elements_o, H0.
-    symmetry; rewrite F.elements_o, P.elements_empty.
-    reflexivity.
-  pose proof (P.filter_iff H).
-  apply H4 in H0; clear H4.
-  rewrite (proj2 H0).
-  rewrite H3.
-  unfold P.Add in H2.
-  symmetry.
-  exact H2.
 Qed.
 
 Lemma filter_for_all_2 : forall elt (m : M.t elt) P,
@@ -815,74 +777,6 @@ Proof.
   simplify_maps.
   split; trivial.
   simplify_maps.
-Qed.
-
-Lemma filter_add_true : forall elt k (e : elt) m m' P,
-  Proper (E.eq ==> eq ==> eq) P
-    -> ~ M.In (elt:=elt) k m
-    -> M.Equal (P.filter P (M.add k e m)) m'
-    -> P k e = true
-    -> M.Equal (M.add k e (P.filter P m)) m'.
-Proof.
-  intros.
-  rewrite <- H1; clear H1.
-  apply F.Equal_mapsto_iff; split; intros.
-    simplify_maps.
-      rewrite <- H3.
-      simplify_maps; intuition.
-      simplify_maps.
-    simplify_maps; intuition.
-  simplify_maps.
-  simplify_maps.
-    rewrite H1.
-    simplify_maps.
-  simplify_maps.
-  right; intuition.
-  simplify_maps.
-Qed.
-
-Lemma filter_add_false : forall elt k (e : elt) m m' P,
-  Proper (E.eq ==> eq ==> eq) P
-    -> ~ M.In (elt:=elt) k m
-    -> M.Equal (P.filter P (M.add k e m)) m'
-    -> P k e = false
-    -> M.Equal (P.filter P m) m'.
-Proof.
-  intros.
-  rewrite <- H1; clear H1.
-  apply F.Equal_mapsto_iff; split; intros.
-    simplify_maps.
-    simplify_maps; intuition.
-    simplify_maps.
-    right; intuition.
-    rewrite <- H1 in H3.
-    contradiction H0.
-    apply in_mapsto_iff.
-    exists e0; assumption.
-  simplify_maps.
-  simplify_maps.
-    rewrite H1 in H2.
-    congruence.
-  simplify_maps.
-Qed.
-
-Lemma filter_not_in : forall elt k (m : M.t elt) P,
-  ~ M.In (elt:=elt) k m -> ~ M.In (elt:=elt) k (P.filter P m).
-Proof.
-  intros.
-  unfold P.filter.
-  apply P.fold_rec_nodep; intros.
-    unfold not; intros.
-    apply F.empty_in_iff in H0.
-    contradiction.
-  destruct (P k0 e); auto.
-  unfold not; intros.
-  apply F.add_in_iff in H2; intuition.
-  rewrite H3 in *; clear H3.
-  apply H.
-  apply in_mapsto_iff.
-  exists e.
-  assumption.
 Qed.
 
 Lemma find_if_filter : forall elt (m m' : M.t elt) P,

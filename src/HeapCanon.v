@@ -148,10 +148,11 @@ Proof.
                   ; bytes := bytes (snd r_n) |})
               Else
                 (fst r_n + ` d0,
-                 {| resvs := M.add (fst r_n) (` d0)
-                                   (M.remove d (resvs (snd r_n)))
-                  ; bytes := copy_bytes d (fst r_n) sz
-                                        (bytes (snd r_n)) |})
+                 {| resvs :=
+                      M.add (fst r_n) (` d0) (M.remove d (resvs (snd r_n)))
+                  ; bytes :=
+                      copy_bytes d (fst r_n) sz
+                                 (bytes (snd r_n)) (bytes (snd r_n))|})
          Else
            (fst r_n + ` d0,
             {| resvs := M.add (fst r_n) (` d0) (resvs (snd r_n))
@@ -244,14 +245,18 @@ Proof.
       simpl; finish honing.
       simpl in *; intuition.
 
+    clear H.
     simpl in *; intuition.
     destruct (M.find d _) as [sz|] eqn:Heqe;
     simpl; normalize.
-    rewrite H0 in H1.
-      pose proof (F.MapsTo_fun Heqe H1).
+      left.
+      rewrite H0.
       assumption.
-    rewrite H0 in H1.
+    right.
+    split; intuition.
+    destruct H1.
     apply F.find_mapsto_iff in H1.
+    rewrite H0 in H1.
     congruence.
   }
 
@@ -272,7 +277,9 @@ Proof.
   {
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
-                      ; bytes := copy_bytes d d0 d1 (bytes (snd r_n)) |}).
+                      ; bytes :=
+                          copy_bytes d d0 d1
+                                     (bytes (snd r_n)) (bytes (snd r_n)) |}).
       finish honing.
 
     simpl in *; intuition;

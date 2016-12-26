@@ -47,7 +47,7 @@ Definition HeapSpec := Def ADT {
   (* Freeing an unallocated block is a no-op. *)
   Def Method1 freeS (r : rep) (addr : Ptr Word) : rep :=
     ret {| resvs := M.remove addr (resvs r)
-          ; bytes := bytes r |},
+         ; bytes := bytes r |},
 
   (* Realloc is not required to reuse the same block. If the address does not
      identify an allociated region, a new memory block is returned without any
@@ -59,17 +59,19 @@ Definition HeapSpec := Def ADT {
     ret ({| resvs := M.add naddr (` len) (M.remove addr (resvs r))
           ; bytes :=
               Ifopt M.find addr (resvs r) as sz
-              Then copy_bytes addr naddr (N.min sz (` len)) (bytes r)
+              Then copy_bytes addr naddr (N.min sz (` len))
+                              (bytes r) (bytes r)
               Else bytes r |}, naddr),
 
   (* Peeking an uninitialized address allows any value to be returned. *)
   Def Method1 peekS (r : rep) (addr : Ptr Word) : rep * Word :=
-    p <- { p : Word | forall v, M.MapsTo addr v (bytes r) -> p = v };
+    p <- { p : Word
+         | M.MapsTo addr p (bytes r) \/ (~ M.In addr (bytes r) /\ p = Zero) };
     ret (r, p),
 
   Def Method2 pokeS (r : rep) (addr : Ptr Word) (w : Word) : rep :=
     ret {| resvs := resvs r
-          ; bytes := M.add addr w (bytes r) |},
+         ; bytes := M.add addr w (bytes r) |},
 
   (* Data may only be copied from one allocated block to another (or within
      the same block), and the region must fit within both source and
@@ -77,7 +79,7 @@ Definition HeapSpec := Def ADT {
   Def Method3 memcpyS (r : rep) (addr1 : Ptr Word) (addr2 : Ptr Word) (len : Size) :
     rep :=
     ret ({| resvs := resvs r
-          ; bytes := copy_bytes addr1 addr2 len (bytes r) |}),
+          ; bytes := copy_bytes addr1 addr2 len (bytes r) (bytes r) |}),
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
   Def Method3 memsetS (r : rep) (addr : Ptr Word) (len : Size) (w : Word) :

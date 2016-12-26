@@ -117,6 +117,43 @@ Proof.
   intros. destruct i; simpl; auto; reflexivity.
 Qed.
 
+Lemma refineEquiv_If_Then_Else :
+  forall (A : Type) (c : bool) (x y : Comp A),
+    refineEquiv x y ->
+    forall x0 y0 : Comp A, refineEquiv x0 y0 ->
+    refineEquiv (If c Then x Else x0) (If c Then y Else y0).
+Proof. intros; destruct c; auto. Qed.
+
+Lemma refine_skip2 {B} (dummy : Comp B) {A} (a : Comp A) :
+  refine a (dummy >> a).
+Proof.
+  repeat first [ intro
+               | computes_to_inv
+               | assumption
+                 | econstructor; eassumption
+                 | econstructor; try eassumption; [] ].
+  eauto.
+Qed.
+
+Class RefineUnder {A : Type} (a a' : Comp A) := {
+  rewrite_under : refine a a'
+}.
+
+Instance RefineUnder_Bind {A B : Type}
+         (ca ca' : Comp A)
+         (b b' : A -> Comp A)
+         (refine_a : refine ca ca')
+         (refine_b : forall a, ca ↝ a -> refine (b a) (b' a)) :
+  RefineUnder (a <- ca; b a) (a' <- ca'; b' a') :=
+  {| rewrite_under := refine_under_bind_both b b' refine_a refine_b |}.
+
+Definition refine_skip2_pick {B} (dummy : Comp B) {A} (P : A -> Prop) :
+  refine {a | P a} (dummy >> {a | P a}) := @refine_skip2 _ _ _ _.
+
+Definition refine_skip2_bind {B} (dummy : Comp B)
+           {A C} (ca : Comp A) (k : A -> Comp C) :
+  refine (ca >>= k) (dummy >> (ca >>= k)) := @refine_skip2 _ _ _ _.
+
 Ltac fracture H :=
   repeat (
     try simplify with monad laws; simpl;

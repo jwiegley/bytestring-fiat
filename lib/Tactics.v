@@ -1,5 +1,14 @@
 Ltac inv H := inversion H; subst; clear H.
 
+Tactic Notation "by" tactic(H) :=
+  H; first [ tauto
+           | discriminate
+           | auto
+           | congruence
+           | eauto
+           | intuition
+           | firstorder ].
+
 Ltac breakdown :=
   match goal with
   | [ H : IF _ then _ else _ |- _ ] => destruct H

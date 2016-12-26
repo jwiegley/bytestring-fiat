@@ -39,7 +39,7 @@ Variable heap_AbsR : Heap_AbsR heap heap'.
 
 Lemma refine_ByteString_Heap_AbsR :
   forall heap_resvs heap_bytes buffer buflen offset length B (k : _ -> Comp B),
-    refine
+    refineEquiv
       (r_n' <- { r_n0 : cHeapRep * PS
                | Heap_AbsR {| resvs := heap_resvs
                             ; bytes := heap_bytes |} (fst r_n0) /\
@@ -58,22 +58,43 @@ Lemma refine_ByteString_Heap_AbsR :
            ; psOffset := offset
            ; psLength := length |})).
 Proof.
+  split.
+    intros; intros ??.
+    destruct_computations.
+    revert H2.
+    remember (makePS _ _ _ _) as P; intros.
+    refine pick val ((x1, {| resvs := x; bytes := x0 |}), P).
+      apply computes_to_refine.
+      simplify with monad laws.
+      apply refine_computes_to.
+      assumption.
+    rewrite HeqP.
+    firstorder.
   intros; intros ??.
   destruct_computations.
-  revert H2.
+  destruct H, x; simpl in *.
+  subst.
   remember (makePS _ _ _ _) as P; intros.
-  refine pick val ((x1, {| resvs := x; bytes := x0 |}), P).
-    apply computes_to_refine.
+  apply computes_to_refine.
+  refine pick val (resvs (snd c)).
     simplify with monad laws.
-    apply refine_computes_to.
-    assumption.
-  rewrite HeqP.
-  firstorder.
+    refine pick val (bytes (snd c)).
+      simplify with monad laws.
+      refine pick val (fst c).
+        simplify with monad laws.
+        assert ({| resvs := resvs (snd c); bytes := bytes (snd c) |} = snd c).
+          destruct c; simpl.
+          destruct h; reflexivity.
+        rewrite H1, <- surjective_pairing.
+        apply refine_computes_to; assumption.
+      destruct H; intuition.
+    destruct H; intuition.
+  destruct H; intuition.
 Qed.
 
 Lemma refine_ByteString_Heap_AbsR' :
   forall heap_resvs heap_bytes buffer buflen offset length,
-    refine
+    refineEquiv
       { r_n0 : cHeapRep * PS
       | Heap_AbsR {| resvs := heap_resvs
                    ; bytes := heap_bytes |} (fst r_n0) /\
@@ -91,15 +112,37 @@ Lemma refine_ByteString_Heap_AbsR' :
              ; psOffset := offset
              ; psLength := length |})).
 Proof.
+  split.
+    intros; intros ??.
+    destruct_computations.
+    remember (makePS _ _ _ _) as P.
+    apply computes_to_refine.
+    refine pick val ((x1, {| resvs := x; bytes := x0 |}), P).
+      apply refine_computes_to.
+      constructor.
+    rewrite HeqP.
+    firstorder.
   intros; intros ??.
   destruct_computations.
-  remember (makePS _ _ _ _) as P.
+  destruct H, v; simpl in *.
+  subst.
+  remember (makePS _ _ _ _) as P; intros.
   apply computes_to_refine.
-  refine pick val ((x1, {| resvs := x; bytes := x0 |}), P).
-    apply refine_computes_to.
-    constructor.
-  rewrite HeqP.
-  firstorder.
+  refine pick val (resvs (snd c)).
+    simplify with monad laws.
+    refine pick val (bytes (snd c)).
+      simplify with monad laws.
+      refine pick val (fst c).
+        simplify with monad laws.
+        assert ({| resvs := resvs (snd c); bytes := bytes (snd c) |} = snd c).
+          destruct c; simpl.
+          destruct h; reflexivity.
+        rewrite H0, <- surjective_pairing.
+        apply refine_computes_to.
+        constructor.
+      destruct H; intuition.
+    destruct H; intuition.
+  destruct H; intuition.
 Qed.
 
 Ltac apply_ByteString_Heap_AbsR :=
@@ -155,6 +198,7 @@ Proof.
   hone representation using
        (fun or nr => Heap_AbsR (fst or) (fst nr) /\ snd or = snd nr).
 
+  (* refine method ByteString.emptyS. *)
   {
     simplify with monad laws.
     refine pick val (heap', {| psBuffer := 0
@@ -165,6 +209,7 @@ Proof.
     firstorder.
   }
 
+  (* refine method ByteString.consS. *)
   {
     apply_ByteString_Heap_AbsR.
     fracture H; unfold find_free_block;
@@ -209,6 +254,7 @@ Proof.
       relational; nomega.
   }
 
+  (* refine method ByteString.unconsS. *)
   {
     unfold buffer_uncons;
     apply_ByteString_Heap_AbsR;
@@ -240,38 +286,59 @@ Proof.
       constructor; auto.
   }
 
+  (* refine method ByteString.appendS. *)
   {
-    unfold buffer_append;
-    apply_ByteString_Heap_AbsR;
-    fracture H;
-    refine using ByteString_Heap_AbsR.
+    unfold buffer_append, alloc, Bind2, find_free_block; simpl.
 
-    destruct r_o, p; simpl in *; subst.
-    destruct r_n0, p; simpl in *; subst.
-    destruct r_n, p; simpl in *; subst.
-    destruct H0; inv H1.
-    etransitivity.
-      apply refine_IfDep_Then_Else_Bind.
-    etransitivity.
-      apply refine_IfDep_Then_Else.
-        intros.
-        etransitivity.
-          apply refineEquiv_IfDep_Then_Else_Bind.
-        apply refine_IfDep_Then_Else.
-          intros.
-          unfold allocate_buffer, Bind2, alloc, find_free_block; simpl.
+    rewrite !refine_IfDep_Then_Else_Bind,
+            !refineEquiv_strip_IfDep_Then_Else.
+    refine pick val (fst (fst r_n)).
+      autorewrite with monad laws; simpl.
+      etransitivity.
+        apply refine_If_Then_Else; intros.
+          rewrite refine_If_Then_Else_Bind.
+          apply refine_If_Then_Else; intros.
+            simplify with monad laws; simpl.
+            destruct H0, H1.
+            rewrite e, e0; clear e e0.
+            destruct h, H1, h0, H4.
+            refine pick val
+              ((fst (fst r_n) + psLength (snd r_n) + psLength (snd r_n0),
+                {| resvs := M.add (fst (fst r_n))
+                                  (psLength (snd r_n) + psLength (snd r_n0))
+                                  (resvs (snd (fst r_n)))
+                 ; bytes :=
+                     copy_bytes_between_heaps
+                       (psBuffer (snd r_n0) + psOffset (snd r_n0))
+                       (fst (fst r_n) + psLength (snd r_n))
+                       (psLength (snd r_n0))
+                       (bytes (snd (fst r_n0)))
+                       (copy_bytes (psBuffer (snd r_n) + psOffset (snd r_n))
+                                   (fst (fst r_n))
+                                   (psLength (snd r_n))
+                                   (bytes (snd (fst r_n)))) |}),
+               {| psBuffer := fst (fst r_n)
+                ; psBufLen := psLength (snd r_n) + psLength (snd r_n0)
+                ; psOffset := 0
+                ; psLength := psLength (snd r_n) + psLength (snd r_n0) |}).
+              finish honing.
+            simpl.
+            intuition.
+            constructor; simpl.
+              rewrite H0.
+              reflexivity.
+            split.
+              admit.
+            admit.
           simplify with monad laws; simpl.
-          finish honing.
-        intros.
-        simplify with monad laws; simpl.
-        finish honing.
-      intros.
-      simplify with monad laws; simpl.
-      finish honing.
-    apply refine_IfDep_Then_Else.
-    autorewrite with monad laws; simpl.
-    subst H.
-    finish honing.
+          admit.
+        admit.
+      admit.
+    intuition.
+    rewrite H3, H4.
+    destruct H2.
+    rewrite H1.
+    intuition.
     admit.
   }
 
@@ -280,35 +347,22 @@ Proof.
 
   hone representation using eq.
 
-  refine method ByteString.emptyS.
+  (* refine method ByteString.emptyS. *)
   {
     simplify with monad laws.
     finish honing.
   }
 
-  refine method ByteString.consS.
+  (* refine method ByteString.consS. *)
   {
     rewrite !refine_If_Then_Else_ret.
     simplify with monad laws.
     refine pick eq.
-    simplify with monad laws.
-    rewrite !If_Then_Else_fst, !If_Then_Else_snd; simpl.
-
-    replace (If 0 <? psOffset (snd r_o)
-             Then ()
-             Else (If psLength (snd r_o) + 1 <=? psBufLen (snd r_o)
-                   Then ()
-                   Else (If 0 <? psBufLen (snd r_o)
-                         Then ()
-                         Else ()))) with ().
-      subst; finish honing.
-
-    destruct (0 <? _); trivial; simpl.
-    destruct (_ + 1 <=? _); trivial; simpl.
-    destruct (0 <? _); trivial.
+    rewrite !H0.
+    finish honing.
   }
 
-  refine method ByteString.unconsS.
+  (* refine method ByteString.unconsS. *)
   {
     rewrite refine_If_Then_Else_ret.
     simplify with monad laws.
@@ -319,8 +373,14 @@ Proof.
     subst; finish honing.
   }
 
+  (* refine method ByteString.appendS. *)
+  {
+    rewrite H0, H1.
+    finish honing.
+  }
+
   finish_SharpeningADT_WithoutDelegation.
-Defined.
+Admitted.
 
 End Refined.
 

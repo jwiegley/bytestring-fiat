@@ -37,7 +37,7 @@ Variable sig : ADTSig.
 
 Inductive MethodCall (rec : Type) : Type :=
 | Call : forall (midx : MethodIndex sig),
-    hlist (fst (MethodDomCod sig midx))
+    hlist (snd (fst (MethodDomCod sig midx)))
     -> match snd (MethodDomCod sig midx) with
         | Some cod => cod -> rec
         | None => rec end
@@ -76,17 +76,19 @@ Definition ClientDSL := Free MethodCall.
 Variable adt : ADT sig.
 
 Fixpoint applyArgs
+         (arity : nat)
          (dom : list Type)
          {rep : Type}
          (cod : option Type)
-         (meth : methodType rep dom cod)
+         (meth : methodType arity rep dom cod)
          (args : hlist dom)
-  : rep -> Comp match cod with
-                | Some A => rep * A
-                | _ => rep
-                end:=
+  : nat -> rep -> Comp match cod with
+                       | Some A => rep * A
+                       | _ => rep
+                       end:=
   match dom return hlist dom
-                   -> methodType rep dom cod
+                   -> methodType arity rep dom cod
+                   -> nat
                    -> rep
                    -> Comp match cod with
                            | Some A => rep * A
@@ -94,8 +96,8 @@ Fixpoint applyArgs
                            end with
   | nil => fun _ =>
              match cod return
-                   methodType rep [] cod ->
-                   rep -> Comp match cod with
+                   methodType arity rep [] cod ->
+                   nat -> rep -> Comp match cod with
                                | Some A => rep * A
                                | _ => rep
                                end with
