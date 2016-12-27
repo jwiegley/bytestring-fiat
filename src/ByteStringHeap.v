@@ -63,42 +63,6 @@ Proof.
   rewrite F.add_eq_o; auto.
 Qed.
 
-(*
-Program Definition buffer_of_list (h : Rep HeapSpec) (xs : list Word) :
-  Comp (Rep HeapSpec * PS) :=
-  let len := N.of_nat (length xs) in
-  If 0 <? len
-  Then
-    a <- find_free_block len (resvs h);
-    ret ({| resvs := M.add a len (resvs h)
-          ; bytes :=
-              fst (fold_left (fun (z : M.t Word * Ptr Word) x =>
-                                let (h, a) := z in
-                                (M.add a x h, N.succ a))
-                             xs (bytes h, a)) |},
-         {| psBuffer := a
-          ; psBufLen := len
-          ; psOffset := 0
-          ; psLength := len |})
-  Else
-    ret (h, {| psBuffer := 0
-             ; psBufLen := 0
-             ; psOffset := 0
-             ; psLength := 0 |}).
-
-Lemma buffer_to_of_list : forall h h' xs r,
-  buffer_of_list h xs ↝ (h', r) -> buffer_to_list h' r = xs.
-Proof.
-  intros.
-  generalize dependent r.
-  induction xs;
-  unfold buffer_of_list in *;
-  simpl in *; intros;
-  destruct_computations; tsubst; simpl in *.
-    reflexivity.
-Admitted.
-*)
-
 Definition ByteString_list_AbsR
            (or : Rep ByteStringSpec) (nr : Rep HeapSpec * PS) :=
   or = buffer_to_list nr /\
@@ -190,37 +154,89 @@ Obligation 1. nomega_. Defined.
 Obligation 2. nomega_. Defined.
 Obligation 3. nomega_. Defined.
 
-Local Ltac if_computes_to_inv :=
+Corollary add_succ_sub : forall n m,
+  n + N.succ m - m = n + 1 + m - m.
+Proof. nomega. Qed.
+
+Corollary add_succ_succ_sub : forall n m,
+  n + N.succ (N.succ m) - m = n + 2 + m - m.
+Proof. nomega. Qed.
+
+Corollary add_succ_succ_sub_succ : forall n m,
+  n + N.succ (N.succ m) - N.succ m = n + 1.
+Proof. nomega. Qed.
+
+Corollary add_sub_add : forall n m,
+  0 < m -> n + (m - 1) + 1 = n + m.
+Proof. nomega. Qed.
+
+Corollary sub_add : forall n m,
+  n - n + m = m.
+Proof. nomega. Qed.
+
+Corollary drop_inner_sub : forall n m o p,
+  0 < m ->
+    n + (m - 1) + N.succ (N.succ o) - N.succ p = n + m + N.succ o - N.succ p.
+Proof. nomega. Qed.
+
+Corollary succ_sub_one : forall n,
+  N.succ n - 1 = n.
+Proof. nomega. Qed.
+
+Hint Rewrite N.add_0_r : heap.
+Hint Rewrite N.add_sub : heap.
+Hint Rewrite sub_add : heap.
+Hint Rewrite N.peano_rec_succ : heap.
+Hint Rewrite add_succ_sub : heap.
+Hint Rewrite add_succ_succ_sub : heap.
+Hint Rewrite add_succ_succ_sub_succ : heap.
+Hint Rewrite add_sub_add : heap.
+Hint Rewrite drop_inner_sub : heap.
+Hint Rewrite succ_sub_one : heap.
+
+Ltac rewrite_heap :=
+  repeat autorewrite with heap;
+  first [ auto | discriminate | congruence | nomega | idtac ].
+
+Ltac reduce_find :=
   match goal with
-    [ H : (If ?B Then _ Else _) ↝ _ |- _ ] =>
-    let Heqe := fresh "Heqe" in
-    destruct B eqn:Heqe;
-    simpl in H;
-    computes_to_inv
-  end.
+  | [ |- context[M.find ?X (M.add ?Y _ _)] ] =>
+    rewrite F.add_eq_o; [auto|nomega]
+  | [ |- context[M.find ?X (M.add _ _ _)] ] =>
+    rewrite F.add_neq_o; [auto|nomega]
+  | [ |- ?X :: _ = ?X :: _ ] => f_equal
+  | [ |- N.peano_rec ?Q ?Z _ ?N = N.peano_rec ?Q ?Z _ ?N ] =>
+    apply Npeano_rec_eq with (P:=Q);
+    intros; subst; f_equal;
+    rewrite_heap;
+    try reduce_find
+  | [ |- context[M.find _ (copy_bytes _ _ _ _ _)] ] =>
+    rewrite !copy_bytes_find
+  | [ |- context[If ?B Then _ Else _] ] =>
+    let H := fresh "H" in
+    assert (H : B = true) by nomega;
+    rewrite H; clear H; simpl
+  | [ |- context[If ?B Then _ Else _] ] =>
+    let H := fresh "H" in
+    assert (H : B = false) by nomega;
+    rewrite H; clear H; simpl
+  | [ |- match M.find ?X _ with | _ => _ end =
+         match M.find ?Y _ with | _ => _ end ] =>
+    replace X with Y by nomega; reflexivity
+  | [ |- match M.find ?X _ with | _ => _ end :: _ =
+         match M.find ?Y _ with | _ => _ end :: _ ] =>
+    replace X with Y by nomega; f_equal
+  end; auto.
 
-Corollary If_Then_Else_MapsTo : forall b k k' elt (e : elt) r,
-  (If b
-   Then M.MapsTo k  e r
-   Else M.MapsTo k' e r) = M.MapsTo (If b Then k Else k') e r.
-Proof. destruct b; trivial. Qed.
-
-Lemma Npeano_rec_eq : forall (P : N -> Set) (z : P 0) f g n,
-  (forall k x y, k < n -> x = y -> f k x = g k y)
-    -> N.peano_rec P z f n = N.peano_rec P z g n.
-Proof.
-  intros.
-  destruct n using N.peano_ind.
-    reflexivity.
-  rewrite !N.peano_rec_succ.
-  apply H.
-    nomega.
-  apply IHn.
-  intros; subst.
-  apply H.
-    nomega.
-  reflexivity.
-Qed.
+Ltac destruct_bs bs :=
+  unfold buffer_to_list; simpl;
+  let psLength := fresh "psLength" in
+  destruct bs as [? [? ? ? psLength]]; simpl in *;
+  destruct psLength using N.peano_ind; simpl; intros;
+  rewrite_heap;
+  try (rewrite N.add_1_r; rewrite_heap);
+  repeat reduce_find;
+  rewrite_heap.
 
 Lemma buffer_cons_eq_shift_1 : forall x r_n buflen,
   0 < psOffset (snd r_n)
@@ -235,35 +251,7 @@ Lemma buffer_cons_eq_shift_1 : forall x r_n buflen,
                ; psBufLen := buflen
                ; psOffset := psOffset (snd r_n) - 1
                ; psLength := psLength (snd r_n) + 1 |}).
-Proof.
-  intros.
-  unfold buffer_to_list; simpl.
-  destruct r_n, p; simpl in *.
-  generalize dependent buflen.
-  destruct psLength0 using N.peano_ind; simpl; intros.
-    rewrite F.add_eq_o; nomega.
-  clear IHpsLength0.
-  rewrite N.add_1_r, !N.peano_rec_succ, !N.add_sub, F.add_eq_o; trivial.
-  rewrite F.add_neq_o; [|nomega].
-  replace (psBuffer0 + (psOffset0 - 1)
-             + N.succ (N.succ psLength0) - N.succ psLength0)
-     with (psBuffer0 + psOffset0) by nomega.
-  do 2 f_equal.
-  apply Npeano_rec_eq with (P:= fun _ : N => list Word).
-  intros; subst.
-  f_equal.
-  replace (psBuffer0 + (psOffset0 - 1) + N.succ (N.succ psLength0) - N.succ k)
-     with (psBuffer0 + psOffset0 + N.succ psLength0 - N.succ k) by nomega.
-  cut (forall k, k < psLength0 ->
-          M.find (psBuffer0 + psOffset0 + N.succ psLength0 - N.succ k)
-                 (bytes r)
-            = M.find (psBuffer0 + psOffset0 + N.succ psLength0 - N.succ k)
-                     (M.add (psBuffer0 + (psOffset0 - 1)) x (bytes r))).
-    intro H3; rewrite H3; trivial.
-  intros.
-  rewrite F.add_neq_o; trivial.
-  nomega.
-Qed.
+Proof. intros; destruct_bs r_n. Qed.
 
 Lemma buffer_cons_eq_grow_1 : forall x r_n buflen,
   0 = psOffset (snd r_n)
@@ -282,35 +270,7 @@ Lemma buffer_cons_eq_grow_1 : forall x r_n buflen,
                ; psBufLen := buflen
                ; psOffset := 0
                ; psLength := psLength (snd r_n) + 1 |}).
-Proof.
-  intros.
-  unfold buffer_to_list; simpl.
-  destruct r_n, p; simpl in *.
-  destruct psLength0 using N.peano_ind; simpl; intros.
-    rewrite F.add_eq_o; nomega.
-  subst; clear IHpsLength0.
-  rewrite N.add_1_r, !N.peano_rec_succ, !N.add_sub,
-          N.add_0_r, F.add_eq_o; [|nomega].
-  rewrite F.add_neq_o; [|nomega].
-  f_equal.
-  rewrite <- !N.add_1_r.
-  rewrite (N.add_comm (psLength0 + 1) 1).
-  rewrite N.add_assoc, N.add_assoc, N.add_sub.
-  rewrite copy_bytes_find_at; [|nomega].
-  f_equal.
-  apply Npeano_rec_eq with (P:= fun _ : N => list Word).
-  intros; subst.
-  f_equal.
-  rewrite F.add_neq_o; [|nomega].
-  rewrite copy_bytes_find.
-  destruct (within_bool (psBuffer0 + 1) (psLength0 + 1)
-                        (psBuffer0 + 1 + (psLength0 + 1) - N.succ k))
-    eqn:Heqe; simpl.
-    replace (psBuffer0 + 1 + (psLength0 + 1) - N.succ k - (psBuffer0 + 1) + psBuffer0)
-       with (psBuffer0 + psLength0 + 1 - N.succ k) by nomega.
-    reflexivity.
-  nomega.
-Qed.
+Proof. intros; destruct_bs r_n. Qed.
 
 Lemma buffer_cons_eq_alloc_new : forall x y r_n,
   0 = psOffset (snd r_n)
@@ -330,34 +290,7 @@ Lemma buffer_cons_eq_alloc_new : forall x y r_n,
                ; psBufLen := psLength (snd r_n) + 1
                ; psOffset := 0
                ; psLength := psLength (snd r_n) + 1 |}).
-Proof.
-  intros.
-  unfold buffer_to_list; simpl.
-  destruct r_n, p; simpl in *.
-  destruct psLength0 using N.peano_ind; simpl; intros.
-    rewrite F.add_eq_o; nomega.
-  subst; clear IHpsLength0.
-  rewrite N.add_1_r, !N.peano_rec_succ, !N.add_sub,
-          N.add_0_r, F.add_eq_o; [|nomega].
-  rewrite F.add_neq_o; [|nomega].
-  f_equal.
-  rewrite N.add_0_r, <- !N.add_1_r.
-  rewrite (N.add_comm (psLength0 + 1) 1).
-  rewrite !N.add_assoc, <- (N.add_assoc (y + 1) psLength0 1).
-  rewrite N.add_sub, copy_bytes_find_at; [|nomega].
-  f_equal.
-  apply Npeano_rec_eq with (P:= fun _ : N => list Word).
-  intros; subst.
-  f_equal.
-  rewrite F.add_neq_o; [|nomega].
-  rewrite copy_bytes_find.
-  destruct (within_bool (y + 1) (psLength0 + 1)
-                        (y + 1 + (psLength0 + 1) - N.succ k)) eqn:Heqe; simpl.
-    replace (y + 1 + (psLength0 + 1) - N.succ k - (y + 1) + psBuffer0)
-       with (psBuffer0 + psLength0 + 1 - N.succ k) by nomega.
-    reflexivity.
-  nomega.
-Qed.
+Proof. intros; destruct_bs r_n. Qed.
 
 Lemma buffer_cons_sound : forall r_o r_n,
   ByteString_list_AbsR r_o r_n
@@ -381,27 +314,16 @@ Proof.
       rewrite N.add_0_r, <- buffer_cons_eq_alloc_new; trivial.
         nomega.
       apply_for_all; nomega.
-    right.
-    split.
+    right; intuition.
       nomega.
-    split; [|nomega].
     apply F.remove_neq_mapsto_iff; trivial.
       apply_for_all; nomega.
     simplify_maps.
   destruct_computations; simpl in *.
   destruct_AbsR AbsR; construct_AbsR.
-    unfold buffer_to_list; simpl.
-    rewrite N.add_0_r, N.add_sub, F.add_eq_o; trivial.
-    f_equal.
-    replace (psLength (snd r_n)) with 0.
-      reflexivity.
-    nomega.
-  right.
-  split.
-    nomega.
-  split.
-    simplify_maps.
-  nomega.
+    destruct_bs r_n; nomega.
+  right; intuition.
+  discriminate.
 Qed.
 
 (**************************************************************************)
@@ -433,19 +355,10 @@ Proof.
   if_computes_to_inv; subst; simpl.
     destruct_computations; simpl.
     destruct_AbsR H; construct_AbsR.
-      unfold buffer_to_list.
-      destruct r_n, p; simpl.
-      destruct psLength0 using N.peano_ind; simpl; intros.
-        reflexivity.
-      rewrite !N.peano_rec_succ, <- N.pred_sub, N.pred_succ.
-      apply Npeano_rec_eq with (P:= fun _ : N => list Word).
-      intros; subst.
-      f_equal.
-      assert (N.succ psLength0 =? 1 = false) by nomega.
+      destruct_bs r_n.
+      assert (H1 : N.succ psLength0 =? 1 = false) by nomega.
       rewrite H1.
-      replace (psBuffer0 + (psOffset0 + 1) + psLength0 - N.succ k)
-         with (psBuffer0 + psOffset0 + N.succ psLength0 - N.succ k) by nomega.
-      reflexivity.
+      reduce_find.
     right; intuition;
     destruct (psLength (@snd HeapState PS r_n) =? 1); nomega.
   assert (psLength (@snd HeapState PS r_n) = 0) by nomega.
@@ -463,35 +376,18 @@ Lemma buffer_to_list_cons : forall r_n,
   0 < psLength (snd r_n) -> exists x xs, buffer_to_list r_n = x :: xs.
 Proof.
   intros.
-  unfold buffer_to_list.
-  destruct r_n, p ; simpl in *.
-  destruct psLength0 using N.peano_ind; simpl in *; intros.
+  destruct_bs r_n.
     discriminate.
   clear IHpsLength0.
-  rewrite N.peano_rec_succ, N.add_sub.
   remember (N.peano_rec _ _ _ _) as xs.
   destruct (M.find (psBuffer0 + psOffset0) (bytes r)).
-    exists w.
-    exists xs.
-    reflexivity.
-  exists Zero.
-  exists xs.
-  reflexivity.
+    exists w, xs; reflexivity.
+  exists Zero, xs; reflexivity.
 Qed.
 
 Lemma buffer_to_list_nil : forall r_n,
   0 = psLength (snd r_n) -> buffer_to_list r_n = [].
-Proof.
-  intros.
-  unfold buffer_to_list.
-  destruct r_n, p ; simpl in *.
-  destruct psLength0 using N.peano_ind; simpl in *; intros.
-    reflexivity.
-  clear IHpsLength0.
-  rewrite N.peano_rec_succ, N.add_sub.
-  remember (N.peano_rec _ _ _ _) as xs.
-  destruct (M.find (psBuffer0 + psOffset0) (bytes r)); nomega.
-Qed.
+Proof. intros; destruct_bs r_n; nomega. Qed.
 
 Lemma buffer_uncons_impl : forall r_o r_n a,
   ByteString_list_AbsR r_o r_n
@@ -502,37 +398,23 @@ Lemma buffer_uncons_impl : forall r_o r_n a,
                end.
 Proof.
   unfold buffer_uncons; intros.
-  destruct H; subst.
-  clear H1.
   if_computes_to_inv; subst; simpl.
     destruct_computations; simpl.
-    assert (0 < psLength (snd r_n)) by nomega.
-    apply buffer_to_list_cons in H0.
-    destruct H0, H0.
-    rewrite H0.
-    f_equal.
-    unfold buffer_to_list in H0.
-    destruct r_n, p; simpl in *.
-    destruct psLength0 using N.peano_ind; simpl in *; intros.
-      discriminate.
+    destruct_AbsR H.
+      destruct_bs r_n; nomega.
+    destruct_bs r_n.
+      nomega.
     clear IHpsLength0.
-    rewrite N.peano_rec_succ, N.add_sub in H0.
-    inv H0.
-    destruct H.
+    f_equal.
+    destruct H0.
       apply F.find_mapsto_iff in H.
-      rewrite H.
-      reflexivity.
+      rewrite H; reflexivity.
     destruct H; subst.
     assert (M.find (psBuffer0 + psOffset0) (bytes r) = None).
-      apply F.not_find_in_iff.
-      assumption.
-    rewrite H0.
-    reflexivity.
-  unfold buffer_to_list; simpl.
-  destruct r_n, p; simpl.
-  destruct psLength0 using N.peano_ind; simpl in *; intros; trivial.
-  rewrite N.peano_rec_succ, N.add_sub.
-  nomega.
+      apply F.not_find_in_iff; trivial.
+    rewrite H0; trivial.
+  destruct_AbsR H;
+  destruct_bs r_n; nomega.
 Qed.
 
 (**************************************************************************)
@@ -637,111 +519,35 @@ Lemma buffer_to_list_app : forall r_n1 r_n2 v,
     psLength := psLength (snd r_n1) + psLength (snd r_n2) |}).
 Proof.
   intros.
-  destruct r_n1, p; simpl.
-  destruct r_n2, p; simpl.
-  destruct psLength0 using N.peano_ind; simpl in *; intros; trivial;
-  try clear IHpsLength0;
-  destruct psLength1 using N.peano_ind; simpl in *; intros; trivial;
-  try clear IHpsLength1.
-  - rewrite N.add_0_r.
-    unfold buffer_to_list; simpl.
-    apply Npeano_rec_eq with (P:= fun _ : N => list Word).
-    intros; subst; f_equal.
-    rewrite N.add_0_r, !copy_bytes_find.
-    assert (within_bool v 0 (v + N.succ psLength1 - N.succ k) = false)
-      by nomega.
-    rewrite H0; clear H0; simpl.
-    assert (within_bool v (N.succ psLength1)
-                        (v + N.succ psLength1 - N.succ k) = true)
-      by nomega.
-    rewrite H0; clear H0; simpl.
-    replace (v + N.succ psLength1 - N.succ k - v + (psBuffer1 + psOffset1))
-       with (psBuffer1 + psOffset1 + N.succ psLength1 - N.succ k)
-         by nomega.
-    reflexivity.
-  - remember (r0, _) as b.
-    rewrite (buffer_to_list_nil b), app_nil_r, !N.add_0_r; [|nomega].
-    clear Heqb b.
-    unfold buffer_to_list; simpl.
-    destruct psLength0 using N.peano_ind; simpl; intros.
-      rewrite !N.add_sub, N.add_0_r, !copy_bytes_find.
-      assert (within_bool (v + 1) 0 v = false) by nomega.
-      rewrite H; clear H; simpl.
-      assert (within_bool v 1 v = true) by nomega.
-      rewrite H; clear H; simpl.
-      replace (v - v + (psBuffer0 + psOffset0))
-         with (psBuffer0 + psOffset0) by nomega.
-      reflexivity.
-    subst; clear IHpsLength0.
-    apply Npeano_rec_eq with (P:= fun _ : N => list Word).
-    intros; subst; f_equal.
-    rewrite N.add_0_r, !copy_bytes_find.
-    assert (within_bool (v + N.succ (N.succ psLength0)) 0
-                        (v + N.succ (N.succ psLength0) - N.succ k) = false)
-      by nomega.
-    rewrite H0; clear H0; simpl.
-    assert (within_bool v (N.succ (N.succ psLength0))
-                        (v + N.succ (N.succ psLength0) - N.succ k) = true)
-      by nomega.
-    rewrite H0; clear H0; simpl.
-    replace (v + N.succ (N.succ psLength0) - N.succ k - v + (psBuffer0 + psOffset0))
-       with (psBuffer0 + psOffset0 + N.succ (N.succ psLength0) - N.succ k)
-         by nomega.
-    reflexivity.
-  - unfold buffer_to_list; simpl.
-    rewrite !N.peano_rec_succ, N.add_sub.
-    rewrite N.add_succ_l.
-    rewrite <- (N.add_succ_comm psLength0 psLength1).
-    rewrite !N.peano_rec_succ, N.add_sub.
-    rewrite N.add_succ_l.
-    rewrite N.peano_rec_succ, N.add_sub.
-    rewrite !N.add_0_r, !copy_bytes_find.
-    assert (within_bool (v + N.succ psLength0) (N.succ psLength1) v = false)
-      by nomega.
-    rewrite H; clear H; simpl.
-    assert (within_bool v (N.succ psLength0) v = true) by nomega.
-    rewrite H; clear H; simpl.
-    replace (v - v + (psBuffer0 + psOffset0)) with (psBuffer0 + psOffset0)
-      by nomega.
-    f_equal.
-    replace (v + N.succ (N.succ (psLength0 + psLength1))
-               - N.succ (psLength0 + psLength1))
-       with (v + 1 + N.succ (psLength0 + psLength1)
-                   - N.succ (psLength0 + psLength1))
-         by nomega.
-    rewrite !N.add_sub.
-    destruct (within_bool (v + N.succ psLength0)
-                          (N.succ psLength1) (v + 1)) eqn:Heqe; simpl.
-      assert (0 = psLength0) by nomega.
-      subst; simpl.
-      replace (v + 1 - (v + 1) + (psBuffer1 + psOffset1))
-         with (psBuffer1 + psOffset1) by nomega.
-      f_equal.
-      apply Npeano_rec_eq with (P:= fun _ : N => list Word).
-      intros; subst; f_equal.
-      rewrite !copy_bytes_find.
-      assert (within_bool (v + 1) (N.succ psLength1)
-                          (v + N.succ (N.succ psLength1) - N.succ k) = true)
-        by nomega.
-      rewrite H0; clear H0; simpl.
-      replace (v + N.succ (N.succ psLength1) - N.succ k
-                 - (v + 1) + (psBuffer1 + psOffset1))
-         with (psBuffer1 + psOffset1 + N.succ psLength1 - N.succ k)
-           by nomega.
-      reflexivity.
-    assert (within_bool v (N.succ psLength0) (v + 1) = true) by nomega.
-    rewrite H; clear H; simpl.
-    replace (v + 1 - v + (psBuffer0 + psOffset0))
-       with (N.succ (psBuffer0 + psOffset0)) by nomega.
-    assert (psLength0 <> 0) by nomega.
-    apply N.neq_0_r in H.
-    destruct H; subst.
-    rewrite N.peano_rec_succ.
-    replace (psBuffer0 + psOffset0 + N.succ (N.succ x) - N.succ x)
-       with (N.succ (psBuffer0 + psOffset0)) by nomega.
-    rewrite <- app_comm_cons.
-    f_equal.
-    rewrite N.add_succ_l, N.peano_rec_succ, !copy_bytes_find.
+  unfold buffer_to_list.
+  destruct_bs r_n1.
+  clear IHpsLength0.
+  rewrite N.add_succ_l.
+  rewrite_heap.
+  repeat reduce_find; rewrite_heap.
+  rewrite Npeano_rec_app; simpl.
+  destruct psLength0 using N.peano_ind; simpl.
+    repeat reduce_find.
+  rewrite N.add_succ_l.
+  rewrite_heap.
+  repeat reduce_find.
+  destruct_bs r_n2.
+  clear IHpsLength1.
+  replace (N.succ psLength0 + N.succ psLength1)
+     with (N.succ (N.succ (psLength0 + psLength1))) by nomega.
+  rewrite !N.peano_rec_succ, N.add_sub.
+    rewrite_heap; repeat reduce_find.
+  rewrite_heap; repeat reduce_find.
+    nomega.
+  rewrite_heap; repeat reduce_find.
+  replace (v + 1 - v + (psBuffer0 + psOffset0))
+     with (psBuffer0 + psOffset0 + 1) by nomega.
+  destruct psLength0 using N.peano_ind; simpl.
+    nomega.
+  clear IHpsLength0.
+  rewrite_heap; repeat reduce_find.
+  rewrite <- app_comm_cons.
+  f_equal.
 Admitted.
 
 Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2,

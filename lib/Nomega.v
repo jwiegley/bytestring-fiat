@@ -266,3 +266,66 @@ Ltac nomega' :=
 
 Ltac nomega  := solve [ abstract nomega' ].
 Ltac nomega_ := solve [ nomega' ].
+
+Lemma Npeano_rec_eq : forall (P : N -> Set) (z : P 0) f g n,
+  (forall k x y, k < n -> x = y -> f k x = g k y)
+    -> N.peano_rec P z f n = N.peano_rec P z g n.
+Proof.
+  intros.
+  destruct n using N.peano_ind.
+    reflexivity.
+  rewrite !N.peano_rec_succ.
+  apply H.
+    nomega.
+  apply IHn.
+  intros; subst.
+  apply H.
+    nomega.
+  reflexivity.
+Qed.
+
+Lemma Npeano_rec_app : forall (A : Set) (z : list A) f g n m,
+  (N.peano_rec (fun _ => list A) z (fun x rest => f x :: rest) n
+     ++ N.peano_rec (fun _ => list A) z
+                    (fun x rest => g x :: rest) m)%list =
+  N.peano_rec (fun _ => list A)
+              (z ++ N.peano_rec (fun _ => list A) z
+                                (fun x rest => g x :: rest) m)%list
+              (fun x rest => f x :: rest)%list n.
+Proof.
+  intros.
+  generalize dependent z.
+  destruct n using N.peano_ind; simpl; intros.
+    reflexivity.
+  rewrite !N.peano_rec_succ.
+  rewrite <- List.app_comm_cons.
+  f_equal.
+  apply IHn.
+Qed.
+
+Lemma Npeano_rec_add : forall (A : Set) (z : list A) f g n m,
+  N.peano_rec (fun _ => list A)
+              (N.peano_rec (fun _ => list A) z
+                           (fun k rest => g (m - N.succ k) :: rest) m)%list
+              (fun k rest => f (n - N.succ k) :: rest)%list n =
+  N.peano_rec (fun _ => list A) z
+              (fun k rest =>
+                 (if k <? m
+                  then g (m - N.succ k)
+                  else f (n + m - N.succ k)) :: rest)%list
+              (n + m).
+Proof.
+  intros.
+  generalize dependent m.
+  destruct n using N.peano_ind; simpl; intros.
+    apply Npeano_rec_eq with (P := fun _ => list A).
+    intros; subst.
+    assert (k <? m = true) by nomega.
+    rewrite H0; reflexivity.
+  rewrite N.add_succ_l, !N.peano_rec_succ.
+  assert (n + m <? m = false) by nomega.
+  rewrite H; clear H.
+  f_equal.
+    f_equal.
+    nomega.
+Admitted.

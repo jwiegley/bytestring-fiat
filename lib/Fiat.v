@@ -181,6 +181,15 @@ Corollary refine_inv : forall A old new,
   refine old new -> forall x : A, new ↝ x -> old ↝ x.
 Proof. trivial. Qed.
 
+Ltac if_computes_to_inv :=
+  match goal with
+    [ H : (If ?B Then _ Else _) ↝ _ |- _ ] =>
+    let Heqe := fresh "Heqe" in
+    destruct B eqn:Heqe;
+    simpl in H;
+    computes_to_inv
+  end.
+
 Lemma fst_match_list :
   forall A (xs : list A) B z C z'
          (f : A -> list A -> B) (f' : A -> list A -> C),
