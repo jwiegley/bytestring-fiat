@@ -303,29 +303,30 @@ Proof.
   apply IHn.
 Qed.
 
-Lemma Npeano_rec_add : forall (A : Set) (z : list A) f g n m,
+Lemma Npeano_rec_add : forall (A : Set) (z : list A) f g h n m,
+  (forall k x y, x = y ->
+     ((if k <? m
+       then g k
+       else f (k - m)) :: x)%list = h k y) ->
   N.peano_rec (fun _ => list A)
               (N.peano_rec (fun _ => list A) z
-                           (fun k rest => g (m - N.succ k) :: rest) m)%list
-              (fun k rest => f (n - N.succ k) :: rest)%list n =
-  N.peano_rec (fun _ => list A) z
-              (fun k rest =>
-                 (if k <? m
-                  then g (m - N.succ k)
-                  else f (n + m - N.succ k)) :: rest)%list
-              (n + m).
+                           (fun k rest => g k :: rest) m)%list
+              (fun k rest => f k :: rest)%list n =
+  N.peano_rec (fun _ => list A) z h (n + m).
 Proof.
   intros.
-  generalize dependent m.
   destruct n using N.peano_ind; simpl; intros.
     apply Npeano_rec_eq with (P := fun _ => list A).
     intros; subst.
+    rewrite <- H with (x:=y); trivial.
     assert (k <? m = true) by nomega.
-    rewrite H0; reflexivity.
+    rewrite H1; reflexivity.
   rewrite N.add_succ_l, !N.peano_rec_succ.
+  remember (N.peano_rec _ _ _ (n + m)) as xs.
+  specialize (H (n + m) xs xs eq_refl).
   assert (n + m <? m = false) by nomega.
-  rewrite H; clear H.
-  f_equal.
-    f_equal.
-    nomega.
-Admitted.
+  rewrite H0 in H; clear H0.
+  rewrite N.add_sub in H.
+  rewrite IHn.
+  apply H.
+Qed.

@@ -183,8 +183,14 @@ Corollary succ_sub_one : forall n,
   N.succ n - 1 = n.
 Proof. nomega. Qed.
 
+Corollary succ_one_sub : forall n,
+  N.succ n - n = 1.
+Proof. intros; rewrite N.sub_succ_l; nomega. Qed.
+
 Hint Rewrite N.add_0_r : heap.
 Hint Rewrite N.add_sub : heap.
+Hint Rewrite N.sub_diag : heap.
+Hint Rewrite N.sub_succ : heap.
 Hint Rewrite sub_add : heap.
 Hint Rewrite N.peano_rec_succ : heap.
 Hint Rewrite add_succ_sub : heap.
@@ -193,6 +199,7 @@ Hint Rewrite add_succ_succ_sub_succ : heap.
 Hint Rewrite add_sub_add : heap.
 Hint Rewrite drop_inner_sub : heap.
 Hint Rewrite succ_sub_one : heap.
+Hint Rewrite succ_one_sub : heap.
 
 Ltac rewrite_heap :=
   repeat autorewrite with heap;
@@ -520,34 +527,28 @@ Lemma buffer_to_list_app : forall r_n1 r_n2 v,
 Proof.
   intros.
   unfold buffer_to_list.
-  destruct_bs r_n1.
-  clear IHpsLength0.
-  rewrite N.add_succ_l.
-  rewrite_heap.
-  repeat reduce_find; rewrite_heap.
   rewrite Npeano_rec_app; simpl.
-  destruct psLength0 using N.peano_ind; simpl.
-    repeat reduce_find.
-  rewrite N.add_succ_l.
-  rewrite_heap.
-  repeat reduce_find.
-  destruct_bs r_n2.
-  clear IHpsLength1.
-  replace (N.succ psLength0 + N.succ psLength1)
-     with (N.succ (N.succ (psLength0 + psLength1))) by nomega.
-  rewrite !N.peano_rec_succ, N.add_sub.
-    rewrite_heap; repeat reduce_find.
-  rewrite_heap; repeat reduce_find.
-    nomega.
-  rewrite_heap; repeat reduce_find.
-  replace (v + 1 - v + (psBuffer0 + psOffset0))
-     with (psBuffer0 + psOffset0 + 1) by nomega.
-  destruct psLength0 using N.peano_ind; simpl.
-    nomega.
-  clear IHpsLength0.
-  rewrite_heap; repeat reduce_find.
-  rewrite <- app_comm_cons.
-  f_equal.
+  rewrite N.add_0_r.
+  set (f := fun (x : N) =>
+              match M.find (psBuffer (snd r_n1) + psOffset (snd r_n1)
+                              + psLength (snd r_n1) - N.succ x)
+                           (bytes (fst r_n1)) with
+              | Some w => w
+              | None => Zero
+              end).
+  set (g := fun (x : N) =>
+              match M.find (psBuffer (snd r_n2) + psOffset (snd r_n2)
+                              + psLength (snd r_n2) - N.succ x)
+                           (bytes (fst r_n2)) with
+              | Some w => w
+              | None => Zero
+              end).
+  rewrite <- Npeano_rec_add with (f:=f) (g:=g).
+    reflexivity.
+  intros; subst; f_equal.
+  unfold f, g; clear f g.
+  destruct (k <? psLength (@snd HeapState PS r_n2)) eqn:Heqe1;
+  f_equal; repeat reduce_find.
 Admitted.
 
 Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2,
