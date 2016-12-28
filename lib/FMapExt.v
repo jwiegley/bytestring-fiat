@@ -226,18 +226,6 @@ Proof.
   exact H2.
 Qed.
 
-Lemma filter_true : forall elt k (e : elt) m P,
-  Proper (E.eq ==> eq ==> eq) P
-    -> P k e = true
-    -> M.Equal (P.filter P m) m.
-Proof.
-  intros.
-  apply F.Equal_mapsto_iff; split; intros.
-    simplify_maps.
-  simplify_maps.
-  intuition.
-Admitted.
-
 Lemma filter_add_true : forall elt k (e : elt) m m' P,
   Proper (E.eq ==> eq ==> eq) P
     -> ~ M.In (elt:=elt) k m
