@@ -505,7 +505,29 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma within_sub_true : forall n m o,
+  o <= m -> 0 < o -> within_bool n m (n + m - o) = true.
+Proof. nomega. Qed.
+
+Lemma within_sub_add_true : forall n m p o,
+  p < o -> o <= m + p -> within_bool n m (n + m + p - o) = true.
+Proof. nomega. Qed.
+
+Lemma within_sub_false : forall n m o,
+  m < o -> m - o < n -> within_bool n m (n + m - o) = false.
+Proof. nomega. Qed.
+
+Lemma within_sub_add_false : forall n m p o,
+  o + m <= p -> within_bool n m (n + m + p - o) = false.
+Proof. nomega. Qed.
+
+Corollary within_zero : forall n m,
+  within_bool n 0 m = false.
+Proof. intros; destruct (Nlt_dec m n); nomega. Qed.
+
 Lemma buffer_to_list_app : forall r_n1 r_n2 v,
+  0 < psLength (snd r_n1) ->
+  0 < psLength (snd r_n2) ->
   buffer_to_list r_n1 ++ buffer_to_list r_n2 =
   buffer_to_list
     ({|
@@ -527,7 +549,7 @@ Lemma buffer_to_list_app : forall r_n1 r_n2 v,
 Proof.
   intros.
   unfold buffer_to_list.
-  rewrite Npeano_rec_app; simpl.
+  rewrite Npeano_rec_list_app; simpl.
   rewrite N.add_0_r.
   set (f := fun (x : N) =>
               match M.find (psBuffer (snd r_n1) + psOffset (snd r_n1)
@@ -543,12 +565,15 @@ Proof.
               | Some w => w
               | None => Zero
               end).
-  rewrite <- Npeano_rec_add with (f:=f) (g:=g).
+  rewrite <- Npeano_rec_list_add with (f:=f) (g:=g).
     reflexivity.
   intros; subst; f_equal.
   unfold f, g; clear f g.
-  destruct (k <? psLength (@snd HeapState PS r_n2)) eqn:Heqe1;
-  f_equal; repeat reduce_find.
+  destruct_bs r_n1;
+  destruct_bs r_n2; try nomega.
+  clear IHpsLength0 IHpsLength1.
+  destruct (k <? N.succ psLength1) eqn:Heqe1; repeat reduce_find.
+  destruct (k <? N.succ psLength0) eqn:Heqe2; repeat reduce_find.
 Admitted.
 
 Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2,

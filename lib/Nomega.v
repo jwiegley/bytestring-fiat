@@ -284,7 +284,7 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma Npeano_rec_app : forall (A : Set) (z : list A) f g n m,
+Lemma Npeano_rec_list_app : forall (A : Set) (z : list A) f g n m,
   (N.peano_rec (fun _ => list A) z (fun x rest => f x :: rest) n
      ++ N.peano_rec (fun _ => list A) z
                     (fun x rest => g x :: rest) m)%list =
@@ -303,7 +303,7 @@ Proof.
   apply IHn.
 Qed.
 
-Lemma Npeano_rec_add : forall (A : Set) (z : list A) f g h n m,
+Lemma Npeano_rec_list_add : forall (A : Set) (z : list A) f g h n m,
   (forall k x y, x = y ->
      ((if k <? m
        then g k
