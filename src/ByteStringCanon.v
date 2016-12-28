@@ -294,7 +294,7 @@ Proof.
 
     rewrite !refine_IfDep_Then_Else_Bind,
             !refineEquiv_strip_IfDep_Then_Else.
-    refine pick val (fst (fst r_n)).
+    refine pick val (fst (fst r_n) + 1).
       autorewrite with monad laws; simpl.
       etransitivity.
         apply refine_If_Then_Else; intros.
@@ -305,22 +305,22 @@ Proof.
             rewrite e, e0; clear e e0.
             destruct h, H1, h0, H4.
             refine pick val
-              ((fst (fst r_n) + psLength (snd r_n) + psLength (snd r_n0),
-                {| resvs := M.add (fst (fst r_n))
+              ((fst (fst r_n) + 1 + psLength (snd r_n) + psLength (snd r_n0),
+                {| resvs := M.add ((fst (fst r_n)) + 1)
                                   (psLength (snd r_n) + psLength (snd r_n0))
                                   (resvs (snd (fst r_n)))
                  ; bytes :=
                      copy_bytes
                        (psBuffer (snd r_n0) + psOffset (snd r_n0))
-                       (fst (fst r_n) + psLength (snd r_n))
+                       (fst (fst r_n) + 1 + psLength (snd r_n))
                        (psLength (snd r_n0))
                        (bytes (snd (fst r_n0)))
                        (copy_bytes (psBuffer (snd r_n) + psOffset (snd r_n))
-                                   (fst (fst r_n))
+                                   ((fst (fst r_n)) + 1)
                                    (psLength (snd r_n))
                                    (bytes (snd (fst r_n)))
                                    (bytes (snd (fst r_n)))) |}),
-               {| psBuffer := fst (fst r_n)
+               {| psBuffer := fst (fst r_n) + 1
                 ; psBufLen := psLength (snd r_n) + psLength (snd r_n0)
                 ; psOffset := 0
                 ; psLength := psLength (snd r_n) + psLength (snd r_n0) |}).
@@ -331,18 +331,41 @@ Proof.
               rewrite H0.
               reflexivity.
             split.
-              admit.
-            admit.
+              repeat (f_equiv; auto).
+            clear -H2.
+            apply for_all_add_true; relational.
+              unfold not; intros.
+              destruct H.
+              apply_for_all; relational.
+              nomega.
+            split.
+              remember (fun _ _ => _) as P.
+              remember (fun _ _ => _ <=? _ + _ + _) as P'.
+              apply for_all_impl with (P:=P) (P':=P'); relational.
+              nomega.
+            nomega.
           simplify with monad laws; simpl.
-          admit.
-        admit.
-      admit.
+          refine pick val r_n.
+            finish honing.
+          assumption.
+        refine pick val r_n0.
+          finish honing.
+        assumption.
+      intuition.
+      rewrite !H3, !H4.
+      rewrite !refine_If_Then_Else_ret.
+      finish honing.
     intuition.
     rewrite H3, H4.
     destruct H2.
     rewrite H1.
     intuition.
-    admit.
+    clear -H6.
+    remember (fun _ _ => _) as P.
+    remember (fun _ _ => negb _) as P'.
+    apply for_all_impl with (P:=P) (P':=P'); relational.
+    intros.
+    nomega.
   }
 
   (** Apply some common functional optimizations, such as common subexpression
@@ -383,7 +406,7 @@ Proof.
   }
 
   finish_SharpeningADT_WithoutDelegation.
-Admitted.
+Defined.
 
 End Refined.
 

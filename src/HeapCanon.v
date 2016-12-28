@@ -28,36 +28,23 @@ Open Scope N_scope.
 Theorem HeapCanonical : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
-  eapply transitivityT.
-  eapply annotate_ADT with
-  (methDefs' := icons {|methBody :=  _|}
-               (icons {|methBody :=  _|}
-               (icons {|methBody :=  _|}
-               (icons {|methBody :=  _|}
-               (icons {|methBody :=  _|}
-               (icons {|methBody :=  _|}
-               (icons {|methBody :=  _|}
-               (icons {|methBody :=  _|} inil ) ) ) ) ) ) ) )
-               (AbsR :=
-     fun or nr =>
-        M.Equal (resvs or) (resvs (snd nr)) /\
-        M.Equal (bytes or) (bytes (snd nr)) /\
-        P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
-  simpl. repeat apply Build_prim_prod; simpl;
-           intros; try simplify with monad laws; set_evars.
 
-  (*
-  (* Taste of what this should look like with [annotate_ADT]. *)
   eapply transitivityT.
   eapply annotate_ADT with
-       (AbsR := fun or nr =>
-                  M.Equal (resvs or) (resvs (snd nr)) /\
-                  M.Equal (bytes or) (bytes (snd nr)) /\
-                  P.for_all (fun addr sz => addr + sz <=? fst nr)
-                            (resvs (snd nr)));
-  simpl; unfold refineMethod_w_PreCond;
-  repeat first [apply Build_prim_prod | exact tt]; simpl; intros.
-  *)
+    (methDefs' := icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|} inil ) ) ) ) ) ) ) )
+    (AbsR := fun or nr =>
+       M.Equal (resvs or) (resvs (snd nr)) /\
+       M.Equal (bytes or) (bytes (snd nr)) /\
+       P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
+  simpl; repeat apply Build_prim_prod; simpl;
+  intros; try simplify with monad laws; set_evars.
 
   (* refine constructor emptyS *)
   {
