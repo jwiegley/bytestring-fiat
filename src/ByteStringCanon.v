@@ -274,10 +274,12 @@ Proof.
       intros.
       destruct (M.find _ _) eqn:Heqe; simpl.
         normalize.
-        rewrite bytes_match0 in H.
-        eapply F.MapsTo_fun; eauto.
-      apply F.find_mapsto_iff in H.
-      congruence.
+        rewrite bytes_match0.
+        left; assumption.
+      right; split; trivial.
+      apply HeapState.F.not_find_in_iff.
+      rewrite bytes_match0.
+      assumption.
 
     - refine pick val r_n; eauto.
         simplify with monad laws.
@@ -308,7 +310,7 @@ Proof.
                                   (psLength (snd r_n) + psLength (snd r_n0))
                                   (resvs (snd (fst r_n)))
                  ; bytes :=
-                     copy_bytes_between_heaps
+                     copy_bytes
                        (psBuffer (snd r_n0) + psOffset (snd r_n0))
                        (fst (fst r_n) + psLength (snd r_n))
                        (psLength (snd r_n0))
@@ -316,6 +318,7 @@ Proof.
                        (copy_bytes (psBuffer (snd r_n) + psOffset (snd r_n))
                                    (fst (fst r_n))
                                    (psLength (snd r_n))
+                                   (bytes (snd (fst r_n)))
                                    (bytes (snd (fst r_n)))) |}),
                {| psBuffer := fst (fst r_n)
                 ; psBufLen := psLength (snd r_n) + psLength (snd r_n0)

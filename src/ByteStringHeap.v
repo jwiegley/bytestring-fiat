@@ -573,8 +573,7 @@ Proof.
   destruct_bs r_n2; try nomega.
   clear IHpsLength0 IHpsLength1.
   destruct (k <? N.succ psLength1) eqn:Heqe1; repeat reduce_find.
-  destruct (k <? N.succ psLength0) eqn:Heqe2; repeat reduce_find.
-Admitted.
+Qed.
 
 Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2,
   ByteString_list_AbsR r_o1 r_n1
@@ -595,7 +594,7 @@ Proof.
         destruct_AbsR H0; construct_AbsR.
       construct_AbsR.
         destruct_AbsR H0;
-        apply buffer_to_list_app.
+        apply buffer_to_list_app; nomega.
       right.
       split.
         nomega.

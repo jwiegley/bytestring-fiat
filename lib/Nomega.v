@@ -304,7 +304,7 @@ Proof.
 Qed.
 
 Lemma Npeano_rec_list_add : forall (A : Set) (z : list A) f g h n m,
-  (forall k x y, x = y ->
+  (forall k x y, k < n + m -> x = y ->
      ((if k <? m
        then g k
        else f (k - m)) :: x)%list = h k y) ->
@@ -323,10 +323,14 @@ Proof.
     rewrite H1; reflexivity.
   rewrite N.add_succ_l, !N.peano_rec_succ.
   remember (N.peano_rec _ _ _ (n + m)) as xs.
-  specialize (H (n + m) xs xs eq_refl).
+  pose proof (H (n + m)) as H0.
   assert (n + m <? m = false) by nomega.
-  rewrite H0 in H; clear H0.
-  rewrite N.add_sub in H.
-  rewrite IHn.
+  rewrite H1, N.add_sub in H0; clear H1.
+  apply H0; trivial.
+    nomega.
+  apply IHn.
+  intros; subst.
   apply H.
+    nomega.
+  reflexivity.
 Qed.
