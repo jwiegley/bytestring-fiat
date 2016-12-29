@@ -35,19 +35,28 @@ Section ClientDSL.
 
 Variable sig : ADTSig.
 
-Inductive MethodCall (rec : Type) : Type :=
+Fixpoint repArgs
+         (arity : nat)
+         (rep : Type)
+  : list Type :=
+  match arity with
+  | 0 => nil
+  | S arity' => rep :: (repArgs arity' rep)
+  end.
+
+Inductive MethodCall rep (rec : Type) : Type :=
 | Call : forall (midx : MethodIndex sig),
-    hlist (snd (fst (MethodDomCod sig midx)))
+    hlist (repArgs (fst (fst (MethodDomCod sig midx))) rep ++ (snd (fst (MethodDomCod sig midx))))
     -> match snd (MethodDomCod sig midx) with
         | Some cod => cod -> rec
         | None => rec end
-    -> MethodCall rec.
+    -> MethodCall rep rec.
 
-Definition MethodCall_fmap (A B : Type) (f : A -> B) (mc : MethodCall A) :
-  MethodCall B :=
+Definition MethodCall_fmap rep (A B : Type) (f : A -> B) (mc : MethodCall rep A) :
+  MethodCall rep B :=
   match mc with
   | Call midx args k =>
-    Call B midx args
+    Call rep B midx args
          (match (snd (MethodDomCod sig midx)) as cod return
                 match cod with
                 | Some cod => cod -> A
@@ -61,12 +70,12 @@ Definition MethodCall_fmap (A B : Type) (f : A -> B) (mc : MethodCall A) :
           end k)
   end.
 
-Global Program Instance MethodCall_Functor : Functor MethodCall :=
+Global Program Instance MethodCall_Functor {rep} : Functor (MethodCall rep) :=
   {
-    fmap := MethodCall_fmap
+    fmap := @MethodCall_fmap rep
   }.
 
-Definition ClientDSL := Free MethodCall.
+Definition ClientDSL rep := Free (MethodCall rep).
 
 (****************************************************************************
  * ADT_Computes: Relates a [ClientDSL] term to a Fiat computation using an
@@ -75,47 +84,69 @@ Definition ClientDSL := Free MethodCall.
 
 Variable adt : ADT sig.
 
-Fixpoint applyArgs
-         (arity : nat)
+Fixpoint applyArgs'
          (dom : list Type)
          {rep : Type}
          (cod : option Type)
-         (meth : methodType arity rep dom cod)
+         (meth : methodType' rep dom cod)
          (args : hlist dom)
-  : nat -> rep -> Comp match cod with
-                       | Some A => rep * A
-                       | _ => rep
-                       end:=
+  : Comp match cod with
+         | Some A => rep * A
+         | _ => rep
+         end :=
   match dom return hlist dom
-                   -> methodType arity rep dom cod
-                   -> nat
-                   -> rep
+                   -> methodType' rep dom cod
                    -> Comp match cod with
                            | Some A => rep * A
                            | _ => rep
                            end with
   | nil => fun _ =>
-             match cod return
-                   methodType arity rep [] cod ->
-                   nat -> rep -> Comp match cod with
-                               | Some A => rep * A
-                               | _ => rep
-                               end with
+             match cod as cod return
+                   methodType' rep [] cod
+                   -> Comp match cod with
+                           | Some A => rep * A
+                           | _ => rep
+                           end with
              | Some A => id
              | None => id
              end
   | cons t ts =>
     fun (args : hlist (t :: ts))
-        (meth : methodType rep (t :: ts) cod) =>
-      applyArgs (fun r => meth r (hlist_head args))
+        (meth : methodType' rep (t :: ts) cod) =>
+      applyArgs' cod
+                 (meth (hlist_head args))
+                 (hlist_tail args)
+  end args meth.
+
+Fixpoint applyArgs
+         (arity : nat)
+         {dom : list Type}
+         {rep : Type}
+         {cod : option Type}
+         (meth : methodType arity rep dom cod)
+         (args : hlist (repArgs arity rep ++ dom))
+  : Comp match cod with
+         | Some A => rep * A
+         | _ => rep
+         end :=
+  match arity return
+        hlist (repArgs arity rep ++ dom)
+        -> methodType arity rep dom cod
+        -> _
+  with
+  | 0 =>
+    fun args meth =>
+      applyArgs' _ meth args
+  | S arity' =>
+    fun args meth =>
+      applyArgs arity' (meth (hlist_head args))
                 (hlist_tail args)
   end args meth.
 
 Inductive methodType_Computes :
-  forall rep dom cod B,
-    methodType rep dom cod
-    -> rep
-    -> hlist dom
+  forall {arity rep dom cod} B,
+    methodType arity rep dom cod
+    -> hlist (repArgs arity rep ++ dom)
     -> rep
     -> (match cod with
         | Some A => A -> B
@@ -124,32 +155,31 @@ Inductive methodType_Computes :
     -> B
     -> Prop :=
 | CallSome :
-    forall rep dom cod B
-           (meth : methodType rep dom (Some cod))
-           r args r' (k : cod -> B) v x,
+    forall arity rep dom cod B
+           (meth : methodType arity rep dom (Some cod))
+           args r' (k : cod -> B) v x,
       k v = x ->
-      applyArgs meth args r ↝ (r', v) ->
-      methodType_Computes meth r args r' k x
+      applyArgs arity meth args ↝ (r', v) ->
+      @methodType_Computes arity _ dom (Some cod) _ meth args r' k x
 | CallNone :
-    forall rep dom B
-           (meth : methodType rep dom None)
-           r args r' (k : B) x,
+    forall arity rep dom B
+           (meth : methodType arity rep dom None)
+           args r' (k : B) x,
       k = x ->
-      applyArgs meth args r ↝ r' ->
-      methodType_Computes meth r args r' k k.
+      applyArgs arity meth args ↝ r' ->
+      @methodType_Computes arity _ dom None _ meth args r' k k.
 
 Lemma methodType_computes_inv
-  : forall rep dom cod B
-           (meth : methodType rep dom cod)
-           (r : rep)
-           (args : hlist dom)
+  : forall arity rep dom cod B
+           (meth : methodType arity rep dom cod)
+           (args : hlist _)
            (r' : rep)
            (k : match cod with
                 | Some A => A -> B
                 | None => B
                 end)
            (v : B)
-           (z : methodType_Computes meth r args r' k v),
+           (z : methodType_Computes meth args r' k v),
     match cod return
           match cod with
           | Some A => A -> B
@@ -167,29 +197,32 @@ Lemma methodType_computes_inv
     | None => fun k meth'  =>
                   k = v
                   /\ meth' ↝ r'
-    end k (applyArgs meth args r).
+    end k (applyArgs arity meth args).
 Proof.
   intros.
   destruct z; eauto.
 Qed.
 
 Inductive MethodCall_Computes
-  : forall A, MethodCall A -> Rep adt -> Rep adt -> A -> Prop :=
+  : forall A R, MethodCall R A -> R -> A -> Prop :=
   | CallComputes (midx : MethodIndex sig)
-    : forall (r r' : Rep adt) args B k v,
-        methodType_Computes (B := B) (Methods adt midx) r args r' k v
-        -> MethodCall_Computes (Call _ midx args k) r r' v.
+    : forall (r' : Rep adt) args B k v,
+        methodType_Computes (B := B) (Methods adt midx) args r' k v
+        -> MethodCall_Computes (Call _ _ midx args k) r' v.
 
-Inductive Free_Computes `{Functor f} {R : Type}
-          (crel : forall {A}, f A -> R -> R -> A -> Prop) :
-  forall {A}, Free f A -> R -> R -> A -> Prop :=
-  | CPure r A (v : A) : Free_Computes crel (Pure v) r r v
-  | CJoin r r'' B (v' : B) :
-      forall A t k r' v, Free_Computes crel (k v) r' r'' v'
-        -> crel A t r r' v
-        -> Free_Computes crel (Join k t) r r'' v'.
+Inductive Free_Computes R {f : Type -> Type -> Type}
+          `{Functor (f R)}
+          (crel : forall {A}, f R A -> R -> A -> Prop) :
+  forall {A}, Free (f R) A -> R -> A -> Prop :=
+  | CPure A r (v : A) : Free_Computes crel (Pure v) r v
+  | CJoin B (v' : B) :
+      forall A t k r v r',
+        Free_Computes crel (k r v) r' v'
+        -> crel A t r v
+        -> Free_Computes crel (Join (k r) t) r' v'.
 
-Definition ADT_Computes {A : Type} := Free_Computes (A:=A) MethodCall_Computes.
+Definition ADT_Computes {A : Type} :=
+  Free_Computes  (A:=A) (fun A => @MethodCall_Computes A (Rep adt) ).
 
 (****************************************************************************
  * Denote a [ClientDSL] term into a Fiat computation for a particular ADT.
@@ -216,12 +249,12 @@ Program Instance ADT_Method_Monad :
 
 Import EqNotations.
 
-Definition denote {A : Type} : ClientDSL A -> Rep adt -> Comp (Rep adt * A)
-  := foldFree (H := ADT_Method_Monad) (fun T (c : MethodCall T) =>
+Definition denote {A : Type} : ClientDSL (Rep adt) A -> Rep adt -> Comp (Rep adt * A)
+  := foldFree (H := ADT_Method_Monad) (fun T (c : MethodCall (Rep adt) T) =>
               match c with
               | Call midx args k =>
                 fun r =>
-                  (x <- applyArgs (Methods adt midx) args r;
+                  (x <- applyArgs _ (Methods adt midx) args;
                    ret (match snd (MethodDomCod sig midx) as cod return
                             match cod with
                             | Some A' => Rep adt * A'
@@ -244,7 +277,7 @@ Corollary denote_Pure : forall A (x : A) r,
 Proof. reflexivity. Qed.
 
 Lemma denote_Join :
-  forall A B (k : A -> ClientDSL B) (h : MethodCall A) r,
+  forall A B (k : A -> ClientDSL (Rep adt) B) (h : MethodCall (Rep adt) A) r,
   refineEquiv (denote (Join k h) r)
               (denote (liftF h) r >>= fun p => denote (k (snd p)) (fst p)).
 Proof.
@@ -255,7 +288,7 @@ Proof.
 Qed.
 
 Lemma denote_Free_bind :
-  forall A (x : ClientDSL A) B (k : A -> ClientDSL B) r,
+  forall A (x : ClientDSL (Rep adt) A) B (k : A -> ClientDSL (Rep adt) B) r,
     refineEquiv (denote (Free_bind k x) r)
                 (denote x r >>= fun p => denote (k (snd p)) (fst p)).
 Proof.
@@ -273,13 +306,13 @@ Proof.
 Qed.
 
 Corollary denote_If :
-  forall b A (t e : ClientDSL A) r,
+  forall b A (t e : ClientDSL (Rep adt) A) r,
     refineEquiv (denote (If b Then t Else e) r)
                 (If b Then denote t r Else denote e r).
 Proof. destruct b; simpl; reflexivity. Qed.
 
 Lemma ADT_Computes_denotation : forall A f r r' (v : A),
-  denote f r ↝ (r', v) <-> ADT_Computes f r r' v.
+  denote f r ↝ (r', v) <-> ADT_Computes f r' v.
 Proof.
   split; intros.
   - generalize dependent r.
@@ -296,6 +329,8 @@ Proof.
         unfold compose, comp, Bind2, Free_bind; simpl;
           intro H0;
           computes_to_inv; tsubst.
+    eapply CJoin
+    unfold ADT_Computes.
     econstructor.
     apply H; eauto.
     assert (methodType_Computes (Methods adt midx) r h r0 y x0).
