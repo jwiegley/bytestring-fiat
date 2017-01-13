@@ -47,26 +47,27 @@ Fixpoint repArgs
 Inductive MethodCall rep (rec : Type) : Type :=
 | Call : forall (midx : MethodIndex sig),
     hlist (repArgs (fst (fst (MethodDomCod sig midx))) rep ++ (snd (fst (MethodDomCod sig midx))))
-    -> match snd (MethodDomCod sig midx) with
+    -> (rep ->
+        match snd (MethodDomCod sig midx) with
         | Some cod => cod -> rec
-        | None => rec end
+        | None => rec end)
     -> MethodCall rep rec.
 
 Definition MethodCall_fmap rep (A B : Type) (f : A -> B) (mc : MethodCall rep A) :
   MethodCall rep B :=
   match mc with
   | Call midx args k =>
-    Call rep B midx args
-         (match (snd (MethodDomCod sig midx)) as cod return
-                match cod with
-                | Some cod => cod -> A
-                | None => A end
-                -> match cod with
+    @Call rep B midx args
+          (match (snd (MethodDomCod sig midx)) as cod return
+                 (rep -> match cod with
+                         | Some cod => cod -> A
+                         | None => A end)
+                -> rep -> match cod with
                    | Some cod => cod -> B
                    | None => B end
           with
-          | Some cod => fun k cod => f (k cod)
-          | None => fun k => f k
+          | Some cod => fun k r' cod => f (k r' cod)
+          | None => fun k r' => f (k r')
           end k)
   end.
 
@@ -147,8 +148,8 @@ Inductive methodType_Computes :
   forall {arity rep dom cod} B,
     methodType arity rep dom cod
     -> hlist (repArgs arity rep ++ dom)
-    -> rep
-    -> (match cod with
+    -> (rep ->
+        match cod with
         | Some A => A -> B
         | None => B
         end)
@@ -157,45 +158,47 @@ Inductive methodType_Computes :
 | CallSome :
     forall arity rep dom cod B
            (meth : methodType arity rep dom (Some cod))
-           args r' (k : cod -> B) v x,
-      k v = x ->
+           args r' (k : rep -> cod -> B) v x,
+      k r' v = x ->
       applyArgs arity meth args ↝ (r', v) ->
-      @methodType_Computes arity _ dom (Some cod) _ meth args r' k x
+      @methodType_Computes arity _ dom (Some cod) _ meth args k x
 | CallNone :
     forall arity rep dom B
            (meth : methodType arity rep dom None)
-           args r' (k : B) x,
-      k = x ->
+           args r' (k : rep -> B) x,
+      k r' = x ->
       applyArgs arity meth args ↝ r' ->
-      @methodType_Computes arity _ dom None _ meth args r' k k.
+      @methodType_Computes arity _ dom None _ meth args k x.
 
 Lemma methodType_computes_inv
   : forall arity rep dom cod B
            (meth : methodType arity rep dom cod)
            (args : hlist _)
-           (r' : rep)
-           (k : match cod with
+           (k : rep ->
+                match cod with
                 | Some A => A -> B
                 | None => B
                 end)
            (v : B)
-           (z : methodType_Computes meth args r' k v),
+           (z : methodType_Computes meth args k v),
     match cod return
-          match cod with
-          | Some A => A -> B
-          | None => B
-          end ->
+          (rep ->
+           match cod with
+           | Some A => A -> B
+           | None => B
+           end) ->
           Comp match cod with
                | Some A => rep * A
                | _ => rep
                end
           -> Prop with
     | Some A => fun k meth' =>
-                  exists v',
-                    k v' = v
+                  exists r' v',
+                    k r' v' = v
                     /\ meth' ↝ (r', v')
     | None => fun k meth'  =>
-                  k = v
+                exists r', 
+                  k r' = v
                   /\ meth' ↝ r'
     end k (applyArgs arity meth args).
 Proof.
@@ -204,39 +207,39 @@ Proof.
 Qed.
 
 Inductive MethodCall_Computes
-  : forall A R, MethodCall R A -> R -> A -> Prop :=
+  : forall A, MethodCall (Rep adt) A -> A -> Prop :=
   | CallComputes (midx : MethodIndex sig)
-    : forall (r' : Rep adt) args B k v,
-        methodType_Computes (B := B) (Methods adt midx) args r' k v
-        -> MethodCall_Computes (Call _ _ midx args k) r' v.
+    : forall args B k v,
+        methodType_Computes (B := B) (Methods adt midx) args k v
+        -> MethodCall_Computes (@Call _ _ midx args k) v.
 
-Inductive Free_Computes R {f : Type -> Type -> Type}
+Inductive Free_Computes (R : Type)
           `{Functor (f R)}
-          (crel : forall {A}, f R A -> R -> A -> Prop) :
-  forall {A}, Free (f R) A -> R -> A -> Prop :=
-  | CPure A r (v : A) : Free_Computes crel (Pure v) r v
+          (crel : forall {A}, f R A -> A -> Prop) :
+  forall {A}, Free (f R) A -> A -> Prop := 
+  | CPure A (v : A) : Free_Computes R crel (Pure v) v
   | CJoin B (v' : B) :
-      forall A t k r v r',
-        Free_Computes crel (k r v) r' v'
-        -> crel A t r v
-        -> Free_Computes crel (Join (k r) t) r' v'.
+      forall A t (k : A -> Free (f R) B) v,
+        Free_Computes R crel (k v) v'
+        -> crel A t v
+        -> Free_Computes R crel (Join k t) v'.
 
 Definition ADT_Computes {A : Type} :=
-  Free_Computes  (A:=A) (fun A => @MethodCall_Computes A (Rep adt) ).
+  Free_Computes _ (A := A) (@MethodCall_Computes).
 
 (****************************************************************************
  * Denote a [ClientDSL] term into a Fiat computation for a particular ADT.
  * This is strictly the inverse of compilation.
  ****************************************************************************)
 
-Program Instance ADT_Method_Functor :
-  Functor (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
-  fmap := fun _ _ f x r => `(r', a) <- x r; ret (r', f a)
+(* Program Instance ADT_Method_Functor :
+  Functor (fun A : Type => Comp (Rep adt * A)) := {
+  fmap := fun _ _ f x => `(r', a) <- x; ret (r', f a)
 }.
 
 Program Instance ADT_Method_Applicative :
-  Applicative (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
-  pure := fun _ x r => ret (r, x);
+  Applicative (fun A : Type => Comp (Rep adt * A)) := {
+  pure := fun _ x => ret (r, x);
   ap := fun _ _ mf mx r => `(r', f) <- mf r;
                            `(r', x) <- mx r';
                            ret (r', f x)
@@ -245,150 +248,193 @@ Program Instance ADT_Method_Applicative :
 Program Instance ADT_Method_Monad :
   Monad (fun A : Type => Rep adt -> Comp (Rep adt * A)) := {
   join := fun _ mm r => `(r', m) <- mm r; m r'
+}. *)
+
+Instance Comp_Functor :
+  Functor Comp := {
+  fmap := fun _ _ f x => Bind x (fun a => ret (f a))
 }.
+
+Instance Comp_Applicative :
+  Applicative Comp := {
+  pure := ret;
+  ap := fun _ _ mf mx =>
+          Bind mf (fun f => Bind mx (fun x => ret (f x)))
+                     }.
+
+Instance Comp_Monad :
+  Monad Comp :=
+  { join := fun _ mm => Bind mm (fun m => m) }.
 
 Import EqNotations.
 
-Definition denote {A : Type} : ClientDSL (Rep adt) A -> Rep adt -> Comp (Rep adt * A)
-  := foldFree (H := ADT_Method_Monad) (fun T (c : MethodCall (Rep adt) T) =>
+Fixpoint denote {A : Type} (c : ClientDSL (Rep adt) A) : Comp A.
+destruct c.
+exact (ret a).
+refine (match m with
+        | Call midx args k =>
+          x' <- applyArgs _ (Methods adt midx) args;
+          match snd (MethodDomCod sig midx) as cod
+                return
+                (Rep adt ->
+                 match cod with
+                 | Some cod => cod -> x
+                 | None => x
+                 end) ->
+                match cod with
+                | Some A => Rep adt * A
+                | None => Rep adt
+                end -> _
+          with
+          | Some cod => fun k x => denote _ (f (k (fst x) (snd x)))
+          | None => fun k x => denote _ (f (k x))
+          end k x'
+        end).
+Defined.
+
+(*Definition denote {A : Type} : ClientDSL (Rep adt) (Rep adt * A) -> Comp (Rep adt * A)
+  := foldFree (H := fun a => @Comp_Monad (Rep) (fun T (c : MethodCall (Rep adt) (Rep adt * T)) =>
               match c with
               | Call midx args k =>
-                fun r =>
-                  (x <- applyArgs _ (Methods adt midx) args;
+                (x <- applyArgs _ (Methods adt midx) args;
                    ret (match snd (MethodDomCod sig midx) as cod return
-                            match cod with
-                            | Some A' => Rep adt * A'
-                            | _ => Rep adt
-                            end
+                              match cod with
+                              | Some A' => Rep adt * A'
+                              | _ => Rep adt
+                              end
                             ->
                             match cod with
                             | Some A' => A' -> T
                             | _ => T
                             end
                             -> _
-                      with
+                        with
                         | Some _ => fun x k => (fst x, k (snd x))
                         | None => fun x k => (x, k)
                         end x k))%comp
-              end).
+              end). *)
 
-Corollary denote_Pure : forall A (x : A) r,
-  refineEquiv (denote (Pure x) r) (ret (r, x)).
+Corollary denote_Pure : forall A (x : A),
+  refineEquiv (denote (Pure x)) (ret x).
 Proof. reflexivity. Qed.
 
 Lemma denote_Join :
-  forall A B (k : A -> ClientDSL (Rep adt) B) (h : MethodCall (Rep adt) A) r,
-  refineEquiv (denote (Join k h) r)
-              (denote (liftF h) r >>= fun p => denote (k (snd p)) (fst p)).
+  forall A B (k : A -> ClientDSL (Rep adt) (B))
+         (h : MethodCall (Rep adt) A),
+  refineEquiv (denote (Join k h))
+              (denote (liftF h) >>= fun p => denote (k p)).
 Proof.
   intros.
   destruct h.
   autorewrite with monad laws.
+  f_equiv; simpl; unfold pointwise_relation; intros.
+  destruct ( snd (MethodDomCod sig midx)).
+  autorewrite with monad laws.  
+  reflexivity.
+  autorewrite with monad laws.  
   reflexivity.
 Qed.
 
 Lemma denote_Free_bind :
-  forall A (x : ClientDSL (Rep adt) A) B (k : A -> ClientDSL (Rep adt) B) r,
-    refineEquiv (denote (Free_bind k x) r)
-                (denote x r >>= fun p => denote (k (snd p)) (fst p)).
+  forall A (x : ClientDSL (Rep adt) A) B (k : A -> ClientDSL (Rep adt) B),
+    refineEquiv (denote (Free_bind k x))
+                (denote x >>= fun p => denote (k p)).
 Proof.
   intros.
-  generalize dependent r.
   induction x; simpl; intros.
-    rewrite denote_Pure.
-    autorewrite with monad laws; simpl.
+  - autorewrite with monad laws; simpl.
     reflexivity.
-  rewrite denote_Join.
-  setoid_rewrite H.
-  rewrite denote_Join.
-  autorewrite with monad laws; simpl.
-  reflexivity.
+  - destruct f0; simpl.
+    autorewrite with monad laws.
+    f_equiv; simpl; unfold pointwise_relation; intros.
+    destruct ( snd (MethodDomCod sig midx)).
+    + rewrite H; reflexivity.
+    + rewrite H; reflexivity.
 Qed.
 
 Corollary denote_If :
-  forall b A (t e : ClientDSL (Rep adt) A) r,
-    refineEquiv (denote (If b Then t Else e) r)
-                (If b Then denote t r Else denote e r).
+  forall b A (t e : ClientDSL (Rep adt) A),
+    refineEquiv (denote (If b Then t Else e))
+                (If b Then denote t Else denote e).
 Proof. destruct b; simpl; reflexivity. Qed.
 
-Lemma ADT_Computes_denotation : forall A f r r' (v : A),
-  denote f r ↝ (r', v) <-> ADT_Computes f r' v.
+Lemma ADT_Computes_denotation : forall A f (v : A),
+  denote f ↝ v <-> ADT_Computes f v.
 Proof.
   split; intros.
-  - generalize dependent r.
-    induction f; intros.
-    apply denote_Pure in H.
-    computes_to_inv; tsubst.
-    apply CPure.
-    apply denote_Join in H0.
-    computes_to_inv; tsubst.
-    destruct v0; simpl in *.
-    destruct f0.
-    revert H0;
-      unfold denote; simpl;
+  - induction f; intros.
+    + apply denote_Pure in H.
+      computes_to_inv; tsubst.
+      apply CPure.
+    + apply denote_Join in H.
+      computes_to_inv; tsubst.
+      destruct f0.
+      simpl in H.
+      revert H;
+        unfold denote; simpl;
         unfold compose, comp, Bind2, Free_bind; simpl;
-          intro H0;
-          computes_to_inv; tsubst.
-    eapply CJoin
-    unfold ADT_Computes.
-    econstructor.
-    apply H; eauto.
-    assert (methodType_Computes (Methods adt midx) r h r0 y x0).
-    revert y v2 H0 H0'0.
-    generalize (Methods adt midx).
-    destruct (snd (MethodDomCod sig midx)); intros;
-      simpl in *; computes_to_inv; injections; subst.
-    destruct v2; simpl in *.
-    econstructor; eauto.
-    econstructor 2; eauto.
-    econstructor; eauto.
-  -  generalize dependent r.
-     induction f; intros.
-     apply computes_to_refine.
-     rewrite denote_Pure.
-     inv H.
-     apply inj_pair2 in H2; subst.
-     apply inj_pair2 in H5; subst.
-     reflexivity.
-     apply computes_to_refine.
-     rewrite denote_Join.
-     inv H0.
-     apply inj_pair2 in H2; subst.
-     apply inj_pair2 in H2; subst.
-     apply inj_pair2 in H5; subst.
-     apply inj_pair2 in H8; subst.
-     destruct H9.
-     unfold denote at 1; simpl.
-     unfold Bind2; simpl.
-     autorewrite with monad laws; simpl.
-     apply H in H7; clear H.
-     revert H0.
-     generalize (Methods adt midx); intros.
-     etransitivity.
-     apply refine_under_bind.
-     intros; clear H m H0 H7.
-     revert k a.
-     instantiate (1 := match (snd (MethodDomCod sig midx)) as cod return
-                             match cod with
-                             | Some A0 => A0 -> B
-                             | None => B
-                             end
-                             -> match cod with
-                             | Some A0 => Rep adt * A0
-                             | None => Rep adt
-                             end -> _
-                       with
-                       | Some _ => fun k a => denote (f (k (snd a))) (fst a)
-                       | None => fun k a => denote (f k) a
-                       end k).
-     destruct (snd (MethodDomCod sig midx)); simpl;
-       higher_order_reflexivity.
-     generalize dependent (snd (MethodDomCod sig midx)); intros.
-     apply methodType_computes_inv in H0.
-     destruct o; destruct_ex; intuition; subst;
-       apply refine_computes_to in H1; rewrite H1;
-         simplify with monad laws; simpl;
-           eapply refine_computes_to; eauto.
+          intro H'';
+          computes_to_inv; tsubst.      
+      eapply CJoin.
+      eapply H0; eauto.
+      econstructor.
+      revert v2 H''' H''.
+      generalize (Methods adt midx).
+      destruct (snd (MethodDomCod sig midx)); intros;
+        simpl in *; computes_to_inv; injections; subst.
+      destruct v2; simpl in *.
+      econstructor; eauto.
+      econstructor 2; eauto.
+  - induction f; intros.
+    + apply computes_to_refine.
+      rewrite denote_Pure.
+      inv H.
+      apply inj_pair2 in H2; subst.
+      apply inj_pair2 in H3; subst.
+      reflexivity.
+    + apply computes_to_refine.
+      rewrite denote_Join.
+      inv H.
+      apply inj_pair2 in H2; subst.
+      apply inj_pair2 in H2; subst.
+      apply inj_pair2 in H5; subst.
+      apply inj_pair2 in H6; subst.
+      destruct H7.
+      simplify with monad laws.
+      apply H0 in H4; clear H0.
+      revert H.
+      generalize (Methods adt midx); intros.
+      etransitivity.
+      apply refine_under_bind.
+      intros; clear H m H0.
+      revert k a.
+      instantiate (1 := fun a =>
+                          match (snd (MethodDomCod sig midx)) as cod return
+                              (Rep adt ->
+                               match cod with
+                               | Some A0 => A0 -> B
+                               | None => B
+                               end)
+                              ->
+                              (match cod with
+                               | Some A0 => Rep adt * A0
+                               | None => Rep adt
+                               end) -> _
+                          with
+                          | Some _ => fun k a => denote (f (k (fst a) (snd a)))
+                          | None => fun k a => denote (f (k a))
+                          end k a).
+      destruct (snd (MethodDomCod sig midx)); simpl.
+      * intros; simplify with monad laws.
+        higher_order_reflexivity.
+      * intros; simplify with monad laws.
+        higher_order_reflexivity.
+      * generalize dependent (snd (MethodDomCod sig midx)); intros.
+        apply methodType_computes_inv in H.
+        destruct o; destruct_ex; intuition; subst;
+          apply refine_computes_to in H1; rewrite H1;
+            simplify with monad laws; simpl;
+              eapply refine_computes_to; eauto.
 Qed.
 
 (****************************************************************************
@@ -396,26 +442,33 @@ Qed.
  * computation into its equivalent [ClientDSL] term.
  ****************************************************************************)
 
-Definition reflect_ADT_DSL_computation {A B : Type}
-           (c : Rep adt * B -> Comp ((Rep adt * B) * A)) :=
-  { f : B -> ClientDSL (B * A)
-             & (forall r bs r' bs' v,
-                   c (r, bs) ↝ ((r', bs'), v)
-                   -> ADT_Computes (f bs) r r' (bs', v) )
-               /\ forall r bs r' bs' v,
-                 ADT_Computes (f bs) r r' (bs', v)
-                 -> c (r, bs) ↝ ((r', bs'), v) }.
+Definition reflect_ADT_DSL_computation {A : Type}
+           (c : Comp A) :=
+  { f : ClientDSL (Rep adt) A
+        & (forall a,
+              c ↝ a
+              <-> ADT_Computes f a) }.
 
-Lemma reflect_ADT_DSL_computation_simplify {B C : Type} c c'
-      (refine_c_c' : forall r, refineEquiv (c r) (c' r))
+(*Definition reflect_ADT_DSL_computation {A : Type}
+           (c : Comp ((Rep adt * B) * A)) :=
+  { f : B -> ClientDSL (Rep adt) (B * A)
+             & (forall bs r' bs' v,
+                   c bs ↝ ((r', bs'), v)
+                   -> ADT_Computes (f bs) (bs', v) )
+               /\ forall bs r' bs' v,
+                 ADT_Computes (f bs) (bs', v)
+                 -> c bs ↝ ((r', bs'), v) }. *)
+
+Lemma reflect_ADT_DSL_computation_simplify {A : Type} c c'
+      (refine_c_c' : refineEquiv c c')
       (c_DSL : reflect_ADT_DSL_computation c')
-  : reflect_ADT_DSL_computation (A := C) (B := B) c.
+  : reflect_ADT_DSL_computation (A := A) c.
 Proof.
   exists (projT1 c_DSL); intros.
-  destruct (projT2 c_DSL); simpl in *.
+  destruct (projT2 c_DSL a); simpl in *.
   split.
-  - intros; apply H; apply refine_c_c'; auto.
-  - intros; apply refine_c_c'; auto.
+  - intros; eapply H; apply refine_c_c'; eauto.
+  - intros; eapply refine_c_c'; eauto.
 Defined.
 
 Corollary If_Then_Else_computes_to : forall b A (t e : Comp A) (v : A),
@@ -423,118 +476,50 @@ Corollary If_Then_Else_computes_to : forall b A (t e : Comp A) (v : A),
 Proof. destruct b; trivial. Qed.
 
 Lemma reflect_ADT_DSL_computation_If_Then_Else
-      {B C : Type} c c' (t e : _ -> Comp (_ * C))
+      {A : Type} c (t e : Comp A)
       (c_DSL : reflect_ADT_DSL_computation t)
       (k_DSL : reflect_ADT_DSL_computation e)
-  : (forall r, c r = c' (snd r)) ->
-    reflect_ADT_DSL_computation (B:=B) (fun r => If c r Then t r Else e r).
+  : reflect_ADT_DSL_computation (If c Then t Else e).
 Proof.
   intros.
-  exists (fun bs : B =>
-            If c' bs
-            Then projT1 c_DSL bs
-            Else projT1 k_DSL bs).
+  exists (If c
+             Then projT1 c_DSL
+             Else projT1 k_DSL).
   split; intros.
-  - rewrite H in H0.
-    apply If_Then_Else_computes_to in H0.
+  - apply If_Then_Else_computes_to in H.
     simpl in *.
-    destruct (c' _).
+    destruct c.
     destruct c_DSL.
     simpl in *.
-    apply a; assumption.
+    eapply i; eassumption.
     destruct k_DSL.
     simpl in *.
-    apply a; assumption.
-  - rewrite H; simpl.
-    destruct (c' bs); simpl in *.
+    eapply i; eassumption.
+  - destruct c; simpl in *.
     destruct c_DSL.
     simpl in *.
-    apply a; assumption.
+    eapply i; eassumption.
     destruct k_DSL.
     simpl in *.
-    apply a; assumption.
+    eapply i; eassumption.
 Defined.
 
 End ClientDSL.
 
-Arguments MethodCall {sig} rec.
-Arguments Call {sig rec} midx _ _.
+Arguments MethodCall {sig} _ _.
+Arguments Call {sig rep rec} midx _ _.
 
-Lemma denote_refineEquiv A B sig adt (comp : Rep adt * B -> Comp (Rep adt * B * A))
-  : forall (r : Rep adt) (b : B) (reflected : reflect_ADT_DSL_computation adt comp),
+Lemma denote_refineEquiv A sig adt (comp : Comp A)
+  : forall (reflected : reflect_ADT_DSL_computation adt comp),
     refineEquiv
-      (comp (r, b))
-      (r' <- denote (sig := sig) adt (projT1 reflected b) r;
-         ret ((fst r', (fst (snd r'))), snd (snd r'))).
+      comp
+      (denote (sig := sig) adt (projT1 reflected)).
 Proof.
-  unfold reflect_ADT_DSL_computation; intros ? ? [? [? ?]]; simpl.
-  specialize (a r b).
-  specialize (c r b).
+  unfold reflect_ADT_DSL_computation; intros [? ?]; simpl.
+  setoid_rewrite <- ADT_Computes_denotation in i. 
   split.
-  - intros [ [? ?] ?] Comp_v; eapply c.
-    computes_to_inv; simpl in *; injections.
-    generalize v r Comp_v; clear.
-    induction (x b); simpl.
-    + unfold denote; simpl; intros.
-      computes_to_inv; subst; simpl.
-      replace (fst a, snd a) with a by (destruct a; reflexivity).
-      econstructor.
-    +  destruct v as [? [? ?] ]; simpl in *.
-       intros.
-       eapply denote_Join in Comp_v; computes_to_inv.
-       destruct v; simpl in *.
-       eapply H in Comp_v'.
-       simpl in Comp_v'.
-       econstructor.
-       eapply Comp_v'.
-       unfold denote in Comp_v; simpl in *; unfold Bind2 in *; destruct f0;
-         intros; computes_to_inv; injections; subst; simpl in *.
-       computes_to_inv; injections; subst.
-       clear Comp_v'; econstructor.
-       generalize dependent (Methods adt midx).
-       generalize dependent (snd (MethodDomCod sig midx)).
-       destruct o; intros; simpl in *.
-       replace v1 with (fst v1, snd v1) in * by (destruct v1; reflexivity).
-       econstructor; try eassumption; reflexivity.
-       econstructor; try eassumption; reflexivity.
-  - intros [ [? ?] ?] Comp_v; apply a in Comp_v.
-    generalize r b0 a0 r0 Comp_v; clear; induction (x b);
-      simpl; intros; inversion Comp_v; subst.
-    + unfold denote; simpl.
-      apply inj_pair2 in H1; subst.
-      apply inj_pair2 in H4; subst.
-      repeat computes_to_econstructor; eauto.
-    + apply inj_pair2 in H1; subst.
-      apply inj_pair2 in H4; subst.
-      apply inj_pair2 in H1; subst.
-      apply inj_pair2 in H7; subst.
-      unfold denote; simpl; unfold Bind2; simpl.
-      destruct f0.
-      repeat apply refine_bind_bind.
-      setoid_rewrite refine_bind_unit.
-      simpl.
-      eapply refine_under_bind; intros.
-      set_evars;  rewrite refineEquiv_bind_unit; simpl.
-      subst H1. higher_order_reflexivity.
-      simpl.
-      assert (methodType_Computes (Methods adt midx) r h r' y v).
-      { revert H8; clear; intro.
-        inversion H8.
-        apply inj_pair2 in H2; subst.
-        apply inj_pair2 in H3; subst.
-        apply inj_pair2 in H6; subst.
-        apply inj_pair2 in H3; subst.
-        assumption.
-      }
-      apply methodType_computes_inv in H0.
-      clear H8 Comp_v.
-      generalize dependent (Methods adt midx).
-      generalize dependent (snd (MethodDomCod sig midx)).
-      destruct o; intros.
-      * destruct_ex; intuition; subst.
-        computes_to_econstructor; eauto.
-      * intuition; subst.
-        computes_to_econstructor; eauto.
+  - intros ? Comp_v; eapply i; eauto.
+  - intros ? Comp_v; eapply i; eauto.
 Qed.
 
 (****************************************************************************
@@ -894,33 +879,32 @@ Ltac solve_for_call :=
 
 Ltac solve_for_call' :=
   match goal with
-  | H : ADT_Computes _ _ _ _ _ |- _ =>
+  | H : ADT_Computes _ _ _ |- _ =>
     simpl in H; inversion H; subst;
     repeat match goal with
            | H : existT _ _ _ = existT _ _ _ |- _ =>
              apply inj_pair2 in H; subst
            end;
     clear H
-  | H : Free_Computes _ _ _ _ _ |- _ =>
+  | H : Free_Computes _ _ _ _ |- _ =>
     inversion H; subst;
     repeat match goal with
            | H : existT _ _ _ = existT _ _ _ |- _ =>
              apply inj_pair2 in H; subst
            end;
     clear H
-  | H : MethodCall_Computes _ _ _ _ _ |- _ =>
+  | H : MethodCall_Computes _ _ _ |- _ =>
     inversion H; simpl in *; subst;
     repeat match goal with
            | H : existT _ _ _ = existT _ _ _ |- _ =>
              apply inj_pair2 in H; subst
            end;
     clear H
-  | H : methodType_Computes _ _ _ _ _ _ |- _ =>
+  | H : methodType_Computes _ _ _ _ |- _ =>
     apply methodType_computes_inv in H; destruct_ex; intuition; subst;
     simpl in *; unfold id in *; simpl in *
   end;
   try computes_to_econstructor; injections; try eassumption.
-
 Ltac build_computational_spine :=
 repeat match goal with
            | [ |- reflect_ADT_DSL_computation _ _ ] => eexists; split; intros
@@ -934,7 +918,7 @@ repeat match goal with
                let H' := fresh H "'" in
                destruct H as [ [r' v'] [H H'] ];
                  simpl in *;
-                 eapply (@CJoin _ _ _ _  _ _ _ _ _ _ _ r' v')
+                 eapply (@CJoin _ _ _ _ _ _ _ _ _ (r', v'))
      end.
 
 Ltac simplify_reflection :=
@@ -943,9 +927,7 @@ Ltac simplify_reflection :=
     autorewrite with monad laws; simpl;
     try rewrite refineEquiv_If_Then_Else_Bind;
     finish honing
-  | try (eapply reflect_ADT_DSL_computation_If_Then_Else;
-         [| | let r := fresh "r" in
-              intro r; destruct r; simpl; reflexivity]) ].
+  | try (eapply reflect_ADT_DSL_computation_If_Then_Else)].
 
 Ltac compile_term :=
   repeat (autounfold; simpl);
@@ -976,34 +958,129 @@ Hint Unfold ByteStringHeap.buffer_cons_obligation_3.
 Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
-Definition consDSL w :
+Definition consDSL r ps w :
   reflect_ADT_DSL_computation HeapSpec
-    (fun r => r' <- buffer_cons (fst r) (snd r) w; ret (r', ()))%comp.
+                              (buffer_cons r ps w).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-
-  Time compile_term.
+  repeat (autounfold; simpl).
+  repeat simplify_reflection.
+  - eexists; split; intros.
+    + computes_to_inv; subst.
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
+      instantiate (1 := fun v => Pure (v, _)).
+      simpl.
+      apply CPure.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+      with (v := v).
+      eapply CallNone with (args := HCons r (HCons (psBuffer ps + (psOffset ps - 1)) (HCons w HNil))).
+      2: simpl; apply H.
+      instantiate (1 := id); reflexivity.
+    + repeat solve_for_call'.
+  - eexists; split; intros.
+    + computes_to_inv; subst.
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v0).
+      instantiate (1 := fun v0 => Pure (v0, _)).
+      simpl; apply CPure.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+      with (v := v0).
+      eapply CallNone with (args := HCons v (HCons (psBuffer ps + 0) (HCons w HNil))).
+      Focus 2.
+      simpl. apply H'.
+      instantiate (1 := id); reflexivity.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+      with (v := v).
+      eapply CallNone with (args := HCons r (HCons (psBuffer ps) (HCons (psBuffer ps + 1) (HCons (psLength ps) HNil)))).
+      Focus 2.
+      simpl. apply H.
+      instantiate (1 := id); reflexivity.
+    + repeat solve_for_call'.
+  - eexists; split; intros.
+    + computes_to_inv; subst.
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v0).
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v1). 
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v2). 
+      instantiate (1 := fun v0 => Pure (v0, _)).
+      simpl; apply CPure.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+      with (v := v2).
+      eapply CallNone with (args := HCons v1 (HCons (snd v + 0) (HCons w HNil))).
+      Focus 2.
+      simpl; apply H'''.
+      instantiate (1 := id); reflexivity.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS Fin.F1)))
+      with (v := v1).
+      eapply CallNone with (args := HCons v0 (HCons (psBuffer ps ) HNil)).
+      2: simpl; apply H''.
+      instantiate (1 := id); reflexivity.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
+      with (v := v0).
+      eapply CallNone with (args := HCons (fst v) (HCons (psBuffer ps) (HCons (snd v + 1) (HCons (psLength ps) HNil)))).
+      2: simpl; apply H'.
+      instantiate (1 := id); reflexivity.
+      destruct v.
+      apply (CallComputes HeapSpec (Fin.FS Fin.F1)) with
+      (v := (h, p)).
+      match type of H with
+        | computes_to (_ ?r ?v) _ => 
+          eapply CallSome with (args := HCons r (HCons v HNil))
+      end.
+      2: simpl; apply H.
+      instantiate (1 := fun h p => (h, p)); reflexivity.
+    + repeat solve_for_call'. 
+  - eexists; split; intros.
+    + computes_to_inv; subst.
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v0).
+      instantiate (1 := fun v0 => Pure (v0, _)).
+      simpl; apply CPure.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+      with (v := v0).
+      eapply CallNone with (args := HCons (fst v) (HCons (snd v + 0) (HCons w HNil))).
+      2: simpl; apply H'.
+      instantiate (1 := id); reflexivity.
+      apply (CallComputes HeapSpec (Fin.FS Fin.F1)) with
+      (v := v).
+      destruct v.
+      match type of H with
+        | computes_to (_ ?r ?v) _ => 
+          eapply CallSome with (args := HCons r (HCons v HNil))
+      end.
+      2: simpl; apply H.
+      instantiate (1 := fun h p => (h, p)); reflexivity.
+    + repeat solve_for_call'. 
+    
 
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
-Time Defined.
+
+  Unshelve.
+Defined.
+  
+
+(*  Time compile_term.
+
+  Local Transparent poke.
+  Local Transparent alloc.
+  Local Transparent free.
+  Local Transparent peek.
+  Local Transparent memcpy.
+Time Defined. *)
 
 Theorem consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
-  refine (r <- buffer_cons r bs w; ret (fst r, snd r, ()))
-         (res <- denote HeapSpec (projT1 (consDSL w) bs) r;
-          ret (fst res, fst (snd res), snd (snd res))).
+  refine (buffer_cons r bs w)
+         (denote HeapSpec (projT1 (consDSL r bs w))). 
 Proof.
-  intros.
-  rewrite <- denote_refineEquiv; simpl.
-  apply refine_under_bind; intros.
-  destruct a; simpl; reflexivity.
+  intros; apply denote_refineEquiv; simpl.
 Qed.
 
 Hint Unfold buffer_uncons.
