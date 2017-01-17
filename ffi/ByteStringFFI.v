@@ -197,7 +197,7 @@ Lemma methodType_computes_inv
                     k r' v' = v
                     /\ meth' ↝ (r', v')
     | None => fun k meth'  =>
-                exists r', 
+                exists r',
                   k r' = v
                   /\ meth' ↝ r'
     end k (applyArgs arity meth args).
@@ -216,7 +216,7 @@ Inductive MethodCall_Computes
 Inductive Free_Computes (R : Type)
           `{Functor (f R)}
           (crel : forall {A}, f R A -> A -> Prop) :
-  forall {A}, Free (f R) A -> A -> Prop := 
+  forall {A}, Free (f R) A -> A -> Prop :=
   | CPure A (v : A) : Free_Computes R crel (Pure v) v
   | CJoin B (v' : B) :
       forall A t (k : A -> Free (f R) B) v,
@@ -329,9 +329,9 @@ Proof.
   autorewrite with monad laws.
   f_equiv; simpl; unfold pointwise_relation; intros.
   destruct ( snd (MethodDomCod sig midx)).
-  autorewrite with monad laws.  
+  autorewrite with monad laws.
   reflexivity.
-  autorewrite with monad laws.  
+  autorewrite with monad laws.
   reflexivity.
 Qed.
 
@@ -374,7 +374,7 @@ Proof.
         unfold denote; simpl;
         unfold compose, comp, Bind2, Free_bind; simpl;
           intro H'';
-          computes_to_inv; tsubst.      
+          computes_to_inv; tsubst.
       eapply CJoin.
       eapply H0; eauto.
       econstructor.
@@ -516,7 +516,7 @@ Lemma denote_refineEquiv A sig adt (comp : Comp A)
       (denote (sig := sig) adt (projT1 reflected)).
 Proof.
   unfold reflect_ADT_DSL_computation; intros [? ?]; simpl.
-  setoid_rewrite <- ADT_Computes_denotation in i. 
+  setoid_rewrite <- ADT_Computes_denotation in i.
   split.
   - intros ? Comp_v; eapply i; eauto.
   - intros ? Comp_v; eapply i; eauto.
@@ -536,84 +536,93 @@ Ltac wrapup :=
 
 Ltac solve_for1 :=
  match goal with
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec Fin.F1)
-      with (r := R') (r' := R);
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec Fin.F1);
+      first
+        [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+         [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
+        | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS Fin.F1));
         first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+           instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS Fin.F1))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)));
         first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
+          [destruct R as [? ?];
+           eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+           instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))));
         first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))));
         first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))));
         first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))));
         first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))));
         first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))));
         first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
-          | eapply CallNone with (args := HCons A HNil);
-            [ | eapply H]
-          ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))))
-      with (r := R') (r' := R);
-        first
-          [eapply CallSome with (args := HCons A HNil);
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
@@ -621,84 +630,93 @@ Ltac solve_for1 :=
 
 Ltac solve_for2 :=
  match goal with
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec Fin.F1)
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec Fin.F1);
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS Fin.F1))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS Fin.F1));
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)));
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))));
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B HNil));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
@@ -706,84 +724,93 @@ Ltac solve_for2 :=
 
 Ltac solve_for3 :=
  match goal with
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec Fin.F1)
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec Fin.F1);
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS Fin.F1))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS Fin.F1));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HCons C HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
@@ -791,84 +818,93 @@ Ltac solve_for3 :=
 
 Ltac solve_for4 :=
  match goal with
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec Fin.F1)
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec Fin.F1);
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS Fin.F1))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS Fin.F1));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS Fin.F1)));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D HNil))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B (HCons C (HCons D HNil))));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D (HCons C (HCons D HNil))))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D (HCons C (HCons D HNil))))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
-    | [ H : _ _ ?A ?B ?C ?D ↝ (?R, _) |- MethodCall_Computes ?ADTSpec _ ?R' ?R _ ] =>
-      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))))
-      with (r := R') (r' := R);
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))));
         first
-          [eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D (HCons C (HCons D HNil))))));
-           [ | eapply H]
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D (HCons C (HCons D HNil))))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
           | eapply CallNone with (args := HCons A (HCons B HNil));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
@@ -905,21 +941,19 @@ Ltac solve_for_call' :=
     simpl in *; unfold id in *; simpl in *
   end;
   try computes_to_econstructor; injections; try eassumption.
+
 Ltac build_computational_spine :=
-repeat match goal with
-           | [ |- reflect_ADT_DSL_computation _ _ ] => eexists; split; intros
-           | H : {a' | @?P a'} ↝ _ |- _ => apply Pick_inv in H
-           | H : Return ?a ↝ _ |- _ =>
-             apply Return_inv in H; tsubst; try apply CPure
-           | H : Bind (A := ?A) ?ca ?k ↝ _ |- _ =>
-             apply Bind_inv in H;
-               let r' := fresh "r" in
-               let v' := fresh "v" in
-               let H' := fresh H "'" in
-               destruct H as [ [r' v'] [H H'] ];
-                 simpl in *;
-                 eapply (@CJoin _ _ _ _ _ _ _ _ _ (r', v'))
-     end.
+  match goal with
+  | H : {a' | @?P a'} ↝ _ |- _ => apply Pick_inv in H
+  | H : Return ?a ↝ _ |- _ =>
+    apply Return_inv in H; tsubst; try apply CPure
+  | H : Bind (A := ?A) ?ca ?k ↝ _ |- _ =>
+    apply Bind_inv in H;
+    let v := fresh "v" in
+    destruct H as [ v [H ?] ];
+    simpl in *;
+    eapply (@CJoin _ _ _ _ _ _ _ _ _ v)
+  end.
 
 Ltac simplify_reflection :=
   eapply reflect_ADT_DSL_computation_simplify;
@@ -930,9 +964,12 @@ Ltac simplify_reflection :=
   | try (eapply reflect_ADT_DSL_computation_If_Then_Else)].
 
 Ltac compile_term :=
-  repeat (autounfold; simpl);
-  repeat simplify_reflection; build_computational_spine;
-  first [ solve_for_call | repeat solve_for_call' ].
+  repeat (autounfold; simpl); (* Unfold definitions as necessary *)
+  repeat simplify_reflection; (* Do some simplication and break down If expressions *)
+  ( eexists; split; intros; (* Decompose iff into the two equivalence conditions *)
+    [ repeat build_computational_spine;
+      try solve_for_call
+    | repeat solve_for_call' ] ).
 
 (****************************************************************************
  * Compile [buffer_cons] into a [ClientDSL] term
@@ -967,201 +1004,44 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-  repeat (autounfold; simpl).
-  repeat simplify_reflection.
-  - eexists; split; intros.
-    + computes_to_inv; subst.
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
-      instantiate (1 := fun v => Pure (v, _)).
-      simpl.
-      apply CPure.
-      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-      with (v := v).
-      eapply CallNone with (args := HCons r (HCons (psBuffer ps + (psOffset ps - 1)) (HCons w HNil))).
-      2: simpl; apply H.
-      instantiate (1 := id); reflexivity.
-    + repeat solve_for_call'.
-  - eexists; split; intros.
-    + computes_to_inv; subst.
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v0).
-      instantiate (1 := fun v0 => Pure (v0, _)).
-      simpl; apply CPure.
-      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-      with (v := v0).
-      eapply CallNone with (args := HCons v (HCons (psBuffer ps + 0) (HCons w HNil))).
-      Focus 2.
-      simpl. apply H'.
-      instantiate (1 := id); reflexivity.
-      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-      with (v := v).
-      eapply CallNone with (args := HCons r (HCons (psBuffer ps) (HCons (psBuffer ps + 1) (HCons (psLength ps) HNil)))).
-      Focus 2.
-      simpl. apply H.
-      instantiate (1 := id); reflexivity.
-    + repeat solve_for_call'.
-  - eexists; split; intros.
-    + computes_to_inv; subst.
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v0).
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v1). 
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v2). 
-      instantiate (1 := fun v0 => Pure (v0, _)).
-      simpl; apply CPure.
-      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-      with (v := v2).
-      eapply CallNone with (args := HCons v1 (HCons (snd v + 0) (HCons w HNil))).
-      Focus 2.
-      simpl; apply H'''.
-      instantiate (1 := id); reflexivity.
-      apply (CallComputes HeapSpec (Fin.FS (Fin.FS Fin.F1)))
-      with (v := v1).
-      eapply CallNone with (args := HCons v0 (HCons (psBuffer ps ) HNil)).
-      2: simpl; apply H''.
-      instantiate (1 := id); reflexivity.
-      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))
-      with (v := v0).
-      eapply CallNone with (args := HCons (fst v) (HCons (psBuffer ps) (HCons (snd v + 1) (HCons (psLength ps) HNil)))).
-      2: simpl; apply H'.
-      instantiate (1 := id); reflexivity.
-      destruct v.
-      apply (CallComputes HeapSpec (Fin.FS Fin.F1)) with
-      (v := (h, p)).
-      match type of H with
-        | computes_to (_ ?r ?v) _ => 
-          eapply CallSome with (args := HCons r (HCons v HNil))
-      end.
-      2: simpl; apply H.
-      instantiate (1 := fun h p => (h, p)); reflexivity.
-    + repeat solve_for_call'. 
-  - eexists; split; intros.
-    + computes_to_inv; subst.
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v0).
-      instantiate (1 := fun v0 => Pure (v0, _)).
-      simpl; apply CPure.
-      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
-      with (v := v0).
-      eapply CallNone with (args := HCons (fst v) (HCons (snd v + 0) (HCons w HNil))).
-      2: simpl; apply H'.
-      instantiate (1 := id); reflexivity.
-      apply (CallComputes HeapSpec (Fin.FS Fin.F1)) with
-      (v := v).
-      destruct v.
-      match type of H with
-        | computes_to (_ ?r ?v) _ => 
-          eapply CallSome with (args := HCons r (HCons v HNil))
-      end.
-      2: simpl; apply H.
-      instantiate (1 := fun h p => (h, p)); reflexivity.
-    + repeat solve_for_call'. 
-    
-
+  compile_term.
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
-
-  Unshelve.
 Defined.
-  
-
-(*  Time compile_term.
-
-  Local Transparent poke.
-  Local Transparent alloc.
-  Local Transparent free.
-  Local Transparent peek.
-  Local Transparent memcpy.
-Time Defined. *)
 
 Theorem consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
   refine (buffer_cons r bs w)
-         (denote HeapSpec (projT1 (consDSL r bs w))). 
+         (denote HeapSpec (projT1 (consDSL r bs w))).
 Proof.
-  intros; apply denote_refineEquiv; simpl.
+  intros; apply denote_refineEquiv.
 Qed.
 
 Hint Unfold buffer_uncons.
 
-Definition unconsDSL :
-  reflect_ADT_DSL_computation HeapSpec
-    (fun r => buffer_uncons (fst r) (snd r))%comp.
+Definition unconsDSL r ps:
+  reflect_ADT_DSL_computation HeapSpec (buffer_uncons r ps).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-
-  repeat (autounfold; simpl).
-  simplify_reflection.
-    eexists; split; intros.
-      simpl in H.
-      computes_to_inv; tsubst.
-      destruct v0.
-      Local Transparent peek.
-      unfold peek in H.
-      computes_to_inv; tsubst.
-      econstructor.
-        econstructor.
-      eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-        with (r := h) (r' := h).
-      eapply CallSome with (args := HCons (psBuffer bs + psOffset bs) HNil).
-        instantiate (1 := w).
-        higher_order_reflexivity.
-      simpl; unfold id; simpl.
-      computes_to_econstructor.
-        computes_to_econstructor.
-        exact H.
-      econstructor.
-    simpl.
-    destruct v.
-      solve_for_call'.
-        solve_for_call'.
-          solve_for_call'.
-          solve_for_call'.
-          computes_to_inv; tsubst.
-          rewrite (H1 _ H); clear H1 H.
-          higher_order_reflexivity.
-        solve_for_call'.
-      solve_for_call'.
-      solve_for_call'.
-      solve_for_call'.
-      computes_to_inv; tsubst.
-      higher_order_reflexivity.
-    solve_for_call'.
-      solve_for_call'.
-        solve_for_call'.
-        solve_for_call'.
-        computes_to_inv; tsubst.
-      higher_order_reflexivity.
-    solve_for_call'.
-    solve_for_call'.
-    solve_for_call'.
-    computes_to_inv; tsubst.
   compile_term.
-  auto.
-
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
-
-  Unshelve.
-  exact Zero.
 Defined.
 
 Theorem unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
-  refine (buffer_uncons r bs)
-         (res <- denote HeapSpec (projT1 unconsDSL bs) r;
-          ret (fst res, fst (snd res), snd (snd res))).
+    refine (buffer_uncons r bs)
+           (denote HeapSpec (projT1 (unconsDSL r bs))).
 Proof.
-  intros.
-  rewrite <- denote_refineEquiv; simpl.
-  reflexivity.
+  intros; apply denote_refineEquiv.
 Qed.
 
 (****************************************************************************
@@ -1189,7 +1069,7 @@ Axiom poke    : Ptr Word -> Word -> IO ().
 Axiom memcpy  : Ptr Word -> Ptr Word -> Size -> IO ().
 Axiom memset  : Ptr Word -> Size -> Word -> IO ().
 
-Definition ghcDenote {A : Type} : ClientDSL (getADTSig HeapSpec) (IO A) -> IO A.
+Definition ghcDenote {A : Type} : ClientDSL (getADTSig HeapSpec) (Rep HeapSpec) (IO A) -> IO A.
 Proof.
   intros.
   eapply (iter _) in X.
@@ -1201,17 +1081,28 @@ Proof.
   revert h y.
   pattern midx; apply IterateBoundedIndex.Lookup_Iterate_Dep_Type;
     simpl; repeat constructor; intros.
-    exact (bindIO (malloc (` (hlist_head h))) y).
-    exact (bindIO (free (hlist_head h)) y).
-    exact (bindIO (realloc (hlist_head h) (` (hlist_head (hlist_tail h)))) y).
-    exact (bindIO (peek (hlist_head h)) y).
-    exact (bindIO (poke (hlist_head h) (hlist_head (hlist_tail h))) y).
-    exact (bindIO (memcpy (hlist_head h)
-                         (hlist_head (hlist_tail h))
-                         (hlist_head (hlist_tail (hlist_tail h)))) y).
-    exact (bindIO (memset (hlist_head h)
-                          (hlist_head (hlist_tail h))
-                          (hlist_head (hlist_tail (hlist_tail h)))) y).
+  exact (y HeapState.newHeapState).
+  exact (bindIO (malloc (` (hlist_head (hlist_tail h))))
+                (y (hlist_head h))).
+  exact (bindIO (free (hlist_head (hlist_tail h)))
+                (fun _ => y (hlist_head h))).
+  exact (bindIO (realloc (hlist_head (hlist_tail h))
+                         (` (hlist_head (hlist_tail (hlist_tail h)))))
+                (y (hlist_head h))).
+  exact (bindIO (peek (hlist_head (hlist_tail h)))
+                (y (hlist_head h))).
+  exact (bindIO (poke (hlist_head (hlist_tail h))
+                      (hlist_head (hlist_tail (hlist_tail h))))
+                (fun _ => y (hlist_head h))).
+  exact (bindIO (memcpy (hlist_head (hlist_tail h))
+                          (hlist_head (hlist_tail (hlist_tail h)))
+                          (hlist_head (hlist_tail (hlist_tail (hlist_tail h)))))
+                (fun _ => y (hlist_head h))).
+  exact (bindIO (memset (hlist_head (hlist_tail h))
+                        (hlist_head (hlist_tail (hlist_tail h)))
+                        (hlist_head (hlist_tail (hlist_tail (hlist_tail h)))))
+                (fun _ => y (hlist_head h))).
+
 Defined.
 
 Corollary bind_If `{Monad f} : forall A B (k : A -> f B) b t e,
@@ -1226,15 +1117,16 @@ Corollary iter_If `{Functor f} : forall A (phi : f A -> A) b t e,
   iter phi (If b Then t Else e) = If b Then iter phi t Else iter phi e.
 Proof. destruct b; reflexivity. Qed.
 
-Corollary ghcDenote_If : forall A b (t e : ClientDSL (getADTSig HeapSpec) (IO A)),
+Corollary ghcDenote_If : forall A b (t e : ClientDSL (getADTSig HeapSpec) (Rep HeapSpec) (IO A)),
   ghcDenote (If b Then t Else e) = If b Then ghcDenote t Else ghcDenote e.
 Proof. destruct b; reflexivity. Qed.
 
+(* Need to patch this up appropriately.
 Lemma ghcConsDSL :
   { f : PS -> Word -> PS
-  & forall bs w,
+  & forall r bs w,
       f bs w = unsafeDupablePerformIO
-                 (ghcDenote ((returnIO \o fst) <$> projT1 (consDSL w) bs)) }.
+                 (ghcDenote ((returnIO \o fst) <$> projT1 (consDSL r bs w))) }.
 Proof.
   eexists; intros.
   symmetry.
@@ -1252,7 +1144,7 @@ Proof.
 Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
-Print ghcConsDSL'.
+Print ghcConsDSL'. *)
 
 End ByteStringFFI.
 
