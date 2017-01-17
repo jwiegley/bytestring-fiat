@@ -19,6 +19,7 @@ Require Import
   Hask.Control.Monad.Trans.FiatState
   Hask.Control.Monad.Free.
 
+
 (****************************************************************************
  * Compile [buffer_cons] into a [ClientDSL] term
  ****************************************************************************)
@@ -44,8 +45,7 @@ Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
 Definition consDSL r ps w :
-  reflect_ADT_DSL_computation HeapSpec
-                              (buffer_cons r ps w).
+  reflect_ADT_DSL_computation HeapSpec (buffer_cons r ps w).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -152,6 +152,7 @@ Proof.
                 (fun _ => y (hlist_head h))).
 
 Defined.
+*)
 
 Corollary bind_If `{Monad f} : forall A B (k : A -> f B) b t e,
   ((If b Then t Else e) >>= k) = If b Then t >>= k Else e >>= k.
