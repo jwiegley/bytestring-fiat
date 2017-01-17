@@ -197,7 +197,7 @@ Lemma methodType_computes_inv
                     k r' v' = v
                     /\ meth' ↝ (r', v')
     | None => fun k meth'  =>
-                exists r', 
+                exists r',
                   k r' = v
                   /\ meth' ↝ r'
     end k (applyArgs arity meth args).
@@ -216,7 +216,7 @@ Inductive MethodCall_Computes
 Inductive Free_Computes (R : Type)
           `{Functor (f R)}
           (crel : forall {A}, f R A -> A -> Prop) :
-  forall {A}, Free (f R) A -> A -> Prop := 
+  forall {A}, Free (f R) A -> A -> Prop :=
   | CPure A (v : A) : Free_Computes R crel (Pure v) v
   | CJoin B (v' : B) :
       forall A t (k : A -> Free (f R) B) v,
@@ -329,9 +329,9 @@ Proof.
   autorewrite with monad laws.
   f_equiv; simpl; unfold pointwise_relation; intros.
   destruct ( snd (MethodDomCod sig midx)).
-  autorewrite with monad laws.  
+  autorewrite with monad laws.
   reflexivity.
-  autorewrite with monad laws.  
+  autorewrite with monad laws.
   reflexivity.
 Qed.
 
@@ -374,7 +374,7 @@ Proof.
         unfold denote; simpl;
         unfold compose, comp, Bind2, Free_bind; simpl;
           intro H'';
-          computes_to_inv; tsubst.      
+          computes_to_inv; tsubst.
       eapply CJoin.
       eapply H0; eauto.
       econstructor.
@@ -516,7 +516,7 @@ Lemma denote_refineEquiv A sig adt (comp : Comp A)
       (denote (sig := sig) adt (projT1 reflected)).
 Proof.
   unfold reflect_ADT_DSL_computation; intros [? ?]; simpl.
-  setoid_rewrite <- ADT_Computes_denotation in i. 
+  setoid_rewrite <- ADT_Computes_denotation in i.
   split.
   - intros ? Comp_v; eapply i; eauto.
   - intros ? Comp_v; eapply i; eauto.
@@ -959,8 +959,7 @@ Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
 Definition consDSL r ps w :
-  reflect_ADT_DSL_computation HeapSpec
-                              (buffer_cons r ps w).
+  reflect_ADT_DSL_computation HeapSpec (buffer_cons r ps w).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -1004,8 +1003,8 @@ Proof.
     + computes_to_inv; subst.
       eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
       eapply (@CJoin _ _ _ _ _ _ _ _ _ v0).
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v1). 
-      eapply (@CJoin _ _ _ _ _ _ _ _ _ v2). 
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v1).
+      eapply (@CJoin _ _ _ _ _ _ _ _ _ v2).
       instantiate (1 := fun v0 => Pure (v0, _)).
       simpl; apply CPure.
       apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
@@ -1028,12 +1027,12 @@ Proof.
       apply (CallComputes HeapSpec (Fin.FS Fin.F1)) with
       (v := (h, p)).
       match type of H with
-        | computes_to (_ ?r ?v) _ => 
+        | computes_to (_ ?r ?v) _ =>
           eapply CallSome with (args := HCons r (HCons v HNil))
       end.
       2: simpl; apply H.
       instantiate (1 := fun h p => (h, p)); reflexivity.
-    + repeat solve_for_call'. 
+    + repeat solve_for_call'.
   - eexists; split; intros.
     + computes_to_inv; subst.
       eapply (@CJoin _ _ _ _ _ _ _ _ _ v).
@@ -1049,13 +1048,13 @@ Proof.
       (v := v).
       destruct v.
       match type of H with
-        | computes_to (_ ?r ?v) _ => 
+        | computes_to (_ ?r ?v) _ =>
           eapply CallSome with (args := HCons r (HCons v HNil))
       end.
       2: simpl; apply H.
       instantiate (1 := fun h p => (h, p)); reflexivity.
-    + repeat solve_for_call'. 
-    
+    + repeat solve_for_call'.
+
 
   Local Transparent poke.
   Local Transparent alloc.
@@ -1065,7 +1064,7 @@ Proof.
 
   Unshelve.
 Defined.
-  
+
 
 (*  Time compile_term.
 
@@ -1078,16 +1077,15 @@ Time Defined. *)
 
 Theorem consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
   refine (buffer_cons r bs w)
-         (denote HeapSpec (projT1 (consDSL r bs w))). 
+         (denote HeapSpec (projT1 (consDSL r bs w))).
 Proof.
   intros; apply denote_refineEquiv; simpl.
 Qed.
 
 Hint Unfold buffer_uncons.
 
-Definition unconsDSL :
-  reflect_ADT_DSL_computation HeapSpec
-    (fun r => buffer_uncons (fst r) (snd r))%comp.
+Definition unconsDSL r ps :
+  reflect_ADT_DSL_computation HeapSpec (buffer_uncons r ps).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -1096,18 +1094,41 @@ Proof.
   Local Opaque memcpy.
 
   repeat (autounfold; simpl).
-  simplify_reflection.
-    eexists; split; intros.
+  repeat simplify_reflection.
+  - eexists; split; intros.
+    + computes_to_inv; subst.
+      econstructor.
+        econstructor.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1)))).
+      apply CallSome with (r':=r) (v:=psBuffer ps + psOffset ps).
+      Focus 2.
+        simpl; unfold id.
+        unfold HeapState.find_free_block.
+(*
+        destruct v. simpl.
+        Local Transparent peek.
+        unfold peek in H.
+        computes_to_inv; tsubst.
+        destruct_computations.
+        computes_to_inv; subst.
+      2: simpl; apply H.
+      instantiate (1 := id); reflexivity.
+    + repeat solve_for_call'.
+  - eexists; split; intros.
       simpl in H.
       computes_to_inv; tsubst.
-      destruct v0.
+      econstructor.
+      econstructor.
+      apply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1)))).
+        eapply CallSome.
+          reflexivity.
+        with (v := ((fst v, ps), Some (snd v))).
+      destruct v.
       Local Transparent peek.
       unfold peek in H.
       computes_to_inv; tsubst.
       econstructor.
         econstructor.
-      eapply (CallComputes HeapSpec (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-        with (r := h) (r' := h).
       eapply CallSome with (args := HCons (psBuffer bs + psOffset bs) HNil).
         instantiate (1 := w).
         higher_order_reflexivity.
@@ -1153,11 +1174,12 @@ Proof.
   Unshelve.
   exact Zero.
 Defined.
+*)
+Admitted.
 
 Theorem unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
   refine (buffer_uncons r bs)
-         (res <- denote HeapSpec (projT1 unconsDSL bs) r;
-          ret (fst res, fst (snd res), snd (snd res))).
+         (denote HeapSpec (projT1 (unconsDSL r bs))).
 Proof.
   intros.
   rewrite <- denote_refineEquiv; simpl.
@@ -1189,6 +1211,7 @@ Axiom poke    : Ptr Word -> Word -> IO ().
 Axiom memcpy  : Ptr Word -> Ptr Word -> Size -> IO ().
 Axiom memset  : Ptr Word -> Size -> Word -> IO ().
 
+(*
 Definition ghcDenote {A : Type} : ClientDSL (getADTSig HeapSpec) (IO A) -> IO A.
 Proof.
   intros.
@@ -1213,6 +1236,7 @@ Proof.
                           (hlist_head (hlist_tail h))
                           (hlist_head (hlist_tail (hlist_tail h)))) y).
 Defined.
+*)
 
 Corollary bind_If `{Monad f} : forall A B (k : A -> f B) b t e,
   ((If b Then t Else e) >>= k) = If b Then t >>= k Else e >>= k.
@@ -1226,6 +1250,7 @@ Corollary iter_If `{Functor f} : forall A (phi : f A -> A) b t e,
   iter phi (If b Then t Else e) = If b Then iter phi t Else iter phi e.
 Proof. destruct b; reflexivity. Qed.
 
+(*
 Corollary ghcDenote_If : forall A b (t e : ClientDSL (getADTSig HeapSpec) (IO A)),
   ghcDenote (If b Then t Else e) = If b Then ghcDenote t Else ghcDenote e.
 Proof. destruct b; reflexivity. Qed.
@@ -1253,6 +1278,7 @@ Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
 Print ghcConsDSL'.
+*)
 
 End ByteStringFFI.
 
