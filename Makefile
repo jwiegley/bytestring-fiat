@@ -11,7 +11,12 @@ all: bstring
 	-@$(MISSING) || exit 0
 
 bstring: Makefile.coq $(wildcard *.v)
+	rm -f ByteStringExt.hs
+	touch extract/ByteStringExt.v
 	make -f Makefile.coq -j
+	perl -i extract/fixcode.pl ByteStringExt.hs
+	mv ByteStringExt.hs extract
+	(cd extract; nix-cabal-build)
 
 Makefile.coq: _CoqProject
 	coq_makefile -f $< -o $@

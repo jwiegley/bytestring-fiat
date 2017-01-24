@@ -8,7 +8,7 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module Heap (M : WSfun N_as_DT).
+Module Heap (M : WSfun Ptr_as_DT).
 
 Module Import HeapState := HeapState M.
 
@@ -87,9 +87,10 @@ Definition HeapSpec := Def ADT {
     ret ({| resvs := resvs r
           ; bytes :=
               P.update (bytes r)
-                       (N.peano_rect (fun _ => M.t Word) (bytes r)
-                                     (fun i => M.add (addr + i)%N w)
-                                     len) |})
+                       (N.peano_rect
+                          (fun _ => M.t Word) (bytes r)
+                          (fun i => M.add (plusPtr addr i)%N w)
+                          len) |})
 
 }%ADTParsing.
 
@@ -171,7 +172,7 @@ Proof.
 Qed.
 
 Lemma overlaps_bool_complete_true
-  : forall addr2 sz2 x1 x0,
+  : forall (addr2 : Ptr Word) sz2 x1 x0,
     overlaps_bool addr2 sz2 x1 x0 = true <-> overlaps addr2 sz2 x1 x0.
 Proof.
   unfold overlaps, overlaps_bool; intros; setoid_rewrite andb_true_iff.
@@ -179,15 +180,15 @@ Proof.
 Qed.
 
 Lemma overlaps_bool_complete_false
-  : forall addr2 sz2 x1 x0,
+  : forall (addr2 : Ptr Word) sz2 x1 x0,
     overlaps_bool addr2 sz2 x1 x0 = false <-> ~ overlaps addr2 sz2 x1 x0.
 Proof.
   intros; rewrite <- overlaps_bool_complete_true, <- not_true_iff_false; tauto.
 Qed.
 
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr1 sz1, M.MapsTo addr1 sz1 (resvs r) ->
-  forall addr2 sz2, M.MapsTo addr2 sz2 (resvs r)
+  forall (addr1 : Ptr Word) sz1, M.MapsTo addr1 sz1 (resvs r) ->
+  forall (addr2 : Ptr Word) sz2, M.MapsTo addr2 sz2 (resvs r)
     -> addr1 <> addr2
     -> ~ overlaps addr1 sz1 addr2 sz2.
 Proof.
@@ -219,7 +220,7 @@ Proof.
 Qed.
 
 Theorem allocations_no_overlap_r : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr1 sz1,
+  forall (addr1 : Ptr Word) sz1,
     P.for_all (fun a sz => negb (overlaps_bool a sz addr1 sz1)) (resvs r)
       -> 0 < sz1
       -> ~ M.In addr1 (resvs r).
@@ -266,7 +267,7 @@ Qed.
 
 Corollary allocations_no_overlap_for_all :
   forall r : Rep HeapSpec, fromADT _ r ->
-    forall addr sz,
+    forall (addr : Ptr Word) sz,
       M.MapsTo addr sz (resvs r) ->
       P.for_all (fun addr' sz' => negb (overlaps_bool addr' sz' addr sz))
                 (M.remove addr (resvs r)).
@@ -287,7 +288,7 @@ Axiom Extensionality_FMap : forall (elt : Type) (A B : M.t elt),
 (* Reallocation is just an optimization over alloc/memcpy/free. It optimizes
    the case where the newly allocated block resides at the same location, and
    thus no copying is needed. *)
-Lemma refine_realloc : forall addr len r,
+Lemma refine_realloc : forall (addr : Ptr Word) len r,
   forall sz, M.MapsTo addr sz (resvs r)
     -> 0 < sz
     -> sz <= ` len

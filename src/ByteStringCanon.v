@@ -9,7 +9,7 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module ByteStringFMap (M : WSfun N_as_DT).
+Module ByteStringFMap (M : WSfun Ptr_as_DT).
 
 Module Import ByteStringHeap := ByteStringHeap M.
 
@@ -28,7 +28,8 @@ Variable heap' : cHeapRep.
 Definition Heap_AbsR (or : Rep HeapSpec) (nr : cHeapRep) :=
   M.Equal (resvs or) (resvs (snd nr)) /\
   M.Equal (bytes or) (bytes (snd nr)) /\
-  P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr)).
+  P.for_all (fun addr sz => plusPtr (A:=Word) addr sz <=? fst nr)
+            (resvs (snd nr)).
 
 Variable heap_AbsR : Heap_AbsR heap heap'.
 
@@ -51,7 +52,8 @@ Lemma refine_ByteString_Heap_AbsR :
       (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
        brk'   <- {brk'   : N
-                 | P.for_all (fun addr sz => addr + sz <=? brk') resvs' };
+                 | P.for_all (fun addr sz => plusPtr (A:=Word) addr sz <=? brk')
+                             resvs' };
        k ((brk', {| resvs := resvs'; bytes := bytes' |}),
           {| psBuffer := buffer
            ; psBufLen := buflen
@@ -105,7 +107,8 @@ Lemma refine_ByteString_Heap_AbsR' :
       (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
        brk'   <- {brk'   : N
-                 | P.for_all (fun addr sz => addr + sz <=? brk') resvs' };
+                 | P.for_all (fun addr sz => plusPtr (A:=Word) addr sz <=? brk')
+                             resvs' };
        ret ((brk', {| resvs := resvs'; bytes := bytes' |}),
             {| psBuffer := buffer
              ; psBufLen := buflen
@@ -219,8 +222,8 @@ Proof.
     try finish honing;
     refine using ByteString_Heap_AbsR.
 
-    - refine pick val (fst (fst r_n) +
-                       (psLength (snd r_n) + alloc_quantum)); eauto.
+    - refine pick val (plusPtr (A:=Word) (fst (fst r_n))
+                               (psLength (snd r_n) + alloc_quantum)); eauto.
         simplify with monad laws.
         finish honing.
 
@@ -237,7 +240,7 @@ Proof.
       eapply for_all_impl; eauto;
       relational; nomega.
 
-    - refine pick val (fst (fst r_n) + alloc_quantum); eauto.
+    - refine pick val (plusPtr (A:=Word) (fst (fst r_n)) alloc_quantum); eauto.
         simplify with monad laws.
         finish honing.
 
@@ -261,7 +264,8 @@ Proof.
     fracture H;
     refine using ByteString_Heap_AbsR.
 
-    - refine pick val (Ifopt M.find (psBuffer (snd r_n) + psOffset (snd r_n))
+    - refine pick val (Ifopt M.find (plusPtr (A:=Word) (psBuffer (snd r_n))
+                                             (psOffset (snd r_n)))
                                     (bytes (snd (fst r_n))) as v
                        Then v
                        Else Zero).
@@ -294,7 +298,7 @@ Proof.
 
     rewrite !refine_IfDep_Then_Else_Bind,
             !refineEquiv_strip_IfDep_Then_Else.
-    refine pick val (fst (fst r_n) + 1).
+    refine pick val (plusPtr (A:=Word) (fst (fst r_n)) 1).
       autorewrite with monad laws; simpl.
       etransitivity.
         apply refine_If_Then_Else; intros.
@@ -305,42 +309,48 @@ Proof.
             rewrite e, e0; clear e e0.
             destruct h, H1, h0, H4.
             refine pick val
-              ((fst (fst r_n) + 1 + psLength (snd r_n) + psLength (snd r_n0),
-                {| resvs := M.add ((fst (fst r_n)) + 1)
+              ((plusPtr (A:=Word) (fst (fst r_n))
+                        (psLength (snd r_n) + psLength (snd r_n0) + 1),
+                {| resvs := M.add (plusPtr (A:=Word) (fst (fst r_n)) 1)
                                   (psLength (snd r_n) + psLength (snd r_n0))
                                   (resvs (snd (fst r_n)))
                  ; bytes :=
-                     copy_bytes
-                       (psBuffer (snd r_n0) + psOffset (snd r_n0))
-                       (fst (fst r_n) + 1 + psLength (snd r_n))
+                     copy_bytes (A:=Word)
+                       (plusPtr (A:=Word) (psBuffer (snd r_n0))
+                                (psOffset (snd r_n0)))
+                       (plusPtr (A:=Word) (fst (fst r_n))
+                                (psLength (snd r_n) + 1))
                        (psLength (snd r_n0))
                        (bytes (snd (fst r_n0)))
-                       (copy_bytes (psBuffer (snd r_n) + psOffset (snd r_n))
-                                   ((fst (fst r_n)) + 1)
+                       (copy_bytes (A:=Word)
+                                   (plusPtr (A:=Word) (psBuffer (snd r_n))
+                                            (psOffset (snd r_n)))
+                                   (plusPtr (A:=Word) (fst (fst r_n)) 1)
                                    (psLength (snd r_n))
                                    (bytes (snd (fst r_n)))
                                    (bytes (snd (fst r_n)))) |}),
-               {| psBuffer := fst (fst r_n) + 1
+               {| psBuffer := plusPtr (A:=Word) (fst (fst r_n)) 1
                 ; psBufLen := psLength (snd r_n) + psLength (snd r_n0)
                 ; psOffset := 0
                 ; psLength := psLength (snd r_n) + psLength (snd r_n0) |}).
               finish honing.
-            simpl.
             intuition.
+            rewrite_ptr.
+            rewrite !N.add_comm with (n:=1).
             constructor; simpl.
               rewrite H0.
               reflexivity.
             split.
-              repeat (f_equiv; auto).
+              rewrite H1, H4.
+              reflexivity.
             clear -H2.
             apply for_all_add_true; relational.
-              unfold not; intros.
-              destruct H.
+              destruct 1.
               apply_for_all; relational.
               nomega.
             split.
               remember (fun _ _ => _) as P.
-              remember (fun _ _ => _ <=? _ + _ + _) as P'.
+              remember (fun _ _ => _ <=? plusPtr (A:=Word) _ (_ + _)) as P'.
               apply for_all_impl with (P:=P) (P':=P'); relational.
               nomega.
             nomega.

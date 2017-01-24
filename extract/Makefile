@@ -1,20 +1,8 @@
-all: result/bin/bytestring-fiat
-
-result/bin/bytestring-fiat: ByteStringExt.hs	\
-	HString.hs				\
-	Main.hs					\
-	Setup.hs				\
-	default.nix				\
-	bytestring-fiat.cabal
-	nix-build -E 'let pkgs = import <nixpkgs> {}; in pkgs.stdenv.lib.callPackageWith (pkgs // pkgs.haskell.packages.ghc801) ./default.nix {}'
-
-ByteStringExt.hs: Makefile.coq			\
-	ByteStringExt.v				\
-	fixcode.pl
-	make -f Makefile.coq && perl -i fixcode.pl $@
-
-Makefile.coq: ../_CoqProject
-	coq_makefile -f $< -o $@
+all: Makefile.coq
+	rm -f ByteStringExt.hs
+	make -f Makefile.coq
+	perl -i fixcode.pl ByteStringExt.hs
+	nix-cabal-build
 
 clean: Makefile.coq
 	make -f Makefile.coq clean

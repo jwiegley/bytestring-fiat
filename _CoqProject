@@ -27,3 +27,4 @@ src/ByteStringCanon.v
 ffi/HeapFFI.v
 ffi/CompileFFI.v
 ffi/ByteStringFFI.v
+extract/ByteStringExt.v

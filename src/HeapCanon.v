@@ -9,7 +9,7 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module HeapCanonical (M : WSfun N_as_DT).
+Module HeapCanonical (M : WSfun Ptr_as_DT).
 
 Module Import Heap := Heap M.
 
@@ -42,7 +42,7 @@ Proof.
     (AbsR := fun or nr =>
        M.Equal (resvs or) (resvs (snd nr)) /\
        M.Equal (bytes or) (bytes (snd nr)) /\
-       P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
+       P.for_all (fun addr sz => plusPtr addr sz <=? fst nr) (resvs (snd nr))).
   simpl; repeat apply Build_prim_prod; simpl;
   intros; try simplify with monad laws; set_evars.
 
@@ -75,7 +75,7 @@ Proof.
     {
       simplify with monad laws; simpl.
 
-      refine pick val (fst r_n + ` d,
+      refine pick val (plusPtr (A:=Word) (fst r_n) (` d),
                        {| resvs := M.add (fst r_n) (` d) (resvs (snd r_n))
                         ; bytes := bytes (snd r_n) |}).
         simplify with monad laws; simpl.
@@ -93,14 +93,14 @@ Proof.
         nomega.
       split.
         eapply for_all_impl; eauto; relational; intros.
-        nomega.
-      nomega.
+        unfold plusPtr; nomega.
+      unfold plusPtr; nomega.
     }
 
     repeat breakdown; simpl in *.
     rewrite H0.
     eapply for_all_impl; eauto;
-    relational; nomega.
+    relational; unfold plusPtr in *; nomega.
   }
   (* And so on :) ....*)
 
@@ -134,14 +134,14 @@ Proof.
                  {| resvs := M.add d (` d0) (resvs (snd r_n)) (* update *)
                   ; bytes := bytes (snd r_n) |})
               Else
-                (fst r_n + ` d0,
+                (plusPtr (A:=Word) (fst r_n) (` d0),
                  {| resvs :=
                       M.add (fst r_n) (` d0) (M.remove d (resvs (snd r_n)))
                   ; bytes :=
                       copy_bytes d (fst r_n) sz
                                  (bytes (snd r_n)) (bytes (snd r_n))|})
          Else
-           (fst r_n + ` d0,
+           (plusPtr (A:=Word) (fst r_n) (` d0),
             {| resvs := M.add (fst r_n) (` d0) (resvs (snd r_n))
              ; bytes := bytes (snd r_n) |})).
         simplify with monad laws.
@@ -183,16 +183,16 @@ Proof.
           apply for_all_remove; relational.
           apply for_all_remove; relational.
           eapply for_all_impl; eauto;
-          relational; nomega.
-        nomega.
+          relational; unfold plusPtr; nomega.
+        unfold plusPtr; nomega.
       - rewrite <- remove_add.
         apply for_all_add_true; relational.
           simplify_maps.
         split.
           apply for_all_remove; relational.
           eapply for_all_impl; eauto;
-          relational; nomega.
-        nomega.
+          relational; unfold plusPtr; nomega.
+        unfold plusPtr; nomega.
     }
 
     simpl in *; intuition; rewrite ?H1;
@@ -280,9 +280,10 @@ Proof.
         {| resvs := resvs (snd r_n)
          ; bytes :=
              P.update (bytes (snd r_n))
-                      (N.peano_rect (fun _ => M.t Word)
-                                    (bytes (snd r_n))
-                                    (fun i => M.add (d + i)%N d1) d0) |}).
+                      (N.peano_rect
+                         (fun _ => M.t Word)
+                         (bytes (snd r_n))
+                         (fun i => M.add (plusPtr(A:=Word) d i)%N d1) d0) |}).
       simpl. finish honing.
 
     simpl in *; intuition.
@@ -295,7 +296,6 @@ Proof.
   simpl.
 
   finish_SharpeningADT_WithoutDelegation.
-
 Defined.
 
 End HeapCanonical.
