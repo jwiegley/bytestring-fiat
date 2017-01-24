@@ -52,7 +52,7 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-  compile_term.
+  Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
@@ -77,7 +77,7 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-  compile_term.
+  Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
@@ -152,7 +152,6 @@ Proof.
                 (fun _ => y (hlist_head h))).
 
 Defined.
-*)
 
 Corollary bind_If `{Monad f} : forall A B (k : A -> f B) b t e,
   ((If b Then t Else e) >>= k) = If b Then t >>= k Else e >>= k.
@@ -170,12 +169,11 @@ Corollary ghcDenote_If : forall A b (t e : ClientDSL (getADTSig HeapSpec) (Rep H
   ghcDenote (If b Then t Else e) = If b Then ghcDenote t Else ghcDenote e.
 Proof. destruct b; reflexivity. Qed.
 
-(* Need to patch this up appropriately.
 Lemma ghcConsDSL :
   { f : PS -> Word -> PS
   & forall r bs w,
       f bs w = unsafeDupablePerformIO
-                 (ghcDenote ((returnIO \o fst) <$> projT1 (consDSL r bs w))) }.
+                 (ghcDenote ((returnIO \o snd) <$> projT1 (consDSL r bs w))) }.
 Proof.
   eexists; intros.
   symmetry.
@@ -193,7 +191,7 @@ Proof.
 Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
-Print ghcConsDSL'. *)
+Print ghcConsDSL'.
 
 End ByteStringFFI.
 
