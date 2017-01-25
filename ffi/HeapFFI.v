@@ -249,6 +249,6 @@ Defined.
 
 Definition HeapFFI' {Env : Type} (ffi : HeapIntf Env) (mem : Mem Env) :=
   Eval simpl in projT1 (HeapFFI ffi mem).
-Print HeapFFI'.
+(* Print HeapFFI'. *)
 
 End HeapFFI.

@@ -45,11 +45,11 @@ Definition newHeapState :=
    ; bytes := M.empty _ |}.
 
 Definition within `(addr : Ptr A) (len : N) (a : Ptr A) : Prop :=
-  addr <= a < plusPtr addr len.
+  (addr <= a < plusPtr addr len)%Ptr.
 Hint Unfold within.
 
 Definition within_bool `(addr : Ptr A) (len : N) (a : Ptr A) : bool :=
-  ((addr <=? a) && (a <? plusPtr addr len))%bool.
+  ((addr <=? a) && (a <? plusPtr addr len))%Ptr.
 Hint Unfold within_bool.
 
 Corollary within_zero : forall A (n m : Ptr A),
@@ -57,31 +57,31 @@ Corollary within_zero : forall A (n m : Ptr A),
 Proof. intros; destruct (Nlt_dec m n); nomega. Qed.
 
 Definition fits `(addr1 : Ptr A) (len1 : N) (addr2 : Ptr A) (len2 : N) : Prop :=
-  within addr1 len1 addr2 /\ plusPtr addr2 len2 <= plusPtr addr1 len1.
+  within addr1 len1 addr2
+    /\ (lePtr (A:=A) (plusPtr addr2 len2) (plusPtr addr1 len1))%Ptr.
 Hint Unfold fits.
 
 Definition fits_bool `(addr1 : Ptr A) (len1 : N) (addr2 : Ptr A) (len2 : N) : bool :=
   (within_bool addr1 len1 addr2 &&
-   (plusPtr addr2 len2 <=? plusPtr addr1 len1))%bool.
+   (lebPtr (A:=A) (plusPtr addr2 len2) (plusPtr addr1 len1)))%Ptr.
 Hint Unfold fits_bool.
 
 Definition overlaps `(addr : Ptr A) (len : N) (addr2 : Ptr A) (len2 : N) : Prop :=
-  addr < plusPtr addr2 len2 /\ addr2 < plusPtr addr len.
+  (addr < plusPtr addr2 len2 /\ addr2 < plusPtr addr len)%Ptr.
 Hint Unfold overlaps.
 
 Definition overlaps_bool `(addr : Ptr A) (len : N) (addr2 : Ptr A) (len2 : N) : bool :=
-  ((addr <? plusPtr addr2 len2) && (addr2 <? plusPtr addr len))%bool.
+  ((addr <? plusPtr addr2 len2) && (addr2 <? plusPtr addr len))%Ptr.
 Hint Unfold overlaps_bool.
 
 Lemma not_overlaps_sym : forall A (addr1 addr2 : Ptr A) len1 len2,
   ~ overlaps addr1 len1 addr2 len2 <-> ~ overlaps addr2 len2 addr1 len1.
-Proof. autounfold; nomega. Qed.
+Proof. nomega. Qed.
 
 Corollary not_overlaps_trans : forall A (a x : Ptr A) b y z,
   z < y -> ~ overlaps a b x y -> ~ overlaps a b x z.
 Proof.
   unfold not; intros.
-  autounfold in *.
   apply H0; nomega.
 Qed.
 
@@ -99,7 +99,7 @@ Definition copy_bytes {elt A} (from to : Ptr A) (len : N)
   P.update (drop_range to len mto)
            (M.fold (fun k e rest =>
                       If within_bool from len k
-                      Then M.add (plusPtr to (k - from)) e rest
+                      Then M.add (plusPtr to (minusPtr k from)) e rest
                       Else rest)
                    mfrom (M.empty _)).
 
@@ -112,16 +112,15 @@ Obligation 1.
   apply P.update_m; trivial.
     rewrite H3; reflexivity.
   apply P.fold_Equal; eauto; relational.
-  - destruct (within_bool y y1 y4); simpl;
-    rewrite H1; reflexivity.
+  - destruct (within_bool y y1 y4) eqn:Heqe; simpl;
+    destruct (within_bool y y1 x) eqn:Heqe1; simpl;
+    rewrite H1; nomega.
   - intros ??????.
     destruct (within_bool y y1 k) eqn:Heqe; simpl;
     destruct (within_bool y y1 k') eqn:Heqe1; simpl;
     try reflexivity.
     rewrite add_associative.
       reflexivity.
-    intros.
-    unfold plusPtr in H0.
     nomega.
 Qed.
 
@@ -129,7 +128,7 @@ Lemma copy_bytes_mapsto :
   forall elt k (e : elt) A (addr1 addr2 : Ptr A) len m1 m2,
     M.MapsTo k e (copy_bytes addr1 addr2 len m1 m2)
       <-> If within_bool addr2 len k
-          Then M.MapsTo (plusPtr addr1 (k - addr2)) e m1
+          Then M.MapsTo (plusPtr addr1 (minusPtr k addr2)) e m1
           Else M.MapsTo (elt:=elt) k e m2.
 Proof.
   unfold copy_bytes, drop_range, keep_range, keep_keys,
@@ -153,10 +152,8 @@ Proof.
         nomega.
       intuition.
     destruct H.
-    destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
-      simplify_maps; relational.
-      nomega.
-    simplify_maps; relational.
+    destruct (within_bool addr2 len k) eqn:Heqe; simpl in *;
+    simplify_maps; relational; nomega.
   apply P.update_mapsto_iff.
   destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
     left.
@@ -177,9 +174,7 @@ Proof.
     nomega.
   right.
   split.
-    simplify_maps; relational.
-    split; trivial.
-    nomega.
+    simplify_maps; relational; nomega.
   apply P.fold_rec_bis; simpl; intros; intuition.
     inversion H0.
     simplify_maps.
@@ -199,7 +194,7 @@ Lemma copy_bytes_find :
   forall A (a1 a2 : Ptr A) k l elt (m1 m2 : M.t elt),
     M.find k (copy_bytes a1 a2 l m1 m2)
       = If within_bool a2 l k
-        Then M.find (plusPtr a1 (k - a2)) m1
+        Then M.find (plusPtr a1 (minusPtr k a2)) m1
         Else M.find k m2.
 Proof.
   intros.
@@ -211,17 +206,16 @@ Proof.
     - rewrite <- H; assumption.
     - rewrite !F.empty_o; trivial.
     - destruct (within_bool a1 l k0) eqn:Heqe2; simpl.
-        destruct (N.eq_dec (plusPtr a2 (k0 - a1)) k); subst.
-          replace (plusPtr a1 (plusPtr a2 (k0 - a1) - a2)) with k0 by nomega.
-          rewrite !F.add_eq_o; trivial.
-        assert (k0 <> plusPtr a1 (k - a2)) by nomega.
+        destruct (N.eq_dec (plusPtr a2 (minusPtr k0 a1)) k); subst.
+          replace (plusPtr a1 (minusPtr (plusPtr a2 (minusPtr k0 a1)) a2)) with k0 by nomega.
+          rewrite !F.add_eq_o; auto.
+        assert (k0 <> plusPtr a1 (minusPtr k a2)) by nomega.
         rewrite !F.add_neq_o; trivial.
       assert (k0 <> plusPtr a1 (k - a2)) by nomega.
       rewrite F.add_neq_o; trivial.
     - unfold not; intros.
       destruct (proj1 (in_mapsto_iff _ _ _) H); clear H.
-      simplify_maps; relational.
-      nomega.
+      simplify_maps; relational; nomega.
   }
   {
     rewrite update_find_l.
@@ -230,7 +224,7 @@ Proof.
         rewrite <- H; assumption.
       destruct (N.eq_dec k0 k); subst.
         rewrite Heqe; simpl.
-        rewrite !F.add_eq_o; trivial.
+        rewrite !F.add_eq_o; auto.
       destruct (negb (within_bool a2 l k0));
       rewrite !F.add_neq_o; trivial.
     apply P.fold_rec_weak; intros; trivial;
@@ -264,7 +258,7 @@ Proof.
   [ apply copy_bytes_mapsto in H
   | apply copy_bytes_mapsto ];
   destruct (within_bool d len k) eqn:Heqe; simpl in *; trivial;
-  revert H; replace (plusPtr d (k - d)) with k by nomega; trivial.
+  revert H; replace (plusPtr d (minusPtr k d)) with k by nomega; trivial.
 Qed.
 
 Lemma copy_bytes_find_at : forall A (b k : Ptr A) l elt (m1 m2 : M.t elt),
@@ -274,13 +268,15 @@ Proof.
   rewrite copy_bytes_find.
   assert (within_bool k l k = true) by nomega.
   rewrite H0; simpl.
-  replace (plusPtr b (k - k)) with b by nomega.
+  replace (plusPtr b (minusPtr k k)) with b by nomega.
   reflexivity.
 Qed.
 
 Lemma increase_heap_ceiling : forall A (n : Ptr A) m r,
-  P.for_all (fun (addr : Ptr A) sz => plusPtr addr sz <=? n) r ->
-  P.for_all (fun (addr : Ptr A) sz => plusPtr addr sz <=? plusPtr n m) r.
+  P.for_all (fun (addr : Ptr A) sz =>
+               lebPtr (A:=A) (plusPtr addr sz) n) r ->
+  P.for_all (fun (addr : Ptr A) sz =>
+               lebPtr (A:=A) (plusPtr addr sz) (plusPtr n m)) r.
 Proof.
   intros.
   eapply for_all_impl; auto;

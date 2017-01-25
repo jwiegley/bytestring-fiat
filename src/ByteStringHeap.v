@@ -503,8 +503,9 @@ Proof.
     reflexivity.
   intros; subst; f_equal.
   unfold f, g; clear f g.
+  rewrite !copy_bytes_find.
   destruct_bs r_n1;
-  destruct_bs r_n2; try nomega.
+  destruct_bs r_n2;
   clear IHpsLength0 IHpsLength1.
   destruct (k <? N.succ psLength1) eqn:Heqe1; repeat reduce_find.
 Qed.

@@ -58,7 +58,7 @@ Proof.
       finish honing.
 
     intuition; simpl.
-    apply for_all_empty; relational.
+    apply for_all_empty; relational; nomega.
   }
 
   (* refine method allocS. *)
@@ -84,23 +84,23 @@ Proof.
 
       simpl in *; intuition.
       rewrite H2; reflexivity.
-      apply for_all_add_true; relational.
+      apply for_all_add_true; relational; try nomega.
         rewrite <- H2.
         destruct d.
         eapply allocations_no_overlap_r; eauto.
         rewrite H2.
-        eapply for_all_impl; eauto; relational; intros.
-        nomega.
+        eapply for_all_impl; eauto; relational;
+        intros; nomega.
       split.
-        eapply for_all_impl; eauto; relational; intros.
-        unfold plusPtr; nomega.
-      unfold plusPtr; nomega.
+        eapply for_all_impl; eauto; relational;
+        intros; nomega.
+      nomega.
     }
 
     repeat breakdown; simpl in *.
     rewrite H0.
     eapply for_all_impl; eauto;
-    relational; unfold plusPtr in *; nomega.
+    relational; nomega.
   }
   (* And so on :) ....*)
 
@@ -114,7 +114,7 @@ Proof.
 
     simpl in *; intuition.
     - rewrite H2; reflexivity.
-    - apply for_all_remove; relational.
+    - apply for_all_remove; relational; nomega.
   }
 
   (* refine method reallocS. *)
@@ -169,30 +169,30 @@ Proof.
       - normalize.
         apply_for_all; relational.
         rewrite <- remove_add.
-        apply for_all_add_true; relational.
+        apply for_all_add_true; relational; try nomega.
           simplify_maps.
         split.
-          apply for_all_remove; relational.
+          apply for_all_remove; relational; nomega.
         nomega.
       - normalize.
         apply_for_all; relational.
         rewrite <- remove_add.
-        apply for_all_add_true; relational.
+        apply for_all_add_true; relational; try nomega.
           simplify_maps.
         split.
-          apply for_all_remove; relational.
-          apply for_all_remove; relational.
+          apply for_all_remove; relational; try nomega.
+          apply for_all_remove; relational; try nomega.
           eapply for_all_impl; eauto;
-          relational; unfold plusPtr; nomega.
-        unfold plusPtr; nomega.
+          relational; nomega.
+        nomega.
       - rewrite <- remove_add.
-        apply for_all_add_true; relational.
+        apply for_all_add_true; relational; try nomega.
           simplify_maps.
         split.
-          apply for_all_remove; relational.
+          apply for_all_remove; relational; try nomega.
           eapply for_all_impl; eauto;
-          relational; unfold plusPtr; nomega.
-        unfold plusPtr; nomega.
+          relational; nomega.
+        nomega.
     }
 
     simpl in *; intuition; rewrite ?H1;
@@ -202,23 +202,25 @@ Proof.
     - normalize.
       rewrite <- H2 in Heqe.
       pose proof (allocations_no_overlap H Heqe) as H2'.
-      apply P.for_all_iff; relational; intros.
+      apply P.for_all_iff; relational; intros; try nomega.
       simplify_maps.
       specialize (H2' _ _ H5 H3).
       nomega.
     - normalize.
       apply_for_all; relational.
-      apply for_all_remove; relational.
+      apply for_all_remove; relational; try nomega.
       eapply for_all_impl; eauto;
       relational; try nomega.
       rewrite <- H2 in H4.
       auto.
     - apply for_all_remove; relational.
-      eapply for_all_impl; eauto;
+        nomega.
+      remember (fun _ _ => _ <=? _) as P.
+      remember (fun _ _ => negb _) as P'.
+      apply for_all_impl with (P:=P) (P':=P');
       relational; try nomega.
-      rewrite <- H2 in H4; auto.
-      apply H4.
-      nomega.
+      rewrite H2.
+      assumption.
   }
 
   (* refine method peekS. *)
@@ -290,11 +292,9 @@ Proof.
     apply P.update_m; trivial.
     induction d0 using N.peano_ind; simpl; trivial.
     rewrite !N.peano_rect_succ.
-    apply F.add_m; trivial.
+    apply F.add_m; auto.
   }
   constructor.
-  simpl.
-
   finish_SharpeningADT_WithoutDelegation.
 Defined.
 

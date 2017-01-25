@@ -18,6 +18,9 @@ import Debug.Trace
 END_IMPORTS
 
 while (<>) {
+    next if /^ghcDenote ::/ .. /^$/;
+    next if /^ghcConsDSL ::/ .. /^$/;
+
     s/import qualified Prelude/$imports/;
     s/unsafeCoerce :: a -> b/--unsafeCoerce :: a -> b/;
     s/\bfun /\\/;
@@ -28,7 +31,8 @@ while (<>) {
     s/\(>\)/(Prelude.>)/;
     s/\(\+\)/(Prelude.+)/;
     s/\(==\)/(Prelude.==)/;
-    s/type Ptr a = Foreign\.Ptr\.Ptr Data\.Word\.Word8/type Ptr a = Prelude.Int/;
+    # s/type (Key0?) = .+/type $1 = Foreign.Ptr.Ptr Word/;
+    # s/type Ptr a = Foreign\.Ptr\.Ptr Data\.Word\.Word8/type Ptr a = Prelude.Int/;
     s/Pervasives\.min/(Prelude.min)/;
     s/Pervasives\.max/(Prelude.max)/;
     s/if n>m then None else Some \(n<m\)/if n Prelude.> m then Prelude.Nothing else Prelude.Just \(n Prelude.< m\)/;

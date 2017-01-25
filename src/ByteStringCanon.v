@@ -28,7 +28,8 @@ Variable heap' : cHeapRep.
 Definition Heap_AbsR (or : Rep HeapSpec) (nr : cHeapRep) :=
   M.Equal (resvs or) (resvs (snd nr)) /\
   M.Equal (bytes or) (bytes (snd nr)) /\
-  P.for_all (fun addr sz => plusPtr (A:=Word) addr sz <=? fst nr)
+  P.for_all (fun addr sz =>
+               lebPtr (A:=Word) (plusPtr (A:=Word) addr sz) (fst nr))
             (resvs (snd nr)).
 
 Variable heap_AbsR : Heap_AbsR heap heap'.
@@ -52,7 +53,8 @@ Lemma refine_ByteString_Heap_AbsR :
       (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
        brk'   <- {brk'   : N
-                 | P.for_all (fun addr sz => plusPtr (A:=Word) addr sz <=? brk')
+                 | P.for_all (fun addr sz =>
+                                lebPtr (A:=Word) (plusPtr (A:=Word) addr sz) brk')
                              resvs' };
        k ((brk', {| resvs := resvs'; bytes := bytes' |}),
           {| psBuffer := buffer
@@ -107,7 +109,8 @@ Lemma refine_ByteString_Heap_AbsR' :
       (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
        brk'   <- {brk'   : N
-                 | P.for_all (fun addr sz => plusPtr (A:=Word) addr sz <=? brk')
+                 | P.for_all (fun addr sz =>
+                                lebPtr (A:=Word) (plusPtr (A:=Word) addr sz) brk')
                              resvs' };
        ret ((brk', {| resvs := resvs'; bytes := bytes' |}),
             {| psBuffer := buffer
@@ -229,10 +232,11 @@ Proof.
 
       rewrite <- remove_add.
       apply for_all_remove; relational.
-      apply for_all_add_true; relational.
+        rewrite H; reflexivity.
+      apply for_all_add_true; relational; try nomega.
         simplify_maps.
       split; [|nomega].
-      apply for_all_remove; relational.
+      apply for_all_remove; relational; try nomega.
       eapply for_all_impl; auto;
       relational; eauto; nomega.
 
@@ -245,10 +249,10 @@ Proof.
         finish honing.
 
       rewrite <- remove_add.
-      apply for_all_add_true; relational.
+      apply for_all_add_true; relational; try nomega.
         simplify_maps.
       split; [|nomega].
-      apply for_all_remove; relational.
+      apply for_all_remove; relational; try nomega.
       eapply for_all_impl; auto;
       relational; eauto; nomega.
 
@@ -344,15 +348,15 @@ Proof.
               rewrite H1, H4.
               reflexivity.
             clear -H2.
-            apply for_all_add_true; relational.
+            apply for_all_add_true; relational; try nomega.
               destruct 1.
               apply_for_all; relational.
               nomega.
             split.
               remember (fun _ _ => _) as P.
-              remember (fun _ _ => _ <=? plusPtr (A:=Word) _ (_ + _)) as P'.
-              apply for_all_impl with (P:=P) (P':=P'); relational.
-              nomega.
+              remember (fun _ _ =>
+                          lebPtr (A:=Word) _ (plusPtr (A:=Word) _ (_ + _))) as P'.
+              apply for_all_impl with (P:=P) (P':=P'); relational; nomega.
             nomega.
           simplify with monad laws; simpl.
           refine pick val r_n.
@@ -373,9 +377,7 @@ Proof.
     clear -H6.
     remember (fun _ _ => _) as P.
     remember (fun _ _ => negb _) as P'.
-    apply for_all_impl with (P:=P) (P':=P'); relational.
-    intros.
-    nomega.
+    apply for_all_impl with (P:=P) (P':=P'); relational; nomega.
   }
 
   (** Apply some common functional optimizations, such as common subexpression

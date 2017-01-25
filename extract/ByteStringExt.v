@@ -294,8 +294,9 @@ Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
 
 Module Import BS := ByteStringFFI M.
 
-Extract Constant IO "a" => "Prelude.IO a".
-Extract Constant Ptr "a" => "Foreign.Ptr.Ptr a".
+Extract Constant IO  "a" => "Prelude.IO a".
+(* Extract Constant Ptr "a" => "Foreign.Ptr.Ptr a". *)
+Extract Constant Ptr "a" => "Prelude.Int".
 
 (* Extract Inlined Constant unsafeDupablePerformIO => "System.IO.Unsafe.unsafeDupablePerformIO". *)
 Extract Inlined Constant unsafeDupablePerformIO => "System.IO.Unsafe.unsafePerformIO".
@@ -304,15 +305,28 @@ Extract Inlined Constant fmapIO   => "Prelude.fmap".
 Extract Inlined Constant bindIO   => "(GHC.Base.>>=)".
 Extract Inlined Constant returnIO => "Prelude.return".
 Extract Inlined Constant joinIO   => "Prelude.join".
-Extract Inlined Constant malloc   => "Foreign.Marshal.Alloc.mallocBytes".
-Extract Inlined Constant free     => "Foreign.Marshal.Alloc.free".
-Extract Inlined Constant realloc  => "Foreign.Marshal.Alloc.reallocBytes".
-Extract Inlined Constant peek     => "Foreign.Storable.peek".
-Extract Inlined Constant poke     => "Foreign.Storable.poke".
-Extract Inlined Constant memcpy   => "Foreign.Marshal.Utils.copyBytes".
-Extract Inlined Constant memset   => "Foreign.Marshal.Utils.fillBytes".
-Extract Inlined Constant plusPtr  => "Foreign.Ptr.plusPtr".
-Extract Inlined Constant minusPtr => "Foreign.Ptr.minusPtr".
+Extract Inlined Constant malloc   =>
+  "(\x -> unsafeCoerce (Foreign.Marshal.Alloc.mallocBytes x))".
+Extract Inlined Constant free     =>
+  "(\x -> Foreign.Marshal.Alloc.free (unsafeCoerce x))".
+Extract Inlined Constant realloc  =>
+  "(\x y -> unsafeCoerce (Foreign.Marshal.Alloc.reallocBytes (unsafeCoerce x) y))".
+Extract Inlined Constant peek     =>
+  "(\x -> Foreign.Storable.peek (unsafeCoerce x))".
+Extract Inlined Constant poke     =>
+  "(\x y -> Foreign.Storable.poke (unsafeCoerce x) y)".
+Extract Inlined Constant memcpy   =>
+  "(\x y -> Foreign.Marshal.Utils.copyBytes (unsafeCoerce x) (unsafeCoerce y))".
+Extract Inlined Constant memset   =>
+  "(\x -> Foreign.Marshal.Utils.fillBytes (unsafeCoerce x))".
+Extract Inlined Constant plusPtr  =>
+  "(\x y -> unsafeCoerce (Foreign.Ptr.plusPtr (unsafeCoerce x) y))".
+Extract Inlined Constant minusPtr =>
+  "(\x y -> Foreign.Ptr.minusPtr (unsafeCoerce x) (unsafeCoerce y))".
+(* Extract Inlined Constant eqbPtr   => "(Prelude.==)". *)
+(* Extract Inlined Constant eqdecPtr => "(Prelude.==)". *)
+(* Extract Inlined Constant ltbPtr   => "(Prelude.<)". *)
+(* Extract Inlined Constant lebPtr   => "(Prelude.<=)". *)
 
 (** Final extraction *)
 

@@ -189,7 +189,7 @@ Qed.
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
   forall (addr1 : Ptr Word) sz1, M.MapsTo addr1 sz1 (resvs r) ->
   forall (addr2 : Ptr Word) sz2, M.MapsTo addr2 sz2 (resvs r)
-    -> addr1 <> addr2
+    -> neqPtr addr1 addr2
     -> ~ overlaps addr1 sz1 addr2 sz2.
 Proof.
   intros.
@@ -200,21 +200,22 @@ Proof.
   generalize dependent sz1.
   generalize dependent addr1.
   pattern r; apply ADT_ind; try eassumption.
-    intro midx;
+  intro midx.
   match goal with
-  | [ midx : MethodIndex _      |- _ ] => pattern midx
-  end;
-  apply IterateBoundedIndex.Iterate_Ensemble_equiv';
+  | [ midx : MethodIndex _ |- _ ] => pattern midx
+  end.
+  apply IterateBoundedIndex.Iterate_Ensemble_equiv'.
   repeat apply IterateBoundedIndex.Build_prim_and;
-  try solve [constructor ]; simpl in *; intros;
-    destruct_ex; split_and; repeat inspect;
-      injections; simpl in *; inspect; eauto.
+  try solve [constructor];
+  simpl in *; intros;
+  destruct_ex; split_and; repeat inspect;
+  injections; inspect; eauto; try nomega.
   - apply_for_all; nomega.
   - apply_for_all; nomega.
   - eapply M.remove_2 in H4; eauto.
     apply_for_all; nomega.
   - clear H10.
-    eapply M.remove_2 in H4; eauto.
+    eapply M.remove_2 in H7; eauto.
     apply not_overlaps_sym.
     apply_for_all; nomega.
 Qed.
@@ -225,26 +226,26 @@ Theorem allocations_no_overlap_r : forall r : Rep HeapSpec, fromADT _ r ->
       -> 0 < sz1
       -> ~ M.In addr1 (resvs r).
 Proof.
-    intros r from_r; pattern r; apply ADT_ind; try eassumption.
+  intros r from_r; pattern r; apply ADT_ind; try eassumption.
   intro midx;
   match goal with
-  | [ midx : MethodIndex _      |- _ ] => pattern midx
+  | [ midx : MethodIndex _ |- _ ] => pattern midx
   end;
   apply IterateBoundedIndex.Iterate_Ensemble_equiv';
   repeat apply IterateBoundedIndex.Build_prim_and;
-  try solve [constructor ] ;
+  try solve [constructor];
   simpl in *; intros;
-    simpl in *; destruct_ex; split_and;
-      repeat inspect; injections; simpl in *; inspect; eauto; intro.
+  simpl in *; destruct_ex; split_and;
+  repeat inspect; injections; simpl in *;
+  inspect; eauto; intro.
   - apply F.empty_in_iff in H; eauto.
   - apply (proj1 (in_mapsto_iff _ _ _)) in H3.
     destruct_ex.
     apply for_all_add_true in H0;
-    relational; simpl in *; eauto.
-    simplify_maps.
-    + nomega.
-    + intuition. eapply H; eauto.
-      apply in_mapsto_iff; eauto.
+    relational; simpl in *; eauto;
+    simplify_maps; try nomega.
+    intuition. eapply H; eauto.
+    apply in_mapsto_iff; eauto.
   - apply (proj1 (in_mapsto_iff _ _ _)) in H2.
     destruct H2.
     simplify_maps.
@@ -275,6 +276,7 @@ Proof.
   intros.
   pose proof (allocations_no_overlap H H0).
   apply P.for_all_iff; relational; intros.
+    nomega.
   simplify_maps.
   specialize (H1 _ _ H4 H3).
   nomega.
@@ -313,8 +315,9 @@ Proof.
     Local Transparent Pick.
     Local Transparent computes_to.
     unfold Pick, computes_to; simpl.
-    apply for_all_remove.
-      relational.
+    apply for_all_remove; relational.
+      rewrite H3.
+      reflexivity.
     apply H2.
   apply eq_ret_compute.
   f_equal.
@@ -336,6 +339,7 @@ Proof.
         simplify_maps.
         split.
           intuition.
+          nomega.
         simplify_maps.
       repeat simplify_maps.
       split.

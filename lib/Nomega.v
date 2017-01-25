@@ -264,8 +264,8 @@ Ltac nomega' :=
                                  | solve [ right; nomega' ] ]
   end.
 
-Ltac nomega  := solve [ abstract nomega' ].
-Ltac nomega_ := solve [ nomega' ].
+Ltac nomega  := solve [ abstract nomega' | autounfold in *; abstract nomega' ].
+Ltac nomega_ := solve [ nomega' | autounfold in *; nomega' ].
 
 Lemma Npeano_rec_eq : forall (P : N -> Set) (z : P 0) f g n,
   (forall k x y, k < n -> x = y -> f k x = g k y)
