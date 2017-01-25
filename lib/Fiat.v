@@ -10,10 +10,8 @@ Definition getADTSig {sig : DecoratedADTSig} : ADT sig -> DecoratedADTSig :=
 
 Tactic Notation "refine" "method" constr(name) :=
   match goal with
-    | [ _ : constructorType ?A (consDom {| consID := name
-                                         ; consDom := _ |}) |- _ ] =>
-      idtac
-    | [ _ : methodType ?A (methDom {| methID := name
+  | [ _ : methodType ?A (methDom {| methID := name
+                                    ; methArity := _
                                     ; methDom := _
                                     ; methCod := _ |})  _ |- _ ] =>
       idtac
@@ -49,6 +47,113 @@ Lemma refine_If_Then_Else_bool :
       <-> refine (If b Then cpst Else cpse) res.
 Proof. split; intros; destruct b; auto. Qed.
 
+Definition IfDep_Then_Else (c : bool) {A} (t : c = true -> A) (e : c = false -> A) : A.
+Proof.
+  destruct c.
+    apply t.
+    reflexivity.
+  apply e.
+  reflexivity.
+Defined.
+
+Notation "'IfDep' c 'Then' t 'Else' e" := (@IfDep_Then_Else c _ t e) (at level 100).
+
+Lemma refine_IfDep_Then_Else_bool :
+  forall (b : bool) A cpst cpse (res : Comp A),
+    (if b as b0 return b = b0 -> Prop
+     then fun H => refine (cpst H) res
+     else fun H => refine (cpse H) res) eq_refl
+      <-> refine (IfDep b Then cpst Else cpse) res.
+Proof. split; intros; destruct b; auto. Qed.
+
+Lemma refine_IfDep_Then_Else :
+  forall (A : Type) (c : bool)
+         (tx ty : c = true -> Comp A),
+    (forall H : c = true, refine (tx H) (ty H)) ->
+    forall ex ey : c = false -> Comp A,
+      (forall H : c = false, refine (ex H) (ey H)) ->
+      refine (IfDep c Then tx Else ex) (IfDep c Then ty Else ey).
+Proof.
+  intros. destruct c; simpl; auto; reflexivity.
+Qed.
+
+Lemma refineEquiv_IfDep_Then_Else :
+  forall (A : Type) (c : bool)
+         (tx ty : c = true -> Comp A),
+    (forall H : c = true, refineEquiv (tx H) (ty H)) ->
+    forall ex ey : c = false -> Comp A,
+      (forall H : c = false, refineEquiv (ex H) (ey H)) ->
+      refineEquiv (IfDep c Then tx Else ex) (IfDep c Then ty Else ey).
+Proof.
+  intros. destruct c; simpl; auto; reflexivity.
+Qed.
+
+Lemma refineEquiv_strip_IfDep_Then_Else : forall (c : bool) A (t e : Comp A),
+  refineEquiv (IfDep c Then fun _ => t Else fun _ => e)
+              (If c Then t Else e).
+Proof. intros. destruct c; simpl; reflexivity. Qed.
+
+Lemma refine_IfDep_Then_Else_Bind:
+  forall (A B : Type) (i : bool)
+         (t : i = true -> Comp A) (e : i = false -> Comp A)
+         (b : A -> Comp B),
+  refine (a <- IfDep i Then t Else e;
+          b a) (IfDep i
+                Then fun H => a <- t H; b a
+                Else fun H => (a <- e H; b a)).
+Proof.
+  intros. destruct i; simpl; auto; reflexivity.
+Qed.
+
+Lemma refineEquiv_IfDep_Then_Else_Bind:
+  forall (A B : Type) (i : bool)
+         (t : i = true -> Comp A) (e : i = false -> Comp A)
+         (b : A -> Comp B),
+  refineEquiv (a <- IfDep i Then t Else e;
+               b a) (IfDep i
+                     Then fun H => a <- t H; b a
+                     Else fun H => (a <- e H; b a)).
+Proof.
+  intros. destruct i; simpl; auto; reflexivity.
+Qed.
+
+Lemma refineEquiv_If_Then_Else :
+  forall (A : Type) (c : bool) (x y : Comp A),
+    refineEquiv x y ->
+    forall x0 y0 : Comp A, refineEquiv x0 y0 ->
+    refineEquiv (If c Then x Else x0) (If c Then y Else y0).
+Proof. intros; destruct c; auto. Qed.
+
+Lemma refine_skip2 {B} (dummy : Comp B) {A} (a : Comp A) :
+  refine a (dummy >> a).
+Proof.
+  repeat first [ intro
+               | computes_to_inv
+               | assumption
+                 | econstructor; eassumption
+                 | econstructor; try eassumption; [] ].
+  eauto.
+Qed.
+
+Class RefineUnder {A : Type} (a a' : Comp A) := {
+  rewrite_under : refine a a'
+}.
+
+Instance RefineUnder_Bind {A B : Type}
+         (ca ca' : Comp A)
+         (b b' : A -> Comp A)
+         (refine_a : refine ca ca')
+         (refine_b : forall a, ca ↝ a -> refine (b a) (b' a)) :
+  RefineUnder (a <- ca; b a) (a' <- ca'; b' a') :=
+  {| rewrite_under := refine_under_bind_both b b' refine_a refine_b |}.
+
+Definition refine_skip2_pick {B} (dummy : Comp B) {A} (P : A -> Prop) :
+  refine {a | P a} (dummy >> {a | P a}) := @refine_skip2 _ _ _ _.
+
+Definition refine_skip2_bind {B} (dummy : Comp B)
+           {A C} (ca : Comp A) (k : A -> Comp C) :
+  refine (ca >>= k) (dummy >> (ca >>= k)) := @refine_skip2 _ _ _ _.
+
 Ltac fracture H :=
   repeat (
     try simplify with monad laws; simpl;
@@ -75,6 +180,15 @@ Proof. intuition. Qed.
 Corollary refine_inv : forall A old new,
   refine old new -> forall x : A, new ↝ x -> old ↝ x.
 Proof. trivial. Qed.
+
+Ltac if_computes_to_inv :=
+  match goal with
+    [ H : (If ?B Then _ Else _) ↝ _ |- _ ] =>
+    let Heqe := fresh "Heqe" in
+    destruct B eqn:Heqe;
+    simpl in H;
+    computes_to_inv
+  end.
 
 Lemma fst_match_list :
   forall A (xs : list A) B z C z'

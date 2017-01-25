@@ -9,7 +9,7 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module HeapCanonical (M : WSfun N_as_DT).
+Module HeapCanonical (M : WSfun Ptr_as_DT).
 
 Module Import Heap := Heap M.
 
@@ -29,24 +29,22 @@ Theorem HeapCanonical : FullySharpened HeapSpec.
 Proof.
   start sharpening ADT.
 
-  hone representation over HeapSpec using
-       (fun or nr =>
-          M.Equal (resvs or) (resvs (snd nr)) /\
-          M.Equal (bytes or) (bytes (snd nr)) /\
-          P.for_all (fun addr sz => addr + sz <=? fst nr) (resvs (snd nr))).
-
-  (*
-  (* Taste of what this should look like with [annotate_ADT]. *)
   eapply transitivityT.
   eapply annotate_ADT with
-       (AbsR := fun or nr =>
-                  M.Equal (resvs or) (resvs (snd nr)) /\
-                  M.Equal (bytes or) (bytes (snd nr)) /\
-                  P.for_all (fun addr sz => addr + sz <=? fst nr)
-                            (resvs (snd nr)));
-  simpl; unfold refineMethod_w_PreCond;
-  repeat first [apply Build_prim_prod | exact tt]; simpl; intros.
-  *)
+    (methDefs' := icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|} inil ) ) ) ) ) ) ) )
+    (AbsR := fun or nr =>
+       M.Equal (resvs or) (resvs (snd nr)) /\
+       M.Equal (bytes or) (bytes (snd nr)) /\
+       P.for_all (fun addr sz => plusPtr addr sz <=? fst nr) (resvs (snd nr))).
+  simpl; repeat apply Build_prim_prod; simpl;
+  intros; try simplify with monad laws; set_evars.
 
   (* refine constructor emptyS *)
   {
@@ -60,7 +58,7 @@ Proof.
       finish honing.
 
     intuition; simpl.
-    apply for_all_empty; relational.
+    apply for_all_empty; relational; nomega.
   }
 
   (* refine method allocS. *)
@@ -77,24 +75,25 @@ Proof.
     {
       simplify with monad laws; simpl.
 
-      refine pick val (fst r_n + ` d,
+      refine pick val (plusPtr (A:=Word) (fst r_n) (` d),
                        {| resvs := M.add (fst r_n) (` d) (resvs (snd r_n))
                         ; bytes := bytes (snd r_n) |}).
         simplify with monad laws; simpl.
+
         finish honing.
 
       simpl in *; intuition.
-      rewrite H1; reflexivity.
-      apply for_all_add_true; relational.
-        rewrite <- H1.
+      rewrite H2; reflexivity.
+      apply for_all_add_true; relational; try nomega.
+        rewrite <- H2.
         destruct d.
         eapply allocations_no_overlap_r; eauto.
-        rewrite H1.
-        eapply for_all_impl; eauto; relational; intros.
-        nomega.
+        rewrite H2.
+        eapply for_all_impl; eauto; relational;
+        intros; nomega.
       split.
-        eapply for_all_impl; eauto; relational; intros.
-        nomega.
+        eapply for_all_impl; eauto; relational;
+        intros; nomega.
       nomega.
     }
 
@@ -110,12 +109,12 @@ Proof.
     refine pick val (fst r_n,
                      {| resvs := M.remove d (resvs (snd r_n))
                       ; bytes := bytes (snd r_n) |}).
-      simplify with monad laws; simpl.
+    try simplify with monad laws; simpl.
       finish honing.
 
     simpl in *; intuition.
-    - rewrite H1; reflexivity.
-    - apply for_all_remove; relational.
+    - rewrite H2; reflexivity.
+    - apply for_all_remove; relational; nomega.
   }
 
   (* refine method reallocS. *)
@@ -135,19 +134,21 @@ Proof.
                  {| resvs := M.add d (` d0) (resvs (snd r_n)) (* update *)
                   ; bytes := bytes (snd r_n) |})
               Else
-                (fst r_n + ` d0,
-                 {| resvs := M.add (fst r_n) (` d0)
-                                   (M.remove d (resvs (snd r_n)))
-                  ; bytes := copy_bytes d (fst r_n) sz
-                                        (bytes (snd r_n)) |})
+                (plusPtr (A:=Word) (fst r_n) (` d0),
+                 {| resvs :=
+                      M.add (fst r_n) (` d0) (M.remove d (resvs (snd r_n)))
+                  ; bytes :=
+                      copy_bytes d (fst r_n) sz
+                                 (bytes (snd r_n)) (bytes (snd r_n))|})
          Else
-           (fst r_n + ` d0,
+           (plusPtr (A:=Word) (fst r_n) (` d0),
             {| resvs := M.add (fst r_n) (` d0) (resvs (snd r_n))
              ; bytes := bytes (snd r_n) |})).
         simplify with monad laws.
+        simpl.
         finish honing.
 
-      simpl in *; intuition; rewrite ?H1;
+      simpl in *; intuition; rewrite ?H2;
       (destruct (M.find d _) as [sz|] eqn:Heqe;
        [ destruct (` d0 <=? sz) eqn:Heqe1;
          simpl; rewrite ?Heqe1 |]); simpl.
@@ -158,7 +159,7 @@ Proof.
           simplify_maps.
         simplify_maps; intuition.
         subst.
-        apply F.find_mapsto_iff in H2.
+        apply F.find_mapsto_iff in H1.
         congruence.
       - rewrite copy_bytes_idem; assumption.
       - rewrite N.min_l.
@@ -168,27 +169,27 @@ Proof.
       - normalize.
         apply_for_all; relational.
         rewrite <- remove_add.
-        apply for_all_add_true; relational.
+        apply for_all_add_true; relational; try nomega.
           simplify_maps.
         split.
-          apply for_all_remove; relational.
+          apply for_all_remove; relational; nomega.
         nomega.
       - normalize.
         apply_for_all; relational.
         rewrite <- remove_add.
-        apply for_all_add_true; relational.
+        apply for_all_add_true; relational; try nomega.
           simplify_maps.
         split.
-          apply for_all_remove; relational.
-          apply for_all_remove; relational.
+          apply for_all_remove; relational; try nomega.
+          apply for_all_remove; relational; try nomega.
           eapply for_all_impl; eauto;
           relational; nomega.
         nomega.
       - rewrite <- remove_add.
-        apply for_all_add_true; relational.
+        apply for_all_add_true; relational; try nomega.
           simplify_maps.
         split.
-          apply for_all_remove; relational.
+          apply for_all_remove; relational; try nomega.
           eapply for_all_impl; eauto;
           relational; nomega.
         nomega.
@@ -199,21 +200,27 @@ Proof.
      [ destruct (` d0 <=? sz) eqn:Heqe1;
        simpl; rewrite ?Heqe1 |]); simpl.
     - normalize.
-      rewrite <- H1 in Heqe.
-      pose proof (allocations_no_overlap Hfrom Heqe) as H2.
-      apply P.for_all_iff; relational; intros.
+      rewrite <- H2 in Heqe.
+      pose proof (allocations_no_overlap H Heqe) as H2'.
+      apply P.for_all_iff; relational; intros; try nomega.
       simplify_maps.
-      rewrite <- H1 in H6.
-      specialize (H2 _ _ H6 H5).
+      specialize (H2' _ _ H5 H3).
       nomega.
     - normalize.
       apply_for_all; relational.
-      apply for_all_remove; relational.
+      apply for_all_remove; relational; try nomega.
       eapply for_all_impl; eauto;
-      relational; nomega.
+      relational; try nomega.
+      rewrite <- H2 in H4.
+      auto.
     - apply for_all_remove; relational.
-      eapply for_all_impl; eauto;
-      relational; nomega.
+        nomega.
+      remember (fun _ _ => _ <=? _) as P.
+      remember (fun _ _ => negb _) as P'.
+      apply for_all_impl with (P:=P) (P':=P');
+      relational; try nomega.
+      rewrite H2.
+      assumption.
   }
 
   (* refine method peekS. *)
@@ -223,18 +230,22 @@ Proof.
                      Else Zero).
       simplify with monad laws.
       refine pick val r_n.
-        simplify with monad laws.
-        finish honing.
+      simplify with monad laws.
+      simpl; finish honing.
       simpl in *; intuition.
 
+    clear H.
     simpl in *; intuition.
     destruct (M.find d _) as [sz|] eqn:Heqe;
     simpl; normalize.
-      rewrite H0 in H2.
-      pose proof (F.MapsTo_fun Heqe H2).
+      left.
+      rewrite H0.
       assumption.
-    rewrite H0 in H2.
-    apply F.find_mapsto_iff in H2.
+    right.
+    split; intuition.
+    destruct H1.
+    apply F.find_mapsto_iff in H1.
+    rewrite H0 in H1.
     congruence.
   }
 
@@ -243,8 +254,8 @@ Proof.
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
                       ; bytes := M.add d d0 (bytes (snd r_n)) |}).
-      simplify with monad laws.
-      finish honing.
+    simpl.
+    finish honing.
 
     simpl in *; intuition;
     destruct (d <? fst r_n) eqn:Heqe; simpl; trivial;
@@ -255,8 +266,9 @@ Proof.
   {
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
-                      ; bytes := copy_bytes d d0 d1 (bytes (snd r_n)) |}).
-      simplify with monad laws.
+                      ; bytes :=
+                          copy_bytes d d0 d1
+                                     (bytes (snd r_n)) (bytes (snd r_n)) |}).
       finish honing.
 
     simpl in *; intuition;
@@ -270,19 +282,19 @@ Proof.
         {| resvs := resvs (snd r_n)
          ; bytes :=
              P.update (bytes (snd r_n))
-                      (N.peano_rect (fun _ => M.t Word)
-                                    (bytes (snd r_n))
-                                    (fun i => M.add (d + i)%N d1) d0) |}).
-      simplify with monad laws.
-      finish honing.
+                      (N.peano_rect
+                         (fun _ => M.t Word)
+                         (bytes (snd r_n))
+                         (fun i => M.add (plusPtr(A:=Word) d i)%N d1) d0) |}).
+      simpl. finish honing.
 
     simpl in *; intuition.
     apply P.update_m; trivial.
     induction d0 using N.peano_ind; simpl; trivial.
     rewrite !N.peano_rect_succ.
-    apply F.add_m; trivial.
+    apply F.add_m; auto.
   }
-
+  constructor.
   finish_SharpeningADT_WithoutDelegation.
 Defined.
 

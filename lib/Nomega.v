@@ -264,5 +264,73 @@ Ltac nomega' :=
                                  | solve [ right; nomega' ] ]
   end.
 
-Ltac nomega  := solve [ abstract nomega' ].
-Ltac nomega_ := solve [ nomega' ].
+Ltac nomega  := solve [ abstract nomega' | autounfold in *; abstract nomega' ].
+Ltac nomega_ := solve [ nomega' | autounfold in *; nomega' ].
+
+Lemma Npeano_rec_eq : forall (P : N -> Set) (z : P 0) f g n,
+  (forall k x y, k < n -> x = y -> f k x = g k y)
+    -> N.peano_rec P z f n = N.peano_rec P z g n.
+Proof.
+  intros.
+  destruct n using N.peano_ind.
+    reflexivity.
+  rewrite !N.peano_rec_succ.
+  apply H.
+    nomega.
+  apply IHn.
+  intros; subst.
+  apply H.
+    nomega.
+  reflexivity.
+Qed.
+
+Lemma Npeano_rec_list_app : forall (A : Set) (z : list A) f g n m,
+  (N.peano_rec (fun _ => list A) z (fun x rest => f x :: rest) n
+     ++ N.peano_rec (fun _ => list A) z
+                    (fun x rest => g x :: rest) m)%list =
+  N.peano_rec (fun _ => list A)
+              (z ++ N.peano_rec (fun _ => list A) z
+                                (fun x rest => g x :: rest) m)%list
+              (fun x rest => f x :: rest)%list n.
+Proof.
+  intros.
+  generalize dependent z.
+  destruct n using N.peano_ind; simpl; intros.
+    reflexivity.
+  rewrite !N.peano_rec_succ.
+  rewrite <- List.app_comm_cons.
+  f_equal.
+  apply IHn.
+Qed.
+
+Lemma Npeano_rec_list_add : forall (A : Set) (z : list A) f g h n m,
+  (forall k x y, k < n + m -> x = y ->
+     ((if k <? m
+       then g k
+       else f (k - m)) :: x)%list = h k y) ->
+  N.peano_rec (fun _ => list A)
+              (N.peano_rec (fun _ => list A) z
+                           (fun k rest => g k :: rest) m)%list
+              (fun k rest => f k :: rest)%list n =
+  N.peano_rec (fun _ => list A) z h (n + m).
+Proof.
+  intros.
+  destruct n using N.peano_ind; simpl; intros.
+    apply Npeano_rec_eq with (P := fun _ => list A).
+    intros; subst.
+    rewrite <- H with (x:=y); trivial.
+    assert (k <? m = true) by nomega.
+    rewrite H1; reflexivity.
+  rewrite N.add_succ_l, !N.peano_rec_succ.
+  remember (N.peano_rec _ _ _ (n + m)) as xs.
+  pose proof (H (n + m)) as H0.
+  assert (n + m <? m = false) by nomega.
+  rewrite H1, N.add_sub in H0; clear H1.
+  apply H0; trivial.
+    nomega.
+  apply IHn.
+  intros; subst.
+  apply H.
+    nomega.
+  reflexivity.
+Qed.

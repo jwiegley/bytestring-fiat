@@ -1,70 +1,5 @@
 Require Import ByteString.Lib.Fiat.
 
-Definition get_ctor
-           {dSig : DecoratedADTSig}
-           (adt : DecoratedADT dSig)
-           (idxMap : BoundedIndex (ConstructorNames dSig)
-                       -> ConstructorIndex dSig)
-           (idx : BoundedIndex (ConstructorNames dSig)) :
-  ConstructorIndex dSig :=
-  idxMap idx.
-
-Notation "adt @@ idx" :=
-  (get_ctor adt (fun idx => ibound (indexb idx)) {| bindex := idx |})
-  (at level 100) : comp_scope.
-
-Lemma refine_constructor_fromADT
-      A (c : Comp (A)) (P : A -> Prop)
-      (f : forall v : A, c ↝ v -> P v) :
-  refine (r_o' <- c; {r_n0 : {r : A | P r} | r_o' = ` r_n0})
-         { r_n0 : { r : A | P r } | c ↝ ` r_n0 }.
-Proof.
-  intros x ?.
-  apply Pick_inv in H.
-  apply BindComputes with (a:=` x); trivial.
-  apply PickComputes; reflexivity.
-Qed.
-
-Fixpoint annotate_Constructor
-         {oldRep}
-         (dom : list Type)
-         (P : oldRep -> Prop)
-         (newRep := { r : oldRep | P r }%type)
-         {struct dom}
-  : (constructorType oldRep dom)
-    -> (constructorType newRep dom) :=
-  match dom return
-        constructorType oldRep dom ->
-        constructorType _ dom
-  with
-  | nil => fun oldMeth v => oldMeth (` v)
-  | cons domT dom' =>
-    fun oldMeth d =>
-      annotate_Constructor dom' P (oldMeth d)
-  end.
-
-Definition annotate_ConsDef
-           {oldRep}
-           (Sig : consSig)
-           (oldCons : @consDef oldRep Sig)
-           (P : oldRep -> Prop)
-  : @consDef _ Sig :=
-  {| consBody := annotate_Constructor _ P (consBody oldCons) |}.
-
-Tactic Notation "apply" "constructor" "knowledge" "for" constr(meth) :=
-  apply (fromADTConstructor _ meth _); simpl;
-  repeat
-    match goal with
-      [ |- fromConstructor _ _ ] => econstructor
-    end; eauto.
-
-Tactic Notation "resolve" "constructor" constr(meth) :=
-  subst; subst_evars;
-  etransitivity;
-  [ apply refine_constructor_fromADT; intros;
-    apply constructor knowledge for meth
-  | finish honing ].
-
 Definition get_method
            {dSig : DecoratedADTSig}
            (adt : DecoratedADT dSig)
@@ -117,15 +52,21 @@ Fixpoint annotate_Method'
       annotate_Method' dom' cod P (oldMeth d)
   end.
 
-Definition annotate_Method
+Fixpoint annotate_Method
+         {arity}
            {oldRep}
            (dom : list Type)
            (cod : option Type)
-           (oldMethod : methodType oldRep dom cod)
+           (oldMethod : methodType arity oldRep dom cod)
            (P : oldRep -> Prop)
            (newRep := { r : oldRep | P r }%type)
-  : methodType newRep dom cod :=
-  fun r => annotate_Method' dom cod P (oldMethod (` r)).
+  : methodType arity newRep dom cod :=
+  match arity return methodType arity oldRep dom cod ->
+                     methodType arity newRep dom cod with
+  | S arity' => fun oldMethod => fun r =>
+      annotate_Method (arity := arity') dom cod (oldMethod (` r)) P
+  | 0 => fun oldMethod => annotate_Method' dom cod P oldMethod
+  end oldMethod.
 
 Definition annotate_MethDef
            {oldRep}
@@ -133,7 +74,7 @@ Definition annotate_MethDef
            (oldCons : @methDef oldRep Sig)
            (P : oldRep -> Prop)
   : @methDef _ Sig :=
-  {| methBody := annotate_Method (methBody oldCons) P |}.
+  {| methBody := annotate_Method _ _ (methBody oldCons) P |}.
 
 Tactic Notation "apply" "method" "knowledge" "for"
        constr(S) constr(meth) constr(H) :=
@@ -156,17 +97,12 @@ Tactic Notation "resolve" "method" constr(meth) :=
 
 Ltac resolve_method_bodies :=
   match goal with
-  | [ H : constructorType
-            {r : Rep ?S | fromADT ?S r}
-            (consDom (Constructor ?C : rep)) |- _ ] =>
-    resolve constructor
-      (get_ctor S (fun idx => ibound (indexb idx)) {| bindex := C |})
   | [ H : methodType
             {r : Rep ?S | fromADT ?S r}
             (methDom {| methID := ?M; methDom := _; methCod := _ |})
             (methCod {| methID := ?M; methDom := _; methCod := _ |}) |- _ ] =>
     resolve method
-      (get_method S (fun idx => ibound (indexb idx)) {| bindex := M |})
+            (get_method S (fun idx => ibound (indexb idx)) {| bindex := M |})
   | _ => idtac
   end.
 
@@ -176,18 +112,28 @@ Tactic Notation "annotate" constr(spec) "ADT" :=
             (nr : { r : Rep spec | fromADT spec r }) => or = ` nr);
   resolve_method_bodies.
 
-Definition refineMethod_w_PreCond
+Fixpoint refineMethod_w_PreCond
+         (arity : nat)
            {oldRep newRep}
            (AbsR : oldRep -> newRep -> Prop)
            (P : oldRep -> Prop)
            {dom : list Type}
            {cod : option Type}
-           (oldMethod : methodType oldRep dom cod)
-           (newMethod : methodType newRep dom cod)
-  := forall r_o r_n,
-    P r_o
-    -> AbsR r_o r_n
-    -> @refineMethod' _ _ AbsR dom cod (oldMethod r_o) (newMethod r_n).
+           (oldMethod : methodType arity oldRep dom cod)
+           (newMethod : methodType arity newRep dom cod)
+  : Prop :=
+    match arity return
+          methodType arity oldRep dom cod ->
+          methodType arity newRep dom cod ->
+          Prop with
+    | S arity' =>
+      fun oldMethod newMethod =>
+        forall r_o r_n,
+          P r_o
+          -> AbsR r_o r_n
+          -> refineMethod_w_PreCond arity' AbsR P (oldMethod r_o) (newMethod r_n)
+    | 0 => @refineMethod' _ _ AbsR dom cod
+    end oldMethod newMethod.
 
 Lemma refineMethod'_trans rep rep' rep'' Dom Cod
       AbsR AbsR'
@@ -213,108 +159,124 @@ Proof.
                   (m'' d)); eauto.
 Qed.
 
-Lemma refine_absConstructor_fromADT
-  : forall oldRep dom
-           (P : oldRep -> Prop)
-           (c : constructorType oldRep dom),
-    (forall r : oldRep, fromConstructor c r -> P r) ->
-    refineConstructor (fun (or : {r : oldRep | P r}) (nr : oldRep) => ` or = nr)
-                      (absConstructor (fun (or : oldRep) (nr : {r : oldRep | P r}) => or = ` nr) c) c.
-Proof.
-  induction dom.
-  - simpl; unfold refine; intros.
-    repeat computes_to_econstructor.
-    instantiate (1 := exist _ _ (H _ H0)).
-    eexists; split; eauto.
-    reflexivity.
-  - intros.
-    intro; eapply IHdom; intros; eauto.
-    eapply H.
-    eexists; eauto.
-Qed.
-
-Lemma refine_absMethod_fromADT
-  : forall oldRep dom cod
-           (P : oldRep -> Prop)
-           (c : methodType oldRep dom cod),
-    (forall r r' : oldRep, P r -> fromMethod c r r' -> P r') ->
-    forall r',
-    refineMethod' (fun (or : {r : oldRep | P r}) (nr : oldRep) => ` or = nr)
-                  (absMethod' (fun (or : oldRep) (nr : {r : oldRep | P r}) => or = ` nr) dom cod c r') (c (` r')).
-Proof.
-  unfold fromMethod.
-  induction dom.
-  - destruct cod; simpl; unfold refine; intros.
-    + destruct r'; destruct v.
-      repeat computes_to_econstructor; intros; subst; simpl in H0.
-      instantiate (1 := (exist _ _ ((H _ _ p (ex_intro (fun c0 => c x ↝ (_, c0)) _ H0))), _)); simpl.
-      eexists; split; eauto.
-      reflexivity.
-      computes_to_econstructor.
-    + destruct r'.
-      repeat computes_to_econstructor; intros; subst; simpl in H0.
-      instantiate (1 := exist _ _ ((H _ _ p H0))); simpl.
-      eexists; split; eauto.
-      reflexivity.
-  - simpl; intros; eapply IHdom; eauto.
-Qed.
-
 Lemma annotate_ADT
       {oldRep newRep}
       (AbsR : oldRep -> newRep -> Prop)
-      {n n'}
-      {consSigs : Vector.t consSig n}
+      {n'}
       {methSigs : Vector.t methSig n'}
-      (consDefs : ilist (B := @consDef oldRep) consSigs)
-      (consDefs' : ilist (B := @consDef newRep) consSigs)
       (methDefs : ilist (B := @methDef oldRep) methSigs)
       (methDefs' : ilist (B := @methDef newRep) methSigs)
-      (ConstructorsRefineSpec
-       : IterateBoundedIndex.Iterate_Dep_Type_BoundedIndex
-           (fun idx  =>
-              refineConstructor
-                AbsR
-                (dom := consDom (Vector.nth consSigs idx))
-                (getConsDef consDefs idx)
-                (getConsDef consDefs' idx)))
       (MethodsRefineSpec
        : IterateBoundedIndex.Iterate_Dep_Type_BoundedIndex
            (fun idx  =>
               refineMethod_w_PreCond
+                _
                 AbsR
-                (fromADT (BuildADT consDefs methDefs))
+                (fromADT (BuildADT methDefs))
                 (dom := methDom (Vector.nth methSigs idx))
                 (getMethDef methDefs idx)
                 (getMethDef methDefs' idx)))
   :
   refineADT
-    (BuildADT consDefs methDefs)
-    (BuildADT consDefs' methDefs').
+    (BuildADT methDefs)
+    (BuildADT methDefs').
 Proof.
   eapply transitivityT.
   - apply refineADT_Build_ADT_Rep_default with
-    (AbsR := fun or (nr : { r : oldRep | fromADT (BuildADT consDefs methDefs) r }) =>
+    (AbsR := fun or (nr : { r : oldRep | fromADT (BuildADT methDefs) r }) =>
                or = ` nr).
-  - eapply refinesADT; intros.
-    + simpl Constructors.
-      generalize (IterateBoundedIndex.Lookup_Iterate_Dep_Type _ ConstructorsRefineSpec idx) as refineCons'; clear; intros;
-      eapply refineConstructor_trans with
-      (AbsR := fun or nr => `or = nr)
-      (AbsR' := AbsR); eauto.
-      clear.
-      unfold getConsDef.
-      generalize (@fromADTConstructor _ (BuildADT consDefs methDefs) idx);
-        simpl Constructors.
-      eapply refine_absConstructor_fromADT.
+  - eapply refinesADT with (AbsR := fun r_o r_n => AbsR (`r_o) r_n); intros.
     + simpl Methods.
-      generalize (IterateBoundedIndex.Lookup_Iterate_Dep_Type _ MethodsRefineSpec idx) as refineMeth'; simpl; clear;
-        intros ? [r_o' fromADT_r_o] r_n [ r_o [eq_r_o AbsR_r_o] ];
-        simpl in *; subst.
-      specialize (refineMeth' _ _ (fromADT_r_o) AbsR_r_o).
-      eapply refineMethod'_trans; eauto.
-      eapply refine_absMethod_fromADT.
-      intros.
-      eapply fromADTMethod with (midx := idx); eauto.
+      generalize (IterateBoundedIndex.Lookup_Iterate_Dep_Type
+                    _ MethodsRefineSpec idx) as refineMeth'; simpl; clear.
+      assert (forall r',
+                 fromMethod'' (fromADT (BuildADT methDefs)) (ith methDefs idx) r'
+                 -> fromADT (BuildADT methDefs) r').
+      intros; econstructor 1 with (midx := idx).
+      apply H.
+      generalize (Vector.nth methSigs idx) (ith methDefs idx) (ith methDefs' idx) H;
+        clear.
+      intros m m0 m1.
+      generalize (methBody m1).
+      generalize (methBody m0).
+      generalize (methArity m).
+      induction n; simpl in *; intros.
+      * induction (methDom m); simpl in *.
+        { destruct (methCod m); simpl;
+          rewrite <- refineMeth'; clear refineMeth';
+            intros v Comp_v; computes_to_inv.
+          - unfold absMethod; simpl.
+            assert (fromADT (BuildADT methDefs) (fst v0))
+              by (apply H; econstructor; simpl; eexists (snd v0); destruct v0;
+                  simpl; eauto).
+            eapply BindComputes
+              with (a := (exist (fun v0 => fromADT (BuildADT methDefs) v0)
+                                (fst v0) H0, snd v0)).
+            computes_to_econstructor.
+            eexists; repeat split; try eauto.
+            computes_to_econstructor.
+            computes_to_econstructor; simpl; eauto.
+            subst; computes_to_econstructor.
+          - unfold absMethod; simpl.
+            assert (fromADT (BuildADT methDefs) v0)
+              by (apply H; econstructor; simpl; eauto).
+            eapply BindComputes with
+            (a := exist (fun v0 => fromADT (BuildADT methDefs) v0) _ H0).
+            computes_to_econstructor.
+            eexists; repeat split; try eauto.
+            computes_to_econstructor; simpl; eauto.
+        }
+        { simpl; intros.
+          simpl; pose proof (fun H' => IHl _ _ H' (refineMeth' d)).
+          match type of H0 with
+            _ -> ?Q =>
+            match goal with
+              |- ?Q' => assert (Q = Q') as H' by
+                  (unfold absMethod; simpl; repeat f_equal;
+                   apply functional_extensionality; intros;
+                   destruct (methCod m); reflexivity);
+                          rewrite <- H'; apply H0
+            end
+          end.
+          intros; apply H; econstructor.
+          apply fromMethod_inv in H1; simpl; eauto.
+        }
+      * assert (forall r' : oldRep,
+                   fromMethod'' (fromADT (BuildADT methDefs)) (m2 (` r_o)) r'
+                     -> fromADT (BuildADT methDefs) r').
+        intros.
+        apply H.
+        econstructor.
+        apply (proj2_sig r_o); eauto.
+        apply H1.
+        assert (refineMethod_w_PreCond n AbsR (fromADT (BuildADT methDefs)) (m2 (` r_o)) (m3 r_n)).
+        apply refineMeth'; eauto.
+        apply (proj2_sig _).
+        eapply (@refineMethod_eq_trans'
+                  _ _ _ _ _
+                  (fun (r_o : {r : oldRep | fromADT (BuildADT methDefs) r})
+                       (r_n : newRep) => AbsR (` r_o) r_n)
+                  (absMethod (arity := S n) (fun or nr => or = ` nr) m2 r_o)
+                  _ (m3 r_n)).
+        2: eapply (IHn (m2 (` r_o)) (m3 r_n) H1 H2); clear.
+        unfold absMethod; simpl.
+        destruct (methCod m).
+        {
+          simpl; eapply refineMethod_Curry_Some.
+          clear; intros ? ? v Comp_v.
+          Local Transparent computes_to.
+          unfold computes_to; intros.
+          subst.
+          apply Comp_v.
+        }
+        {
+          simpl; eapply refineMethod_Curry_None.
+          clear; intros ? ? v Comp_v.
+          Local Transparent computes_to.
+          unfold computes_to; intros.
+          subst.
+          apply Comp_v.
+        }
 Qed.
 
 Lemma refine_strip_dependency :
@@ -410,13 +372,7 @@ Qed.
 
 Tactic Notation "remove" "dependency" constr(S) :=
   match goal with
-  | [ H : constructorType _ (consDom (Constructor ?C : rep)) |- _ ] =>
-    strip_dependency_constructor;
-    [| intros;
-       apply constructor knowledge for
-             (get_ctor S (fun idx => ibound (indexb idx)) {| bindex := C |}) ];
-    rewrite refine_pick_ret
-  | [ H : methodType _
+  | [ H : methodType _ _
             (methDom {| methID := ?M; methDom := _; methCod := _ |})
             (methCod {| methID := ?M; methDom := _; methCod := _ |}) |- _ ] =>
     strip_dependency_method;

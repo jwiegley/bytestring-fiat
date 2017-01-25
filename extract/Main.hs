@@ -1,6 +1,6 @@
 module Main where
 
-import ByteStringExt
+import ByteStringExt hiding (IO)
 
 main :: IO ()
 main = do

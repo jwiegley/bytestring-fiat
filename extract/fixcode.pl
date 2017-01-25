@@ -1,7 +1,27 @@
 #!/usr/bin/env perl
 
+$imports = <<'END_IMPORTS';
+import qualified Data.Char
+import qualified Data.Function
+import qualified Data.List
+import qualified Data.Maybe
+import qualified Data.Ratio
+import qualified Foreign.Marshal.Alloc
+import qualified Foreign.Marshal.Utils
+import qualified Foreign.Ptr
+import qualified Foreign.Storable
+import qualified GHC.Real
+import qualified HString
+import qualified Prelude
+import qualified System.IO.Unsafe
+import Debug.Trace
+END_IMPORTS
+
 while (<>) {
-    s/import qualified Prelude/import qualified Prelude\nimport qualified HString\nimport qualified Data.Char\nimport qualified Data.List\nimport qualified Data.Ratio\nimport qualified GHC.Real\nimport qualified Data.Function\nimport qualified Data.Maybe\nimport Debug.Trace/;
+    next if /^ghcDenote ::/ .. /^$/;
+    next if /^ghcConsDSL ::/ .. /^$/;
+
+    s/import qualified Prelude/$imports/;
     s/unsafeCoerce :: a -> b/--unsafeCoerce :: a -> b/;
     s/\bfun /\\/;
     s/\brec\b/rec_/;
@@ -11,6 +31,8 @@ while (<>) {
     s/\(>\)/(Prelude.>)/;
     s/\(\+\)/(Prelude.+)/;
     s/\(==\)/(Prelude.==)/;
+    # s/type (Key0?) = .+/type $1 = Foreign.Ptr.Ptr Word/;
+    # s/type Ptr a = Foreign\.Ptr\.Ptr Data\.Word\.Word8/type Ptr a = Prelude.Int/;
     s/Pervasives\.min/(Prelude.min)/;
     s/Pervasives\.max/(Prelude.max)/;
     s/if n>m then None else Some \(n<m\)/if n Prelude.> m then Prelude.Nothing else Prelude.Just \(n Prelude.< m\)/;

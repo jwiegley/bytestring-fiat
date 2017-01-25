@@ -39,6 +39,11 @@ Ltac simplify_maps :=
     [let H1 := fresh "H1" in
      let H2 := fresh "H2" in
      destruct H as [H1 H2]|]
+  | [ H : M.MapsTo (elt:=?T) ?A ?B (P.update ?M1 ?M2) |- _ ] =>
+    apply P.update_mapsto_iff in H;
+    [let H1 := fresh "H1" in
+     let H2 := fresh "H2" in
+     destruct H as [H1|[H1 H2]]]
   | [ H : M.MapsTo (elt:=?T) ?A ?B (M.mapi ?F ?M) |- _ ] =>
     apply F.find_mapsto_iff in H;
     rewrite F.mapi_o, <- F.map_o in H;
@@ -61,6 +66,8 @@ Ltac simplify_maps :=
     apply F.map_mapsto_iff
   | [ |- M.MapsTo (elt:=?T) ?A ?B (P.filter ?F ?M) ] =>
     apply P.filter_iff
+  | [ |- M.MapsTo (elt:=?T) ?A ?B (P.update ?M1 ?M2) ] =>
+    apply P.update_mapsto_iff
   | [ |- M.MapsTo (elt:=?T) ?A ?B (M.mapi ?F ?M) ] =>
     rewrite F.mapi_o, <- F.map_o;
     apply F.map_mapsto_iff
@@ -170,22 +177,103 @@ Obligation 1.
   congruence.
 Qed.
 
-Global Instance add_Proper {elt} :
-  Proper (E.eq ==> eq ==> M.Equal ==> M.Equal) (M.add (elt:=elt)) :=
-  (@F.add_m_Proper elt).
-
-(* Adding to an FMap overwrites the previous entry. *)
-Lemma remove_add : forall elt k (e : elt) m,
-  M.Equal (M.add k e (M.remove k m)) (M.add k e m).
+Lemma filter_Empty : forall elt (m : M.t elt) P,
+  M.Empty (elt:=elt) m -> M.Empty (elt:=elt) (P.filter P m).
 Proof.
   intros.
-  induction m using P.map_induction_bis.
-  - rewrite <- H; assumption.
-  - apply F.Equal_mapsto_iff; split; intros;
-    repeat simplify_maps.
-  - apply F.Equal_mapsto_iff; split; intros;
-    repeat simplify_maps;
-    right; intuition; simplify_maps.
+  unfold P.filter.
+  revert H.
+  apply P.fold_rec; intros.
+    apply M.empty_1.
+  specialize (H1 k).
+  unfold P.Add in H1.
+  rewrite F.elements_o in H1.
+  apply P.elements_Empty in H3.
+  rewrite H3 in H1; simpl in H1.
+  rewrite F.add_eq_o in H1; [| apply E.eq_refl].
+  discriminate.
+Qed.
+
+Lemma filter_empty : forall elt f m,
+  Proper (E.eq ==> eq ==> eq) f
+    -> M.Empty (elt:=elt) m
+    -> M.Equal (P.filter f m) m.
+Proof.
+  intros.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+  simplify_maps.
+Qed.
+
+Lemma filter_idempotent : forall elt (m : M.t elt) P,
+  Proper (E.eq ==> eq ==> eq) P
+    -> M.Equal (P.filter P (P.filter P m)) (P.filter P m).
+Proof.
+  intros.
+  unfold P.filter.
+  apply P.fold_rec; intros.
+    intro k.
+    apply P.elements_Empty in H0.
+    symmetry; rewrite F.elements_o, H0.
+    symmetry; rewrite F.elements_o, P.elements_empty.
+    reflexivity.
+  pose proof (P.filter_iff H).
+  apply H4 in H0; clear H4.
+  rewrite (proj2 H0).
+  rewrite H3.
+  unfold P.Add in H2.
+  symmetry.
+  exact H2.
+Qed.
+
+Lemma filter_add_true : forall elt k (e : elt) m m' P,
+  Proper (E.eq ==> eq ==> eq) P
+    -> ~ M.In (elt:=elt) k m
+    -> M.Equal (P.filter P (M.add k e m)) m'
+    -> P k e = true
+    -> M.Equal (M.add k e (P.filter P m)) m'.
+Proof.
+  intros.
+  rewrite <- H1; clear H1.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+      rewrite <- H3.
+      simplify_maps; intuition.
+      simplify_maps.
+    simplify_maps; intuition.
+  simplify_maps.
+  simplify_maps.
+    rewrite H1.
+    simplify_maps.
+  simplify_maps.
+  right; intuition.
+  simplify_maps.
+Qed.
+
+Lemma filter_add_true_r : forall elt k (e : elt) m m' P,
+  Proper (E.eq ==> eq ==> eq) P
+    -> ~ M.In (elt:=elt) k m
+    -> M.Equal (M.add k e (P.filter P m)) m'
+    -> P k e = true
+    -> M.Equal (P.filter P (M.add k e m)) m'.
+Proof.
+  intros.
+  rewrite <- H1; clear H1.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+    simplify_maps.
+      simplify_maps.
+    simplify_maps.
+    right; intuition.
+    simplify_maps.
+  simplify_maps.
+    simplify_maps.
+    intuition.
+    rewrite <- H3.
+    assumption.
+  simplify_maps.
+  simplify_maps.
+  intuition.
 Qed.
 
 Lemma in_mapsto_iff : forall elt k (m : M.t elt),
@@ -205,6 +293,109 @@ Proof.
   apply F.find_mapsto_iff in H.
   rewrite H.
   reflexivity.
+Qed.
+
+Lemma not_in_mapsto_iff : forall elt k (m : M.t elt),
+  ~ M.In (elt:=elt) k m <-> forall e, ~ M.MapsTo (elt:=elt) k e m.
+Proof.
+  split; intros; unfold not; intros.
+    apply H.
+    apply in_mapsto_iff.
+    exists e; assumption.
+  apply (proj1 (in_mapsto_iff _ _ _)) in H0.
+  destruct H0.
+  apply (H x); assumption.
+Qed.
+
+Lemma filter_add_false : forall elt k (e : elt) m m' P,
+  Proper (E.eq ==> eq ==> eq) P
+    -> ~ M.In (elt:=elt) k m
+    -> M.Equal (P.filter P (M.add k e m)) m'
+    -> P k e = false
+    -> M.Equal (P.filter P m) m'.
+Proof.
+  intros.
+  rewrite <- H1; clear H1.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+    simplify_maps; intuition.
+    simplify_maps.
+    right; intuition.
+    rewrite <- H1 in H3.
+    contradiction H0.
+    apply in_mapsto_iff.
+    exists e0; assumption.
+  simplify_maps.
+  simplify_maps.
+    rewrite H1 in H2.
+    congruence.
+  simplify_maps.
+Qed.
+
+Lemma filter_add_false_r : forall elt k (e : elt) m m' P,
+  Proper (E.eq ==> eq ==> eq) P
+    -> ~ M.In (elt:=elt) k m
+    -> M.Equal (P.filter P m) m'
+    -> P k e = false
+    -> M.Equal (P.filter P (M.add k e m)) m'.
+Proof.
+  intros.
+  rewrite <- H1; clear H1.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+    simplify_maps.
+      simplify_maps.
+      intuition.
+      rewrite H1 in H2.
+      congruence.
+    simplify_maps.
+  simplify_maps.
+  simplify_maps.
+  intuition.
+  simplify_maps.
+  right; intuition.
+  rewrite <- H1 in H3.
+  contradiction H0.
+  apply in_mapsto_iff.
+  exists e0.
+  assumption.
+Qed.
+
+Lemma filter_not_in : forall elt k (m : M.t elt) P,
+  ~ M.In (elt:=elt) k m -> ~ M.In (elt:=elt) k (P.filter P m).
+Proof.
+  intros.
+  unfold P.filter.
+  apply P.fold_rec_nodep; intros.
+    unfold not; intros.
+    apply F.empty_in_iff in H0.
+    contradiction.
+  destruct (P k0 e); auto.
+  unfold not; intros.
+  apply F.add_in_iff in H2; intuition.
+  rewrite H3 in *; clear H3.
+  apply H.
+  apply in_mapsto_iff.
+  exists e.
+  assumption.
+Qed.
+
+Global Instance add_Proper {elt} :
+  Proper (E.eq ==> eq ==> M.Equal ==> M.Equal) (M.add (elt:=elt)) :=
+  (@F.add_m_Proper elt).
+
+(* Adding to an FMap overwrites the previous entry. *)
+Lemma remove_add : forall elt k (e : elt) m,
+  M.Equal (M.add k e (M.remove k m)) (M.add k e m).
+Proof.
+  intros.
+  induction m using P.map_induction_bis.
+  - rewrite <- H; assumption.
+  - apply F.Equal_mapsto_iff; split; intros;
+    repeat simplify_maps.
+  - apply F.Equal_mapsto_iff; split; intros;
+    repeat simplify_maps;
+    right; intuition; simplify_maps.
 Qed.
 
 Lemma add_associative {elt}
@@ -469,5 +660,128 @@ Ltac apply_for_all :=
 
 Definition keep_keys {elt} (P : M.key -> bool) : M.t elt -> M.t elt :=
   P.filter (fun k _ => P k).
+
+Global Program Instance update_Proper {elt} :
+  Proper (M.Equal (elt:=elt) ==> M.Equal (elt:=elt) ==> M.Equal)
+         (@P.update elt).
+Obligation 1.
+  relational.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+      simplify_maps.
+        left.
+        rewrite <- H0.
+        assumption.
+      simplify_maps.
+      right; intuition.
+      rewrite <- H.
+      assumption.
+    apply H3.
+    rewrite H0.
+    assumption.
+  simplify_maps.
+    simplify_maps.
+      left.
+      rewrite H0.
+      assumption.
+    simplify_maps.
+    right; intuition.
+    rewrite H.
+    assumption.
+  apply H3.
+  rewrite <- H0.
+  assumption.
+Qed.
+
+Lemma update_empty_l : forall elt (m : M.t elt),
+  M.Equal (P.update (M.empty _) m) m.
+Proof. intros; apply F.Equal_mapsto_iff; split; intros; simplify_maps. Qed.
+
+Lemma update_empty_r : forall elt (m : M.t elt),
+  M.Equal (P.update m (M.empty _)) m.
+Proof.
+  intros.
+  apply F.Equal_mapsto_iff; split; intros.
+    simplify_maps.
+  simplify_maps.
+  right; intuition.
+  apply F.empty_in_iff in H0.
+  assumption.
+Qed.
+
+Lemma update_find_l : forall k elt (m1 m2 : M.t elt),
+  ~ M.In k m2 -> M.find k (P.update m1 m2) = M.find k m1.
+Proof.
+  intros.
+  unfold P.update.
+  apply P.fold_rec_bis; intros; auto.
+  destruct (E.eq_dec k0 k).
+    rewrite e0 in H0.
+    contradiction H.
+    exists e.
+    assumption.
+  rewrite !F.add_neq_o; trivial.
+Qed.
+
+Lemma update_find_r : forall k elt (m1 m2 : M.t elt),
+  ~ M.In k m1 -> M.find k (P.update m1 m2) = M.find k m2.
+Proof.
+  intros.
+  unfold P.update.
+  apply P.fold_rec_bis; intros.
+  - rewrite <- H0; assumption.
+  - rewrite F.empty_o.
+    apply F.not_find_in_iff; assumption.
+  - destruct (E.eq_dec k0 k).
+      rewrite !F.add_eq_o; trivial.
+    rewrite !F.add_neq_o; trivial.
+Qed.
+
+Lemma update_add : forall k elt e (m1 m2 : M.t elt),
+  M.Equal (P.update m1 (M.add k e m2)) (M.add k e (P.update m1 m2)).
+Proof.
+  intros.
+  apply F.Equal_mapsto_iff; split; intros.
+    apply P.update_mapsto_iff in H.
+    destruct H.
+      simplify_maps.
+        simplify_maps.
+      simplify_maps.
+      right; intuition.
+      apply P.update_mapsto_iff.
+      left; assumption.
+    destruct H.
+    simplify_maps.
+    destruct (E.eq_dec k k0) eqn:Heqe.
+      left; intuition; subst.
+      contradiction H0.
+      apply F.in_find_iff.
+      rewrite F.add_eq_o; trivial.
+      unfold not; intros.
+      discriminate.
+    right; intuition.
+    apply P.update_mapsto_iff.
+    right; intuition.
+    apply H0.
+    apply F.in_find_iff.
+    rewrite F.add_neq_o; trivial.
+    apply F.in_find_iff; trivial.
+  simplify_maps;
+  apply P.update_mapsto_iff.
+    left.
+    simplify_maps.
+  apply P.update_mapsto_iff in H4.
+  destruct H4.
+    left.
+    simplify_maps.
+  destruct H.
+  right; intuition.
+  destruct (proj1 (in_mapsto_iff _ _ _) H1).
+  simplify_maps.
+  apply H0.
+  apply in_mapsto_iff.
+  exists x.
+  assumption.
+Qed.
 
 End FMapExt.

@@ -62,7 +62,7 @@ Record HeapIntf (Env : Type) := {
   free_correct : forall r env env' ptr,
     Mem_AbsR r env
       -> freeBytes ptr env = env'
-      -> forall r', free r ptr ↝ (r', tt) /\ Mem_AbsR r' env';
+      -> forall r', free r ptr ↝ r' /\ Mem_AbsR r' env';
 
   realloc_correct : forall r env env' old sz new,
     Mem_AbsR r env
@@ -77,17 +77,17 @@ Record HeapIntf (Env : Type) := {
   poke_correct : forall r env env' ptr w,
     Mem_AbsR r env
       -> pokePtr ptr w env = env'
-      -> forall r', poke r ptr w ↝ (r', tt) /\ Mem_AbsR r' env';
+      -> forall r', poke r ptr w ↝ r' /\ Mem_AbsR r' env';
 
   memcpy_correct : forall r env env' addr1 addr2 sz,
     Mem_AbsR r env
       -> copyBytes addr1 sz addr2 env = env'
-      -> forall r', memcpy r addr1 addr2 sz ↝ (r', tt) /\ Mem_AbsR r' env';
+      -> forall r', memcpy r addr1 addr2 sz ↝ r' /\ Mem_AbsR r' env';
 
   memset_correct : forall r env env' addr w sz,
     Mem_AbsR r env
       -> fillBytes addr w sz env = env'
-      -> forall r', memset r addr sz w ↝ (r', tt) /\ Mem_AbsR r' env'
+      -> forall r', memset r addr sz w ↝ r' /\ Mem_AbsR r' env'
 }.
 
 (** In order to refine to a computable heap, we have to add the notion of
@@ -103,14 +103,29 @@ Proof.
   intros.
   start sharpening ADT.
 
-  hone representation over HeapSpec using (@Mem_AbsR Env).
+  eapply transitivityT.
+  eapply annotate_ADT with
+  (methDefs' := icons {|methBody :=  _|} (* emptyS *)
+               (icons {|methBody :=  _|} (* allocS *)
+               (icons {|methBody :=  _|} (* freeS *)
+               (icons {|methBody :=  _|} (* reallocS *)
+               (icons {|methBody :=  _|} (* peekS *)
+               (icons {|methBody :=  _|} (* pokeS *)
+               (icons {|methBody :=  _|} (* memcpyS *)
+               (icons {|methBody :=  _|} (* memsetS *)
+                inil ) ) ) ) ) ) ) )
+               (AbsR := @Mem_AbsR Env).
+  simpl.
+  repeat apply Build_prim_prod;
+  simpl; intros;
+  try simplify with monad laws; set_evars;
+  try exact tt.
 
   (* refine method emptyS. *)
   {
-    rewrite refine_pick.
-      instantiate (1 := ret mem).
-      finish honing.
-
+    apply refine_pick.
+    subst H.
+    instantiate (1 := ret mem).
     intros.
     apply empty_correct; assumption.
   }
@@ -149,7 +164,6 @@ Proof.
   (* refine method freeS. *)
   {
     refine pick val (freeBytes ffi d r_n).
-      simplify with monad laws; simpl.
       finish honing.
 
     eapply free_correct; eauto.
@@ -165,7 +179,7 @@ Proof.
 
       refine pick val (snd realloc).
         simplify with monad laws.
-        rewrite Heqrealloc.
+        rewrite Heqrealloc; simpl.
         finish honing.
 
       symmetry in Heqrealloc.
@@ -179,7 +193,8 @@ Proof.
     eapply realloc_correct
       with (r':={| resvs := M.add addr (` d0) (M.remove d (resvs r_o))
                  ; bytes := Ifopt M.find d (resvs r_o) as sz
-                            Then copy_bytes d addr (N.min sz (` d0)) (bytes r_o)
+                            Then copy_bytes d addr (N.min sz (` d0))
+                                            (bytes r_o) (bytes r_o)
                             Else bytes r_o |})
       in Heqrealloc; eauto.
     breakdown; destruct_computations.
@@ -191,16 +206,16 @@ Proof.
     refine pick val (fst (peekPtr ffi d r_n)).
       simplify with monad laws.
       refine pick val r_n.
-        simplify with monad laws.
+        simplify with monad laws; simpl.
         finish honing.
       assumption.
 
     remember (peekPtr _ _ _) as peek.
     symmetry in Heqpeek.
     destruct peek as [w env'].
-    eapply peek_correct in Heqpeek; eauto.
+    eapply peek_correct with (r':=r_o) in Heqpeek; eauto.
     breakdown; destruct_computations.
-    inversion H3; clear H5; subst.
+    inv H4.
     simpl in *.
     eassumption.
   }
@@ -208,7 +223,6 @@ Proof.
   (* refine method pokeS. *)
   {
     refine pick val (pokePtr ffi d d0 r_n).
-      simplify with monad laws.
       finish honing.
 
     eapply poke_correct; eauto.
@@ -217,7 +231,6 @@ Proof.
   (* refine method memcpyS. *)
   {
     refine pick val (copyBytes ffi d d1 d0 r_n).
-      simplify with monad laws.
       finish honing.
 
     eapply memcpy_correct; eauto.
@@ -226,7 +239,6 @@ Proof.
   (* refine method memsetS. *)
   {
     refine pick val (fillBytes ffi d d1 d0 r_n).
-      simplify with monad laws.
       finish honing.
 
     eapply memset_correct; eauto.
@@ -237,6 +249,6 @@ Defined.
 
 Definition HeapFFI' {Env : Type} (ffi : HeapIntf Env) (mem : Mem Env) :=
   Eval simpl in projT1 (HeapFFI ffi mem).
-Print HeapFFI'.
+(* Print HeapFFI'. *)
 
 End HeapFFI.

@@ -26,23 +26,23 @@ Definition crep := ComputationalADT.cRep impl.
 Open Scope N_scope.
 
 Definition emptyHeap   : crep :=
-  Eval compute in CallConstructor impl emptyS.
+  Eval compute in CallMethod impl emptyS.
 Definition allocHeap (r : crep) (len : Size | 0 < len) : crep * Ptr Word :=
   Eval compute in CallMethod impl allocS r len.
 Definition freeHeap (r : crep) (addr : Ptr Word) : crep :=
-  Eval compute in fst (CallMethod impl freeS r addr).
+  Eval compute in CallMethod impl freeS r addr.
 Definition reallocHeap (r : crep) (addr : Ptr Word) (len : Size | 0 < len) :
   crep * Ptr Word :=
   Eval compute in CallMethod impl reallocS r addr len.
 Definition peekHeap (r : crep) (addr : Ptr Word) : crep * Word :=
   Eval compute in CallMethod impl peekS r addr.
 Definition pokeHeap (r : crep) (addr : Ptr Word) (w : Word) : crep :=
-  Eval compute in fst (CallMethod impl pokeS r addr w).
+  Eval compute in CallMethod impl pokeS r addr w.
 Definition memcpyHeap (r : crep) (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) :
   crep :=
-  Eval compute in fst (CallMethod impl memcpyS r addr addr2 len).
+  Eval compute in CallMethod impl memcpyS r addr addr2 len.
 Definition memsetHeap (r : crep) (addr : Ptr Word) (len : Size) (w : Word) : crep :=
-  Eval compute in fst (CallMethod impl memsetS r addr len w).
+  Eval compute in CallMethod impl memsetS r addr len w.
 
 Section ByteStringExt.
 
@@ -59,9 +59,9 @@ Definition BScrep := ComputationalADT.cRep BSimpl.
 Open Scope N_scope.
 
 Definition emptyBS   : BScrep :=
-  Eval compute in CallConstructor BSimpl emptyS.
+  Eval compute in CallMethod BSimpl emptyS.
 Definition consBS (r : BScrep) (w : Word) : BScrep :=
-  Eval compute in fst (CallMethod BSimpl consS r w).
+  Eval compute in CallMethod BSimpl consS r w.
 Definition unconsBS (r : BScrep) : BScrep * option Word :=
   Eval compute in CallMethod BSimpl unconsS r.
 
@@ -294,23 +294,39 @@ Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
 
 Module Import BS := ByteStringFFI M.
 
-Extract Constant IO "a" => "Prelude.IO a".
-Extract Constant Ptr "a" => "Foreign.Ptr.Ptr Data.Word.Word8".
+Extract Constant IO  "a" => "Prelude.IO a".
+(* Extract Constant Ptr "a" => "Foreign.Ptr.Ptr a". *)
+Extract Constant Ptr "a" => "Prelude.Int".
 
 (* Extract Inlined Constant unsafeDupablePerformIO => "System.IO.Unsafe.unsafeDupablePerformIO". *)
 Extract Inlined Constant unsafeDupablePerformIO => "System.IO.Unsafe.unsafePerformIO".
 
 Extract Inlined Constant fmapIO   => "Prelude.fmap".
-Extract Inlined Constant bindIO   => "(>>=)".
+Extract Inlined Constant bindIO   => "(GHC.Base.>>=)".
 Extract Inlined Constant returnIO => "Prelude.return".
 Extract Inlined Constant joinIO   => "Prelude.join".
-Extract Inlined Constant malloc   => "Foreign.Marshal.Alloc.mallocBytes".
-Extract Inlined Constant free     => "Foreign.Marshal.Alloc.free".
-Extract Inlined Constant realloc  => "Foreign.Marshal.Alloc.realloc".
-Extract Inlined Constant peek     => "Foreign.Storable.peek".
-Extract Inlined Constant poke     => "Foreign.Storable.poke".
-Extract Inlined Constant memcpy   => "Foreign.Marshal.Utils.copyBytes".
-Extract Inlined Constant memset   => "Foreign.Marshal.Utils.fillBytes".
+Extract Inlined Constant malloc   =>
+  "(\x -> unsafeCoerce (Foreign.Marshal.Alloc.mallocBytes x))".
+Extract Inlined Constant free     =>
+  "(\x -> Foreign.Marshal.Alloc.free (unsafeCoerce x))".
+Extract Inlined Constant realloc  =>
+  "(\x y -> unsafeCoerce (Foreign.Marshal.Alloc.reallocBytes (unsafeCoerce x) y))".
+Extract Inlined Constant peek     =>
+  "(\x -> Foreign.Storable.peek (unsafeCoerce x))".
+Extract Inlined Constant poke     =>
+  "(\x y -> Foreign.Storable.poke (unsafeCoerce x) y)".
+Extract Inlined Constant memcpy   =>
+  "(\x y -> Foreign.Marshal.Utils.copyBytes (unsafeCoerce x) (unsafeCoerce y))".
+Extract Inlined Constant memset   =>
+  "(\x -> Foreign.Marshal.Utils.fillBytes (unsafeCoerce x))".
+Extract Inlined Constant plusPtr  =>
+  "(\x y -> unsafeCoerce (Foreign.Ptr.plusPtr (unsafeCoerce x) y))".
+Extract Inlined Constant minusPtr =>
+  "(\x y -> Foreign.Ptr.minusPtr (unsafeCoerce x) (unsafeCoerce y))".
+(* Extract Inlined Constant eqbPtr   => "(Prelude.==)". *)
+(* Extract Inlined Constant eqdecPtr => "(Prelude.==)". *)
+(* Extract Inlined Constant ltbPtr   => "(Prelude.<)". *)
+(* Extract Inlined Constant lebPtr   => "(Prelude.<=)". *)
 
 (** Final extraction *)
 
@@ -321,20 +337,21 @@ Set Extraction AutoInline.
 Set Extraction Optimize.
 Set Extraction AccessOpaque.
 
-Extraction "ByteStringExt2.hs"
-  (* emptyHeap *)
-  (* allocHeap *)
-  (* freeHeap *)
-  (* reallocHeap *)
-  (* peekHeap *)
-  (* pokeHeap *)
-  (* memcpyHeap *)
-  (* memsetHeap *)
-  (* N.of_nat *)
-  (* N.to_nat *)
+Extraction "ByteStringExt.hs"
+  emptyHeap
+  allocHeap
+  freeHeap
+  reallocHeap
+  peekHeap
+  pokeHeap
+  memcpyHeap
+  memsetHeap
+  N.of_nat
+  N.to_nat
 
-  (* emptyBS *)
-  (* consBS *)
-  (* unconsBS *)
+  emptyBS
+  consBS
+  unconsBS
 
-  ghcConsDSL'.
+  ghcConsDSL'
+  ghcUnconsDSL'.
