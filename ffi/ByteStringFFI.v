@@ -60,12 +60,10 @@ Proof.
   Local Transparent memcpy.
 Defined.
 
-Theorem consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
+Corollary consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
   refine (buffer_cons r bs w)
          (denote HeapSpec (projT1 (consDSL r bs w))).
-Proof.
-  intros; apply denote_refineEquiv.
-Qed.
+Proof. intros; apply denote_refineEquiv. Qed.
 
 Hint Unfold buffer_uncons.
 
@@ -85,12 +83,33 @@ Proof.
   Local Transparent memcpy.
 Defined.
 
-Theorem unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
+Corollary unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
     refine (buffer_uncons r bs)
            (denote HeapSpec (projT1 (unconsDSL r bs))).
+Proof. intros; apply denote_refineEquiv. Qed.
+
+Hint Unfold buffer_append.
+
+Definition appendDSL r1 ps1 r2 ps2:
+  reflect_ADT_DSL_computation HeapSpec (buffer_append r1 ps1 r2 ps2).
 Proof.
-  intros; apply denote_refineEquiv.
-Qed.
+  Local Opaque poke.
+  Local Opaque alloc.
+  Local Opaque free.
+  Local Opaque peek.
+  Local Opaque memcpy.
+  Fail Timeout 5 Time compile_term.
+  Local Transparent poke.
+  Local Transparent alloc.
+  Local Transparent free.
+  Local Transparent peek.
+  Local Transparent memcpy.
+Admitted.
+
+Corollary appendDSL_correct : forall (r1 r2 : Rep HeapSpec) (bs1 bs2 : PS),
+    refine (buffer_append r1 bs1 r2 bs2)
+           (denote HeapSpec (projT1 (appendDSL r1 bs1 r2 bs2))).
+Proof. intros; apply denote_refineEquiv. Qed.
 
 (****************************************************************************
  * Denote a [ClientDSL HeapSpec] term into a GHC computation
@@ -192,6 +211,31 @@ Defined.
 
 Definition ghcConsDSL' := Eval simpl in projT1 ghcConsDSL.
 Print ghcConsDSL'.
+
+Lemma ghcUnconsDSL :
+  { f : PS -> PS * option Word
+  & forall r bs,
+      f bs = unsafeDupablePerformIO
+               (ghcDenote ((fun x => returnIO (snd (fst x), snd x))
+                             <$> projT1 (unconsDSL r bs))) }.
+Proof.
+  eexists; intros.
+  symmetry.
+  simpl projT1.
+  unfold comp.
+  rewrite !fmap_If.
+  etransitivity.
+    setoid_rewrite ghcDenote_If.
+    reflexivity.
+  simpl.
+  do 4 (unfold compose, comp; simpl).
+  unfold ghcDenote; simpl.
+  rewrite !bindIO_returnIO.
+  higher_order_reflexivity.
+Defined.
+
+Definition ghcUnconsDSL' := Eval simpl in projT1 ghcUnconsDSL.
+Print ghcUnconsDSL'.
 
 End ByteStringFFI.
 
