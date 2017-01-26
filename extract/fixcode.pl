@@ -19,7 +19,12 @@ END_IMPORTS
 
 while (<>) {
     next if /^ghcDenote ::/ .. /^$/;
+    next if /^consDSL ::/ .. /^$/;
     next if /^ghcConsDSL ::/ .. /^$/;
+    next if /^unconsDSL ::/ .. /^$/;
+    next if /^ghcUnconsDSL ::/ .. /^$/;
+    next if /^appendDSL ::/ .. /^$/;
+    next if /^ghcAppendDSL ::/ .. /^$/;
 
     s/import qualified Prelude/$imports/;
     s/unsafeCoerce :: a -> b/--unsafeCoerce :: a -> b/;
