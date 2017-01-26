@@ -117,6 +117,23 @@ Proof.
   intros. destruct i; simpl; auto; reflexivity.
 Qed.
 
+Lemma IfDep_Then_Else_fun_Proper A :
+  Proper (forall_relation
+            (fun b : bool =>
+               (pointwise_relation _ eq ==>
+                pointwise_relation _ eq ==> eq)%signature))
+         (fun b t e => @IfDep_Then_Else b A t e).
+Proof.
+  intros ???????.
+  destruct a; simpl; [apply H | apply H0 ].
+Qed.
+
+Corollary strip_IfDep_Then_Else :
+  forall (c : bool) (A : Type) (t e : A),
+  (IfDep c Then fun _ : c = true => t Else (fun _ : c = false => e)) =
+    If c Then t Else e.
+Proof. destruct c; trivial. Qed.
+
 Lemma refineEquiv_If_Then_Else :
   forall (A : Type) (c : bool) (x y : Comp A),
     refineEquiv x y ->

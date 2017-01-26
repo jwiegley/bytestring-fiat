@@ -88,20 +88,6 @@ Corollary unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
          (denote HeapSpec (projT1 (unconsDSL r bs))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
-Lemma refineEquiv_reflect_ADT_DSL_computation : forall A (x y : Comp A),
-  refineEquiv x y
-    -> reflect_ADT_DSL_computation HeapSpec x
-    -> reflect_ADT_DSL_computation HeapSpec y.
-Proof.
-  intros.
-  destruct X as [H1 H2].
-  exists H1.
-  split; intros.
-    apply H in H0.
-    apply H2; auto.
-  apply H, H2; auto.
-Qed.
-
 Hint Unfold ByteStringHeap.buffer_append_obligation_1.
 Hint Unfold buffer_append.
 
@@ -113,25 +99,7 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-  repeat (autounfold; simpl).
-  eapply refineEquiv_reflect_ADT_DSL_computation.
-    Local Transparent alloc.
-    unfold alloc; simpl.
-    Local Opaque alloc.
-    Time do 2 rewrite refineEquiv_strip_IfDep_Then_Else.
-    reflexivity.
   Time compile_term.
-  - destruct_computations.
-    admit.
-  - destruct_computations.
-    clear.
-    apply HeapState.P.for_all_iff.
-      FMapExt.relational; nomega.
-    intros.
-    nomega'.
-    admit.
-  - destruct_computations.
-    reflexivity.
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
@@ -160,6 +128,8 @@ Axiom bindIO_returnIO : forall {a b : Type} (f : a -> b) (x : IO a),
   bindIO x (fun a => returnIO (f a)) = fmapIO f x.
 
 Axiom unsafeDupablePerformIO : forall {a : Type}, IO a -> a.
+Axiom unsafeDupablePerformIO_inj : forall {a : Type} x y,
+  x = y -> @unsafeDupablePerformIO a x = unsafeDupablePerformIO y.
 
 Axiom malloc  : Size -> IO (Ptr Word).
 Axiom free    : Ptr Word -> IO ().
@@ -209,16 +179,38 @@ Corollary bind_If `{Monad f} : forall A B (k : A -> f B) b t e,
   ((If b Then t Else e) >>= k) = If b Then t >>= k Else e >>= k.
 Proof. destruct b; reflexivity. Qed.
 
+Corollary bind_IfDep `{Monad f} : forall A B (k : A -> f B) b t e,
+  ((IfDep b Then t Else e) >>= k) =
+  IfDep b Then (fun H => t H >>= k) Else (fun H => e H >>= k).
+Proof. destruct b; reflexivity. Qed.
+
 Corollary fmap_If `{Functor f} : forall A B (k : A -> B) b t e,
   fmap k (If b Then t Else e) = If b Then fmap k t Else fmap k e.
+Proof. destruct b; reflexivity. Qed.
+
+Corollary fmap_IfDep `{Functor f} : forall A B (k : A -> B) b t e,
+  fmap k (IfDep b Then t Else e) =
+  IfDep b Then (fun H => fmap k (t H)) Else (fun H => fmap k (e H)).
 Proof. destruct b; reflexivity. Qed.
 
 Corollary iter_If `{Functor f} : forall A (phi : f A -> A) b t e,
   iter phi (If b Then t Else e) = If b Then iter phi t Else iter phi e.
 Proof. destruct b; reflexivity. Qed.
 
-Corollary ghcDenote_If : forall A b (t e : ClientDSL (getADTSig HeapSpec) (Rep HeapSpec) (IO A)),
-  ghcDenote (If b Then t Else e) = If b Then ghcDenote t Else ghcDenote e.
+Corollary iter_IfDep `{Functor f} : forall A (phi : f A -> A) b t e,
+  iter phi (IfDep b Then t Else e) =
+  IfDep b Then (fun H => iter phi (t H)) Else (fun H => iter phi (e H)).
+Proof. destruct b; reflexivity. Qed.
+
+Corollary ghcDenote_If :
+  forall A b (t e : ClientDSL (getADTSig HeapSpec) (Rep HeapSpec) (IO A)),
+    ghcDenote (If b Then t Else e) = If b Then ghcDenote t Else ghcDenote e.
+Proof. destruct b; reflexivity. Qed.
+
+Corollary ghcDenote_IfDep :
+  forall b A (t : b = true -> ClientDSL (getADTSig HeapSpec) (Rep HeapSpec) (IO A))
+         (e : b = false -> ClientDSL (getADTSig HeapSpec) (Rep HeapSpec) (IO A)),
+    ghcDenote (IfDep b Then t Else e) = IfDep b Then ghcDenote \o t Else ghcDenote \o e.
 Proof. destruct b; reflexivity. Qed.
 
 Lemma ghcConsDSL :
@@ -256,6 +248,7 @@ Proof.
   symmetry.
   simpl projT1.
   unfold comp.
+  simpl If_Then_Else.
   rewrite !fmap_If.
   etransitivity.
     setoid_rewrite ghcDenote_If.
@@ -269,6 +262,36 @@ Defined.
 
 Definition ghcUnconsDSL' := Eval simpl in projT1 ghcUnconsDSL.
 Print ghcUnconsDSL'.
+
+Lemma ghcAppendDSL :
+  { f : PS -> PS -> PS
+  & forall r1 bs1 r2 bs2,
+      f bs1 bs2 = unsafeDupablePerformIO
+                    (ghcDenote ((returnIO \o snd)
+                                  <$> projT1 (appendDSL r1 bs1 r2 bs2))) }.
+Proof.
+  eexists; intros.
+  symmetry.
+  simpl projT1.
+  unfold comp.
+  rewrite fmap_IfDep.
+  etransitivity.
+    setoid_rewrite ghcDenote_IfDep.
+    unfold comp.
+    apply unsafeDupablePerformIO_inj.
+    apply IfDep_Then_Else_fun_Proper; intro H.
+      rewrite fmap_IfDep.
+      apply ghcDenote_IfDep.
+    reflexivity.
+  simpl.
+  do 4 (unfold compose, comp; simpl).
+  unfold ghcDenote; simpl.
+  do 2 rewrite strip_IfDep_Then_Else.
+  higher_order_reflexivity.
+Defined.
+
+Definition ghcAppendDSL' := Eval simpl in projT1 ghcAppendDSL.
+Print ghcAppendDSL'.
 
 End ByteStringFFI.
 

@@ -479,27 +479,56 @@ Lemma reflect_ADT_DSL_computation_If_Then_Else
       (k_DSL : reflect_ADT_DSL_computation e)
   : reflect_ADT_DSL_computation (If c Then t Else e).
 Proof.
-  intros.
-  exists (If c
-             Then projT1 c_DSL
-             Else projT1 k_DSL).
+  exists (If c Then projT1 c_DSL Else projT1 k_DSL).
   split; intros.
-  - apply If_Then_Else_computes_to in H.
+    apply If_Then_Else_computes_to in H.
     simpl in *.
     destruct c.
-    destruct c_DSL.
+    destruct c_DSL; simpl in *.
+    eapply i; eassumption.
+    destruct k_DSL; simpl in *.
+    eapply i; eassumption.
+  destruct c.
+  destruct c_DSL; simpl in *.
+  eapply i; eassumption.
+  destruct k_DSL; simpl in *.
+  eapply i; eassumption.
+Defined.
+
+Corollary IfDep_Then_Else_computes_to :
+  forall A c (t : c = true -> Comp A) (e : c = false -> Comp A) (v : A),
+    (IfDep c Then t Else e) ↝ v
+      -> IfDep c
+         Then (fun H => t H ↝ v)
+         Else (fun H => e H ↝ v).
+Proof. destruct c; trivial. Qed.
+
+Lemma reflect_ADT_DSL_computation_IfDep_Then_Else
+      {A : Type} c  (t : c = true -> Comp A) (e : c = false -> Comp A)
+      (c_DSL : forall H : c = true, reflect_ADT_DSL_computation (t H))
+      (k_DSL : forall H : c = false, reflect_ADT_DSL_computation (e H))
+  : reflect_ADT_DSL_computation (IfDep c Then t Else e).
+Proof.
+  exists (IfDep c
+          Then (fun H => projT1 (c_DSL H))
+          Else (fun H => projT1 (k_DSL H))).
+  split; intros.
+    apply IfDep_Then_Else_computes_to in H.
+    simpl in *.
+    destruct c; simpl in *.
+    destruct (c_DSL eq_refl).
     simpl in *.
     eapply i; eassumption.
     destruct k_DSL.
     simpl in *.
     eapply i; eassumption.
-  - destruct c; simpl in *.
-    destruct c_DSL.
-    simpl in *.
-    eapply i; eassumption.
-    destruct k_DSL.
-    simpl in *.
-    eapply i; eassumption.
+  destruct c; simpl in *.
+  destruct (c_DSL eq_refl).
+  simpl in *.
+  eapply i; eassumption.
+  destruct (k_DSL eq_refl).
+  simpl in *.
+  eapply i; eassumption.
 Defined.
 
 End ClientDSL.
@@ -953,18 +982,35 @@ Ltac build_computational_spine :=
     eapply (@CJoin _ _ _ _ _ _ _ _ _ v)
   end.
 
+Lemma refineEquiv_reflect_ADT_DSL_computation :
+  forall sig (adt : ADT sig) A (x y : Comp A),
+  refineEquiv x y
+    -> reflect_ADT_DSL_computation adt x
+    -> reflect_ADT_DSL_computation adt y.
+Proof.
+  intros.
+  destruct X as [H1 H2].
+  exists H1.
+  split; intros.
+    apply H in H0.
+    apply H2; auto.
+  apply H, H2; auto.
+Qed.
+
 Ltac simplify_reflection :=
   eapply reflect_ADT_DSL_computation_simplify;
   [ set_evars; intros;
     autorewrite with monad laws; simpl;
     try rewrite refineEquiv_If_Then_Else_Bind;
     finish honing
-  | try (eapply reflect_ADT_DSL_computation_If_Then_Else)].
+  | try first
+      [ eapply reflect_ADT_DSL_computation_If_Then_Else
+      | eapply reflect_ADT_DSL_computation_IfDep_Then_Else; intros ] ].
 
 Ltac compile_term :=
   repeat (autounfold; simpl); (* Unfold definitions as necessary *)
   repeat simplify_reflection; (* Do some simplication and break down If expressions *)
-  ( eexists; split; intros; (* Decompose iff into the two equivalence conditions *)
+  ( eexists; split; intros;   (* Decompose iff into the two equivalence conditions *)
     [ repeat build_computational_spine;
       try solve_for_call
     | repeat solve_for_call' ] ).

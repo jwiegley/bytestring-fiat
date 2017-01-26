@@ -354,4 +354,5 @@ Extraction "ByteStringExt.hs"
   unconsBS
 
   ghcConsDSL'
-  ghcUnconsDSL'.
+  ghcUnconsDSL'
+  ghcAppendDSL'.
