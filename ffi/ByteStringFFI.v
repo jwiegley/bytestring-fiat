@@ -84,10 +84,25 @@ Proof.
 Defined.
 
 Corollary unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
-    refine (buffer_uncons r bs)
-           (denote HeapSpec (projT1 (unconsDSL r bs))).
+  refine (buffer_uncons r bs)
+         (denote HeapSpec (projT1 (unconsDSL r bs))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
+Lemma refineEquiv_reflect_ADT_DSL_computation : forall A (x y : Comp A),
+  refineEquiv x y
+    -> reflect_ADT_DSL_computation HeapSpec x
+    -> reflect_ADT_DSL_computation HeapSpec y.
+Proof.
+  intros.
+  destruct X as [H1 H2].
+  exists H1.
+  split; intros.
+    apply H in H0.
+    apply H2; auto.
+  apply H, H2; auto.
+Qed.
+
+Hint Unfold ByteStringHeap.buffer_append_obligation_1.
 Hint Unfold buffer_append.
 
 Definition appendDSL r1 ps1 r2 ps2:
@@ -98,17 +113,35 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-  Fail Timeout 5 Time compile_term.
+  repeat (autounfold; simpl).
+  eapply refineEquiv_reflect_ADT_DSL_computation.
+    Local Transparent alloc.
+    unfold alloc; simpl.
+    Local Opaque alloc.
+    Time do 2 rewrite refineEquiv_strip_IfDep_Then_Else.
+    reflexivity.
+  Time compile_term.
+  - destruct_computations.
+    admit.
+  - destruct_computations.
+    clear.
+    apply HeapState.P.for_all_iff.
+      FMapExt.relational; nomega.
+    intros.
+    nomega'.
+    admit.
+  - destruct_computations.
+    reflexivity.
   Local Transparent poke.
   Local Transparent alloc.
   Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
-Admitted.
+Defined.
 
 Corollary appendDSL_correct : forall (r1 r2 : Rep HeapSpec) (bs1 bs2 : PS),
-    refine (buffer_append r1 bs1 r2 bs2)
-           (denote HeapSpec (projT1 (appendDSL r1 bs1 r2 bs2))).
+  refine (buffer_append r1 bs1 r2 bs2)
+         (denote HeapSpec (projT1 (appendDSL r1 bs1 r2 bs2))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
 (****************************************************************************
