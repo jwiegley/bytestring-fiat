@@ -7,7 +7,6 @@ import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
 import System.IO.Unsafe
-import GHC.Base
 
 c2w8 :: Char -> Word8
 c2w8 = fromIntegral . fromEnum
@@ -131,56 +130,41 @@ hsEmptyDSL' :: PS1
 hsEmptyDSL' = MakePS1 0 0 0 0
 
 hsConsDSL' :: PS1 -> Word8 -> PS1
-hsConsDSL' p w = System.IO.Unsafe.unsafePerformIO $
+hsConsDSL' p w = unsafePerformIO $
   if ltb 0 (psOffset1 p)
     then do
       let pos = psOffset1 p - 1
-      Foreign.Storable.poke (castWord8Ptr (psBuffer1 p + pos)) w
+      poke (castWord8Ptr (psBuffer1 p + pos)) w
       return $ MakePS1 (psBuffer1 p) (psBufLen1 p) pos ((+) (psLength1 p) 1)
     else
       if leb ((+) (psLength1 p) 1) (psBufLen1 p)
         then do
-          (GHC.Base.>>=)
-            ((\x y -> Foreign.Marshal.Utils.copyBytes (castWord8Ptr x) (castWord8Ptr y))
-              (psBuffer1 p) ((+) (psBuffer1 p) 1)
-              (psLength1 p)) (\_ ->
-            fmap (\_ -> MakePS1 (psBuffer1 p) (psBufLen1 p) 0
-              ((+) (psLength1 p) 1))
-              ((\x y -> Foreign.Storable.poke (castWord8Ptr x) y)
-                ((+) (psBuffer1 p) 0) w));
+          copyBytes (castWord8Ptr (psBuffer1 p))
+                    (castWord8Ptr ((+) (psBuffer1 p) 1))
+                    (psLength1 p)
+          poke (castWord8Ptr ((+) (psBuffer1 p) 0)) w
+          return $ MakePS1 (psBuffer1 p) (psBufLen1 p) 0
+                           ((+) (psLength1 p) 1)
         else
           if ltb 0 (psBufLen1 p)
             then do
-              (GHC.Base.>>=)
-                ((\x -> castWord8PtrIO (Foreign.Marshal.Alloc.mallocBytes x))
-                  ((+) (psLength1 p) 1)) (\cod ->
-                (GHC.Base.>>=)
-                  ((\x y -> Foreign.Marshal.Utils.copyBytes (castWord8Ptr x) (castWord8Ptr y))
-                    (psBuffer1 p) ((+) cod 1) (psLength1 p))
-                  (\_ ->
-                  (GHC.Base.>>=)
-                    ((\x -> Foreign.Marshal.Alloc.free (castWord8Ptr x))
-                      (psBuffer1 p)) (\_ ->
-                    (GHC.Base.>>=)
-                      ((\x y -> Foreign.Storable.poke (castWord8Ptr x) y)
-                        ((+) cod 0) w) (\_ ->
-                      return (MakePS1 cod
-                        ((+) (psLength1 p) 1) 0
-                        ((+) (psLength1 p) 1))))));
+              cod <- castWord8PtrIO (mallocBytes ((+) (psLength1 p) 1))
+              copyBytes (castWord8Ptr (psBuffer1 p))
+                        (castWord8Ptr ((+) cod 1))
+                        (psLength1 p)
+              free (castWord8Ptr (psBuffer1 p))
+              poke (castWord8Ptr ((+) cod 0)) w
+              return $ MakePS1 cod ((+) (psLength1 p) 1) 0 ((+) (psLength1 p) 1)
             else do
-              (GHC.Base.>>=)
-                ((\x -> castWord8PtrIO (Foreign.Marshal.Alloc.mallocBytes x))
-                  1) (\cod ->
-                (GHC.Base.>>=)
-                  ((\x y -> Foreign.Storable.poke (castWord8Ptr x) y)
-                    ((+) cod 0) w) (\_ ->
-                  return (MakePS1 cod 1 0 1)))
+              cod <- castWord8PtrIO (mallocBytes 1)
+              poke (castWord8Ptr ((+) cod 0)) w
+              return $ MakePS1 cod 1 0 1
 
 hsUnconsDSL' :: PS1 -> (,) PS1 (Maybe Word8)
-hsUnconsDSL' p = System.IO.Unsafe.unsafePerformIO $
+hsUnconsDSL' p = unsafePerformIO $
   if ltb 0 (psLength1 p)
     then do
-      a <- Foreign.Storable.peek (castWord8Ptr ((+) (psBuffer1 p) (psOffset1 p)))
+      a <- peek (castWord8Ptr ((+) (psBuffer1 p) (psOffset1 p)))
       return (MakePS1 (psBuffer1 p) (psBufLen1 p)
                       (if eqb1 (psLength1 p) 1 then 0 else psOffset1 p + 1)
                       (psLength1 p - 1), Just a)
