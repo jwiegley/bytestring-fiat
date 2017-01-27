@@ -32,6 +32,33 @@ Module Import FunMaps := FunMaps N_as_DT M.
 Import HeapCanonical.
 Import Heap.
 
+Definition buffer_empty :=
+  ret {| psBuffer := 0
+       ; psBufLen := 0
+       ; psOffset := 0
+       ; psLength := 0 |}.
+
+Hint Unfold buffer_empty.
+
+Definition emptyDSL : reflect_ADT_DSL_computation HeapSpec buffer_empty.
+Proof.
+  Local Opaque poke.
+  Local Opaque alloc.
+  Local Opaque free.
+  Local Opaque peek.
+  Local Opaque memcpy.
+  Time compile_term.
+  Local Transparent poke.
+  Local Transparent alloc.
+  Local Transparent free.
+  Local Transparent peek.
+  Local Transparent memcpy.
+Defined.
+
+Corollary emptyDSL_correct :
+  refine buffer_empty (denote HeapSpec (projT1 emptyDSL)).
+Proof. intros; apply denote_refineEquiv. Qed.
+
 Hint Unfold id.
 Hint Unfold bind.
 Hint Unfold Bind2.
@@ -131,6 +158,9 @@ Axiom unsafeDupablePerformIO : forall {a : Type}, IO a -> a.
 Axiom unsafeDupablePerformIO_inj : forall {a : Type} x y,
   x = y -> @unsafeDupablePerformIO a x = unsafeDupablePerformIO y.
 
+Axiom unsafeDupablePerformIO_returnIO : forall {a : Type} (x : a),
+  unsafeDupablePerformIO (returnIO x) = x.
+
 Axiom malloc  : Size -> IO (Ptr Word).
 Axiom free    : Ptr Word -> IO ().
 Axiom realloc : Ptr Word -> Size -> IO (Ptr Word).
@@ -213,6 +243,20 @@ Corollary ghcDenote_IfDep :
     ghcDenote (IfDep b Then t Else e) = IfDep b Then ghcDenote \o t Else ghcDenote \o e.
 Proof. destruct b; reflexivity. Qed.
 
+Lemma ghcEmptyDSL :
+  { f : PS & f = unsafeDupablePerformIO (ghcDenote (returnIO <$> projT1 emptyDSL)) }.
+Proof.
+  eexists; intros.
+  symmetry.
+  unfold comp; simpl.
+  unfold ghcDenote; simpl.
+  rewrite unsafeDupablePerformIO_returnIO.
+  higher_order_reflexivity.
+Defined.
+
+Definition ghcEmptyDSL' := Eval simpl in projT1 ghcEmptyDSL.
+Print ghcEmptyDSL'.
+
 Lemma ghcConsDSL :
   { f : PS -> Word -> PS
   & forall r bs w,
@@ -231,6 +275,7 @@ Proof.
   do 4 (unfold compose, comp; simpl).
   unfold ghcDenote; simpl.
   rewrite !bindIO_returnIO.
+  unfold If_Then_Else.
   higher_order_reflexivity.
 Defined.
 
@@ -257,6 +302,7 @@ Proof.
   do 4 (unfold compose, comp; simpl).
   unfold ghcDenote; simpl.
   rewrite !bindIO_returnIO.
+  unfold If_Then_Else.
   higher_order_reflexivity.
 Defined.
 
@@ -287,6 +333,7 @@ Proof.
   do 4 (unfold compose, comp; simpl).
   unfold ghcDenote; simpl.
   do 2 rewrite strip_IfDep_Then_Else.
+  unfold If_Then_Else.
   higher_order_reflexivity.
 Defined.
 

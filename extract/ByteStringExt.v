@@ -294,6 +294,10 @@ Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
 
 Module Import BS := ByteStringFFI M.
 
+Extract Constant Word => "Data.Word.Word8".
+
+Extract Inlined Constant Zero => "0".
+
 Extract Constant IO  "a" => "Prelude.IO a".
 (* Extract Constant Ptr "a" => "Foreign.Ptr.Ptr a". *)
 Extract Constant Ptr "a" => "Prelude.Int".
@@ -306,23 +310,23 @@ Extract Inlined Constant bindIO   => "(GHC.Base.>>=)".
 Extract Inlined Constant returnIO => "Prelude.return".
 Extract Inlined Constant joinIO   => "Prelude.join".
 Extract Inlined Constant malloc   =>
-  "(\x -> unsafeCoerce (Foreign.Marshal.Alloc.mallocBytes x))".
+  "(\x -> (unsafeCoerce :: Prelude.IO (Foreign.Ptr.Ptr Data.Word.Word8) -> Prelude.IO (Ptr Word)) (Foreign.Marshal.Alloc.mallocBytes x))".
 Extract Inlined Constant free     =>
-  "(\x -> Foreign.Marshal.Alloc.free (unsafeCoerce x))".
+  "(\x -> Foreign.Marshal.Alloc.free ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
 Extract Inlined Constant realloc  =>
-  "(\x y -> unsafeCoerce (Foreign.Marshal.Alloc.reallocBytes (unsafeCoerce x) y))".
+  "(\x y -> (unsafeCoerce :: Prelude.IO (Foreign.Ptr.Ptr Data.Word.Word8) -> Prelude.IO (Ptr Word)) (Foreign.Marshal.Alloc.reallocBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))".
 Extract Inlined Constant peek     =>
-  "(\x -> Foreign.Storable.peek (unsafeCoerce x))".
+  "(\x -> Foreign.Storable.peek ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
 Extract Inlined Constant poke     =>
-  "(\x y -> Foreign.Storable.poke (unsafeCoerce x) y)".
+  "(\x y -> Foreign.Storable.poke ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y)".
 Extract Inlined Constant memcpy   =>
-  "(\x y -> Foreign.Marshal.Utils.copyBytes (unsafeCoerce x) (unsafeCoerce y))".
+  "(\x y -> Foreign.Marshal.Utils.copyBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y))".
 Extract Inlined Constant memset   =>
-  "(\x -> Foreign.Marshal.Utils.fillBytes (unsafeCoerce x))".
+  "(\x -> Foreign.Marshal.Utils.fillBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
 Extract Inlined Constant plusPtr  =>
-  "(\x y -> unsafeCoerce (Foreign.Ptr.plusPtr (unsafeCoerce x) y))".
+  "(\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))".
 Extract Inlined Constant minusPtr =>
-  "(\x y -> Foreign.Ptr.minusPtr (unsafeCoerce x) (unsafeCoerce y))".
+  "(\x y -> Foreign.Ptr.minusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y))".
 (* Extract Inlined Constant eqbPtr   => "(Prelude.==)". *)
 (* Extract Inlined Constant eqdecPtr => "(Prelude.==)". *)
 (* Extract Inlined Constant ltbPtr   => "(Prelude.<)". *)
@@ -353,6 +357,7 @@ Extraction "ByteStringExt.hs"
   consBS
   unconsBS
 
+  ghcEmptyDSL'
   ghcConsDSL'
   ghcUnconsDSL'
   ghcAppendDSL'.

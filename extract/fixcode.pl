@@ -6,6 +6,7 @@ import qualified Data.Function
 import qualified Data.List
 import qualified Data.Maybe
 import qualified Data.Ratio
+import qualified Data.Word
 import qualified Foreign.Marshal.Alloc
 import qualified Foreign.Marshal.Utils
 import qualified Foreign.Ptr
@@ -19,6 +20,9 @@ END_IMPORTS
 
 while (<>) {
     next if /^ghcDenote ::/ .. /^$/;
+
+    next if /^emptyDSL ::/ .. /^$/;
+    next if /^ghcEmptyDSL ::/ .. /^$/;
     next if /^consDSL ::/ .. /^$/;
     next if /^ghcConsDSL ::/ .. /^$/;
     next if /^unconsDSL ::/ .. /^$/;
@@ -26,6 +30,7 @@ while (<>) {
     next if /^appendDSL ::/ .. /^$/;
     next if /^ghcAppendDSL ::/ .. /^$/;
 
+    s/'\\000'/0/g;
     s/import qualified Prelude/$imports/;
     s/unsafeCoerce :: a -> b/--unsafeCoerce :: a -> b/;
     s/\bfun /\\/;
