@@ -31,10 +31,11 @@ Definition buffer_to_list (h : Rep HeapSpec * PS) : list Word :=
   let len := psLength r in
   let off : Ptr Word := plusPtr (psBuffer r) (psOffset r) in
   N.peano_rec _ []
-    (fun k ws => match M.find (plusPtr off (len - N.succ k)) (bytes (fst h)) with
-                 | Some w => w
-                 | None   => Zero
-                 end :: ws) len.
+    (fun k ws =>
+       match M.find (plusPtr off (len - N.succ k)) (bytes (fst h)) with
+       | Some w => w
+       | None   => Zero
+       end :: ws) len.
 
 Example buffer_to_list_ex1 :
   buffer_to_list
@@ -582,7 +583,8 @@ Proof.
 
   {
     simplify with monad laws.
-    setoid_rewrite (@refine_skip2_pick _ (buffer_cons (fst r_n) (snd r_n) d)).
+    setoid_rewrite
+      (@refine_skip2_pick _ (buffer_cons (fst r_n) (snd r_n) d)).
     etransitivity.
       refine_under.
         finish honing.
@@ -595,7 +597,8 @@ Proof.
 
   {
     simplify with monad laws.
-    setoid_rewrite (refine_skip2_bind (dummy:=buffer_uncons (fst r_n) (snd r_n))).
+    setoid_rewrite
+      (refine_skip2_bind (dummy:=buffer_uncons (fst r_n) (snd r_n))).
     etransitivity.
     - refine_under.
       + finish honing.
@@ -614,8 +617,9 @@ Proof.
 
   {
     simplify with monad laws.
-    rewrite (refine_skip2_pick (dummy:=buffer_append (fst r_n) (snd r_n)
-                                                     (fst r_n0) (snd r_n0))).
+    rewrite
+      (refine_skip2_pick (dummy:=buffer_append (fst r_n) (snd r_n)
+                                               (fst r_n0) (snd r_n0))).
     refine_under.
       finish honing.
     refine pick val a.

@@ -110,8 +110,8 @@ main = do
     putStrLn . ("hs5 = " ++) =<< printPS1 hs5
     print mres2''
 
-    -- let hs6 = hsAppendDSL' hs2 hs3
-    -- putStrLn . ("hs6 = " ++) =<< printPS1 hs6
+    let hs6 = hsAppendDSL' hs2 hs3
+    putStrLn . ("hs6 = " ++) =<< printPS1 hs6
 
 castWord8Ptr :: Int -> Foreign.Ptr.Ptr Data.Word.Word8
 castWord8Ptr = unsafeCoerce
@@ -149,8 +149,8 @@ hsConsDSL' p w = unsafePerformIO $
           if ltb 0 (psBufLen1 p)
             then do
               cod <- castWord8PtrIO (mallocBytes ((+) (psLength1 p) 1))
-              copyBytes (castWord8Ptr (psBuffer1 p))
-                        (castWord8Ptr ((+) cod 1))
+              copyBytes (castWord8Ptr ((+) cod 1))
+                        (castWord8Ptr (psBuffer1 p))
                         (psLength1 p)
               free (castWord8Ptr (psBuffer1 p))
               poke (castWord8Ptr ((+) cod 0)) w
@@ -170,24 +170,16 @@ hsUnconsDSL' p = unsafePerformIO $
                       (psLength1 p - 1), Just a)
     else return (p, Nothing)
 
-{-
 hsAppendDSL' :: PS1 -> PS1 -> PS1
-hsAppendDSL' p p1 =
-  System.IO.Unsafe.unsafePerformIO
-    (case ltb 0 (psLength1 p) of {
-      True ->
-       case ltb 0 (psLength1 p1) of {
-        True ->
-         (GHC.Base.>>=)
-           ((\x -> castWord8PtrIO (Foreign.Marshal.Alloc.mallocBytes x))
-             ((+) (psLength1 p) (psLength1 p1))) (\cod ->
-           (GHC.Base.>>=)
-             ((\x y -> Foreign.Marshal.Utils.copyBytes (castWord8Ptr x) (castWord8Ptr y))
-               ((+) (psBuffer1 p) (psOffset1 p)) cod (psLength1 p))
-             (\_ ->
-             return (MakePS1 cod
-               ((+) (psLength1 p) (psLength1 p1)) 0
-               ((+) (psLength1 p) (psLength1 p1)))));
-        False -> return p};
-      False -> return p1})
--}
+hsAppendDSL' p p1 = System.IO.Unsafe.unsafePerformIO $
+  if ltb 0 (psLength1 p)
+    then
+      if ltb 0 (psLength1 p1)
+        then do
+          cod <- castWord8PtrIO (mallocBytes ((+) (psLength1 p) (psLength1 p1)))
+          copyBytes (castWord8Ptr cod)
+                    (castWord8Ptr ((+) (psBuffer1 p) (psOffset1 p))) (psLength1 p)
+          return $ MakePS1 cod ((+) (psLength1 p) (psLength1 p1)) 0
+                               ((+) (psLength1 p) (psLength1 p1))
+        else return p
+    else return p1

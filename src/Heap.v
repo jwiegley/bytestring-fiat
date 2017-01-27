@@ -76,21 +76,18 @@ Definition HeapSpec := Def ADT {
   (* Data may only be copied from one allocated block to another (or within
      the same block), and the region must fit within both source and
      destination. Otherwise, the operation is a no-op. *)
-  Def Method3 memcpyS (r : rep) (addr1 : Ptr Word) (addr2 : Ptr Word) (len : Size) :
-    rep :=
-    ret ({| resvs := resvs r
-          ; bytes := copy_bytes addr1 addr2 len (bytes r) (bytes r) |}),
+  Def Method3 memcpyS (r : rep)
+      (addr1 : Ptr Word) (addr2 : Ptr Word) (len : Size) : rep :=
+    ret {| resvs := resvs r
+         ; bytes := copy_bytes addr1 addr2 len (bytes r) (bytes r) |},
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
-  Def Method3 memsetS (r : rep) (addr : Ptr Word) (len : Size) (w : Word) :
-    rep :=
-    ret ({| resvs := resvs r
-          ; bytes :=
-              P.update (bytes r)
-                       (N.peano_rect
-                          (fun _ => M.t Word) (bytes r)
-                          (fun i => M.add (plusPtr addr i)%N w)
-                          len) |})
+  Def Method3 memsetS (r : rep) (addr : Ptr Word) (len : Size) (w : Word) : rep :=
+    ret {| resvs := resvs r
+         ; bytes := P.update (bytes r)
+                             (N.peano_rect
+                                (fun _ => M.t Word) (bytes r)
+                                (fun i => M.add (plusPtr addr i)%N w) len) |}
 
 }%ADTParsing.
 
@@ -112,7 +109,8 @@ Definition free (r : Rep HeapSpec) (addr : Ptr Word) :
   Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec freeS r addr.
 
-Definition realloc (r : Rep HeapSpec) (addr : Ptr Word) (len : Size | 0 < len) :
+Definition realloc (r : Rep HeapSpec)
+           (addr : Ptr Word) (len : Size | 0 < len) :
   Comp (Rep HeapSpec * Ptr Word) :=
   Eval simpl in callMeth HeapSpec reallocS r addr len.
 
@@ -124,11 +122,13 @@ Definition poke (r : Rep HeapSpec) (addr : Ptr Word) (w : Word) :
   Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec pokeS r addr w.
 
-Definition memcpy (r : Rep HeapSpec) (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) :
+Definition memcpy (r : Rep HeapSpec)
+           (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) :
   Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec memcpyS r addr addr2 len.
 
-Definition memset (r : Rep HeapSpec) (addr : Ptr Word) (len : Ptr Word) (w : Word) :
+Definition memset (r : Rep HeapSpec)
+           (addr : Ptr Word) (len : Ptr Word) (w : Word) :
   Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec memsetS r addr len w.
 
@@ -158,17 +158,20 @@ Ltac complete IHfromADT :=
 Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr sz, M.MapsTo addr sz (resvs r) -> 0 < sz.
 Proof.
-  intros r from_r; pattern r; apply ADT_ind; try eassumption.
-  intro midx;
+  intros r from_r.
+  pattern r.
+  apply ADT_ind; [|eassumption].
+  intro midx.
   match goal with
-  | [ midx : MethodIndex _      |- _ ] => pattern midx
-  end;
-  apply IterateBoundedIndex.Iterate_Ensemble_equiv';
+  | [ midx : MethodIndex _ |- _ ] => pattern midx
+  end.
+  apply IterateBoundedIndex.Iterate_Ensemble_equiv'.
   repeat apply IterateBoundedIndex.Build_prim_and;
-  try solve [constructor ] ;
+  try solve [constructor];
   simpl in *; intros;
-    simpl in *; destruct_ex; split_and;
-      repeat inspect; injections; simpl in *; inspect; eauto.
+  simpl in *; destruct_ex; split_and;
+  repeat inspect; injections;
+  simpl in *; inspect; eauto.
 Qed.
 
 Lemma overlaps_bool_complete_true
