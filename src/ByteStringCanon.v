@@ -202,21 +202,19 @@ Proof.
   start sharpening ADT.
 
   hone representation using
-       (fun (or : bsrep) (nr : Comp (cHeapRep * PS)) =>
-          exists oh ops nh nps,
-            or ↝ (oh, ops) /\
-            nr ↝ (nh, nps) /\
-            Heap_AbsR oh nh /\ ops = nps).
+       (fun (or : Comp (Rep HeapSpec) * PS) (nr : cHeapRep * PS) =>
+          exists oh, fst or ↝ oh ->
+            Heap_AbsR oh (fst nr) /\ snd or = snd nr).
 
   (* refine method ByteString.emptyS. *)
   {
     simplify with monad laws.
-    refine pick val (ret (heap', {| psBuffer := 0
-                                  ; psBufLen := 0
-                                  ; psOffset := 0
-                                  ; psLength := 0 |})).
+    refine pick val (heap', {| psBuffer := 0
+                             ; psBufLen := 0
+                             ; psOffset := 0
+                             ; psLength := 0 |}).
       finish honing.
-    do 4 eexists; split; eauto.
+    firstorder.
   }
 
   (* refine method ByteString.consS. *)

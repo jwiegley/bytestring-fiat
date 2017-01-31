@@ -72,7 +72,7 @@ Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
 Definition consDSL r ps w :
-  reflect_ADT_DSL_computation HeapSpec (buffer_cons (ret (r, ps)) w).
+  reflect_ADT_DSL_computation HeapSpec (buffer_cons (ret r, ps) w).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
