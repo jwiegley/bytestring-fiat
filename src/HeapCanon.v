@@ -138,8 +138,7 @@ Proof.
                  {| resvs :=
                       M.add (fst r_n) (` d0) (M.remove d (resvs (snd r_n)))
                   ; bytes :=
-                      copy_bytes d (fst r_n) sz
-                                 (bytes (snd r_n)) (bytes (snd r_n))|})
+                      copy_bytes d (fst r_n) sz (bytes (snd r_n))|})
          Else
            (plusPtr (A:=Word) (fst r_n) (` d0),
             {| resvs := M.add (fst r_n) (` d0) (resvs (snd r_n))
@@ -266,9 +265,7 @@ Proof.
   {
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
-                      ; bytes :=
-                          copy_bytes d d0 d1
-                                     (bytes (snd r_n)) (bytes (snd r_n)) |}).
+                      ; bytes := copy_bytes d d0 d1 (bytes (snd r_n)) |}).
       finish honing.
 
     simpl in *; intuition;

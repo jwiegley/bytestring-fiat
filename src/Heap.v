@@ -59,8 +59,7 @@ Definition HeapSpec := Def ADT {
     ret ({| resvs := M.add naddr (` len) (M.remove addr (resvs r))
           ; bytes :=
               Ifopt M.find addr (resvs r) as sz
-              Then copy_bytes addr naddr (N.min sz (` len))
-                              (bytes r) (bytes r)
+              Then copy_bytes addr naddr (N.min sz (` len)) (bytes r)
               Else bytes r |}, naddr),
 
   (* Peeking an uninitialized address allows any value to be returned. *)
@@ -79,7 +78,7 @@ Definition HeapSpec := Def ADT {
   Def Method3 memcpyS (r : rep)
       (addr1 : Ptr Word) (addr2 : Ptr Word) (len : Size) : rep :=
     ret {| resvs := resvs r
-         ; bytes := copy_bytes addr1 addr2 len (bytes r) (bytes r) |},
+         ; bytes := copy_bytes addr1 addr2 len (bytes r) |},
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
   Def Method3 memsetS (r : rep) (addr : Ptr Word) (len : Size) (w : Word) : rep :=

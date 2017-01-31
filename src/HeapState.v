@@ -94,25 +94,24 @@ Definition keep_range {elt} `(addr : Ptr A) (len : N) : M.t elt -> M.t elt :=
 Definition drop_range {elt} `(addr : Ptr A) (len : N) : M.t elt -> M.t elt :=
   keep_keys (fun p => negb (within_bool addr len p)).
 
-Definition copy_bytes {elt A} (from to : Ptr A) (len : N)
-           (mfrom mto : M.t elt) : M.t elt :=
-  P.update (drop_range to len mto)
+Definition copy_bytes {elt A} (from to : Ptr A) (len : N) (m : M.t elt) : M.t elt :=
+  P.update (drop_range to len m)
            (M.fold (fun k e rest =>
                       If within_bool from len k
                       Then M.add (plusPtr to (minusPtr k from)) e rest
                       Else rest)
-                   mfrom (M.empty _)).
+                   m (M.empty _)).
 
 Program Instance copy_bytes_Proper : forall A,
-  Proper (eq ==> eq ==> eq ==> M.Equal ==> M.Equal ==> @M.Equal elt)
+  Proper (eq ==> eq ==> eq ==> M.Equal ==> @M.Equal elt)
          (copy_bytes (A:=A)).
 Obligation 1.
   relational.
   unfold copy_bytes, drop_range, keep_range, keep_keys.
   apply P.update_m; trivial.
-    rewrite H3; reflexivity.
+    rewrite H2; reflexivity.
   apply P.fold_Equal; eauto; relational.
-  - destruct (within_bool y y1 y4) eqn:Heqe; simpl;
+  - destruct (within_bool y y1 y3) eqn:Heqe; simpl;
     destruct (within_bool y y1 x) eqn:Heqe1; simpl;
     rewrite H1; nomega.
   - intros ??????.
@@ -125,11 +124,11 @@ Obligation 1.
 Qed.
 
 Lemma copy_bytes_mapsto :
-  forall elt k (e : elt) A (addr1 addr2 : Ptr A) len m1 m2,
-    M.MapsTo k e (copy_bytes addr1 addr2 len m1 m2)
+  forall elt k (e : elt) A (addr1 addr2 : Ptr A) len m,
+    M.MapsTo k e (copy_bytes addr1 addr2 len m)
       <-> If within_bool addr2 len k
-          Then M.MapsTo (plusPtr addr1 (minusPtr k addr2)) e m1
-          Else M.MapsTo (elt:=elt) k e m2.
+          Then M.MapsTo (plusPtr addr1 (minusPtr k addr2)) e m
+          Else M.MapsTo (elt:=elt) k e m.
 Proof.
   unfold copy_bytes, drop_range, keep_range, keep_keys,
          const, not, compose.
@@ -138,7 +137,7 @@ Proof.
     destruct H.
       revert H.
       apply P.fold_rec_bis; simpl; intros; intuition.
-        destruct (within_bool addr2 len k) eqn:Heqe; simpl in *; trivial.
+        destruct (within_bool addr2 len k) eqn:Heqe; simpl in *; trivial;
         rewrite <- H; assumption.
       destruct (within_bool addr2 len k) eqn:Heqe; simpl in *.
         destruct (within_bool addr1 len k0) eqn:Heqe1; simpl in *.
@@ -148,9 +147,19 @@ Proof.
           simplify_maps; right; split; [nomega|intuition].
         simplify_maps; right; split; [nomega|intuition].
       destruct (within_bool addr1 len k0) eqn:Heqe1; simpl in *.
-        simplify_maps.
-        nomega.
-      intuition.
+        simplify_maps; simplify_maps.
+          nomega.
+        right; intuition.
+        rewrite H1 in *.
+        contradiction H0.
+        exists e.
+        assumption.
+      simplify_maps.
+      right; intuition.
+      rewrite H1 in *.
+      contradiction H0.
+      exists e.
+      assumption.
     destruct H.
     destruct (within_bool addr2 len k) eqn:Heqe; simpl in *;
     simplify_maps; relational; nomega.
@@ -191,11 +200,11 @@ Proof.
 Qed.
 
 Lemma copy_bytes_find :
-  forall A (a1 a2 : Ptr A) k l elt (m1 m2 : M.t elt),
-    M.find k (copy_bytes a1 a2 l m1 m2)
+  forall A (a1 a2 : Ptr A) k l elt (m : M.t elt),
+    M.find k (copy_bytes a1 a2 l m)
       = If within_bool a2 l k
-        Then M.find (plusPtr a1 (minusPtr k a2)) m1
-        Else M.find k m2.
+        Then M.find (plusPtr a1 (minusPtr k a2)) m
+        Else M.find k m.
 Proof.
   intros.
   unfold copy_bytes, drop_range, keep_keys.
@@ -241,8 +250,8 @@ Proof.
   }
 Qed.
 
-Lemma copy_bytes_zero {elt A} (addr1 addr2 : Ptr A) (m1 m2 : M.t elt) :
-  M.Equal (elt:=elt) (copy_bytes addr1 addr2 0 m1 m2) m2.
+Lemma copy_bytes_zero {elt A} (addr1 addr2 : Ptr A) (m : M.t elt) :
+  M.Equal (elt:=elt) (copy_bytes addr1 addr2 0 m) m.
 Proof.
   apply F.Equal_mapsto_iff; split; intros;
   [ apply copy_bytes_mapsto in H
@@ -252,7 +261,7 @@ Proof.
 Qed.
 
 Lemma copy_bytes_idem {A} (d : Ptr A) len elt (m : M.t elt) :
-  M.Equal (copy_bytes d d len m m) m.
+  M.Equal (copy_bytes d d len m) m.
 Proof.
   apply F.Equal_mapsto_iff; split; intros;
   [ apply copy_bytes_mapsto in H
@@ -261,8 +270,8 @@ Proof.
   revert H; replace (plusPtr d (minusPtr k d)) with k by nomega; trivial.
 Qed.
 
-Lemma copy_bytes_find_at : forall A (b k : Ptr A) l elt (m1 m2 : M.t elt),
-  0 < l -> M.find k (copy_bytes b k l m1 m2) = M.find b m1.
+Lemma copy_bytes_find_at : forall A (b k : Ptr A) l elt (m : M.t elt),
+  0 < l -> M.find k (copy_bytes b k l m) = M.find b m.
 Proof.
   intros.
   rewrite copy_bytes_find.
