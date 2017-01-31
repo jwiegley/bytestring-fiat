@@ -193,8 +193,7 @@ Proof.
     eapply realloc_correct
       with (r':={| resvs := M.add addr (` d0) (M.remove d (resvs r_o))
                  ; bytes := Ifopt M.find d (resvs r_o) as sz
-                            Then copy_bytes d addr (N.min sz (` d0))
-                                            (bytes r_o) (bytes r_o)
+                            Then copy_bytes d addr (N.min sz (` d0)) (bytes r_o)
                             Else bytes r_o |})
       in Heqrealloc; eauto.
     breakdown; destruct_computations.

@@ -88,14 +88,14 @@ Proof.
 Defined.
 
 Corollary consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
-  refine (buffer_cons r bs w)
+  refine (buffer_cons (ret r, bs) w)
          (denote HeapSpec (projT1 (consDSL r bs w))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
 Hint Unfold buffer_uncons.
 
 Definition unconsDSL r ps:
-  reflect_ADT_DSL_computation HeapSpec (buffer_uncons r ps).
+  reflect_ADT_DSL_computation HeapSpec (buffer_uncons (ret r, ps)).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -111,21 +111,35 @@ Proof.
 Defined.
 
 Corollary unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
-  refine (buffer_uncons r bs)
+  refine (buffer_uncons (ret r, bs))
          (denote HeapSpec (projT1 (unconsDSL r bs))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
 Hint Unfold ByteStringHeap.buffer_append_obligation_1.
 Hint Unfold buffer_append.
 
-Definition appendDSL r1 ps1 r2 ps2:
-  reflect_ADT_DSL_computation HeapSpec (buffer_append r1 ps1 r2 ps2).
+Definition appendDSL r1 ps1 ps2:
+  reflect_ADT_DSL_computation HeapSpec (buffer_append (ret r1, ps1) (ret r1, ps2)).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
+  repeat autounfold; simpl.
+  simplify_reflection.
+  simplify_reflection.
+  eapply reflect_ADT_DSL_computation_simplify.
+    apply refineEquiv_bind.
+      apply refineEquiv_pick_contr_ret.
+      instantiate (1:=r1).
+      constructor.
+        intuition.
+        constructor; intuition.
+      intros.
+      destruct H; auto.
+    intros ?.
+    finish honing.
   Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
@@ -134,9 +148,9 @@ Proof.
   Local Transparent memcpy.
 Defined.
 
-Corollary appendDSL_correct : forall (r1 r2 : Rep HeapSpec) (bs1 bs2 : PS),
-  refine (buffer_append r1 bs1 r2 bs2)
-         (denote HeapSpec (projT1 (appendDSL r1 bs1 r2 bs2))).
+Corollary appendDSL_correct : forall (r1 : Rep HeapSpec) (bs1 bs2 : PS),
+  refine (buffer_append (ret r1, bs1) (ret r1, bs2))
+         (denote HeapSpec (projT1 (appendDSL r1 bs1 bs2))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
 (****************************************************************************
@@ -311,10 +325,10 @@ Print ghcUnconsDSL'.
 
 Lemma ghcAppendDSL :
   { f : PS -> PS -> PS
-  & forall r1 bs1 r2 bs2,
+  & forall r1 bs1 bs2,
       f bs1 bs2 = unsafeDupablePerformIO
                     (ghcDenote ((returnIO \o snd)
-                                  <$> projT1 (appendDSL r1 bs1 r2 bs2))) }.
+                                  <$> projT1 (appendDSL r1 bs1 bs2))) }.
 Proof.
   eexists; intros.
   symmetry.
