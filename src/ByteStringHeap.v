@@ -84,10 +84,8 @@ Proof.
 Qed.
 
 Definition ByteString_list_AbsR
-           (or : Rep ByteStringSpec) (nr : Comp (Rep HeapSpec) * PS) :=
-  let ps := snd nr in
-  forall h, fst nr ↝ h
-  -> or = buffer_to_list h ps
+           (or : Rep ByteStringSpec) (ps : PS) (h : Rep HeapSpec) :=
+  or = buffer_to_list h ps
   /\ IF psBufLen ps = 0
      then psOffset ps = 0 /\ psLength ps = 0
      else M.MapsTo (psBuffer ps) (psBufLen ps) (resvs h)
@@ -119,59 +117,59 @@ Definition make_room_by_shifting_up
         (h : Rep HeapSpec) (r : PS) (n : N | 0 < n) :
   (* We could maybe be smarter by shifting the block so it sits mid-way within
      the buffer. *)
-  Comp (Rep HeapSpec * PS) :=
+  Comp (PS * Rep HeapSpec)  :=
   res <- memcpy h (psBuffer r) (plusPtr (psBuffer r) (` n)) (psLength r);
-  ret (res,
-       {| psBuffer := psBuffer r
+  ret ({| psBuffer := psBuffer r
         ; psBufLen := psBufLen r
         ; psOffset := 0
-        ; psLength := psLength r + ` n |}).
+        ; psLength := psLength r + ` n |},
+       res).
 
 Program Definition make_room_by_growing_buffer
         (h : Rep HeapSpec) (r : PS) (n : N | 0 < n) :
-  Comp (Rep HeapSpec * PS) :=
+  Comp (PS * Rep HeapSpec) :=
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
   `(h, a) <- alloc h (psLength r + n);
   h <- memcpy h (psBuffer r) (plusPtr a n) (psLength r);
   h <- free h (psBuffer r);
-  ret (h, {| psBuffer := a
+  ret ({| psBuffer := a
            ; psBufLen := psLength r + n
            ; psOffset := 0
-           ; psLength := psLength r + n |}).
+           ; psLength := psLength r + n |},
+       h).
 Obligation 1. nomega_. Defined.
 
 Program Definition allocate_buffer (h : Rep HeapSpec) (len : N | 0 < len) :
-  Comp (Rep HeapSpec * PS) :=
+  Comp (PS * Rep HeapSpec) :=
   `(h, a) <- alloc h len;
-  ret (h, {| psBuffer := a
-           ; psBufLen := len
-           ; psOffset := 0
-           ; psLength := len |}).
+    ret ({| psBuffer := a
+            ; psBufLen := len
+            ; psOffset := 0
+            ; psLength := len |},
+         h).
 
 Definition poke_at_offset (h : Rep HeapSpec) (r : PS) (d : Word) :
-  Comp (Rep HeapSpec * PS) :=
+  Comp (PS * Rep HeapSpec) :=
   res <- poke h (plusPtr (psBuffer r) (psOffset r)) d;
-  ret (res,
-       {| psBuffer := psBuffer r
+  ret ({| psBuffer := psBuffer r
         ; psBufLen := psBufLen r
         ; psOffset := psOffset r
-        ; psLength := psLength r |}).
+        ; psLength := psLength r |},
+      res).
 
 (* This defines how much a buffer is grown by when more space is needed to
    [cons] on a new element. *)
 Definition alloc_quantum := 1.
 Arguments alloc_quantum /.
 
-Definition bsrep := (Comp (Rep HeapSpec) * PS)%type.
+Definition bsrep := PS.
 
-Program Definition buffer_cons (r : bsrep) (d : Word) :
-  Comp (Rep HeapSpec * PS) :=
-  let ps := snd r in
-  h <- fst r;
-  `(h, ps) <-
+Program Definition buffer_cons (ps : bsrep) (d : Word) (h : Rep HeapSpec) :
+  Comp (PS * Rep HeapSpec) :=
+  `(ps, h) <-
     If 0 <? psOffset ps
-    Then ret (h, simply_widen_region ps 1)
+    Then ret (simply_widen_region ps 1, h)
     Else
     If psLength ps + alloc_quantum <=? psBufLen ps
     Then make_room_by_shifting_up h ps alloc_quantum
@@ -276,18 +274,17 @@ Lemma buffer_cons_eq_alloc_new : forall x y h ps,
               ; psLength := psLength ps + 1 |}.
 Proof. intros; destruct_ps ps. Qed.
 
-Lemma buffer_cons_sound : forall r_o r_n,
-  ByteString_list_AbsR r_o r_n
-    -> forall x r_n' ps', buffer_cons r_n x ↝ (r_n', ps')
-    -> ByteString_list_AbsR (x :: r_o) (ret r_n', ps').
+Lemma buffer_cons_sound : forall r_o r_n s,
+  ByteString_list_AbsR r_o r_n s
+    -> forall x r_n' ps', buffer_cons r_n x s ↝ (ps', r_n')
+    -> ByteString_list_AbsR (x :: r_o) ps' r_n'.
 Proof.
-  unfold buffer_cons, Bind2; intros ? ? AbsR ???.
+  unfold buffer_cons, Bind2; intros ? ? ? AbsR ???.
   destruct_computations.
   intro H.
   destruct_computations; tsubst; simpl in *.
-  specialize (AbsR _ H).
   if_computes_to_inv; subst; simpl.
-    destruct_AbsR AbsR; construct_AbsR.
+  destruct_AbsR AbsR; construct_AbsR.
       rewrite <- buffer_cons_eq_shift_1; nomega.
     right; intuition; nomega.
   if_computes_to_inv; subst.
@@ -308,59 +305,53 @@ Proof.
     simplify_maps.
   destruct_computations; simpl in *.
   destruct_AbsR AbsR; construct_AbsR.
-    destruct_ps (snd r_n); nomega.
+    destruct_ps r_n; nomega.
   right; intuition.
     discriminate.
-  simpl in *.
-  simplify_maps.
 Qed.
 
 (**************************************************************************)
 
-Definition buffer_uncons (r : bsrep) :
-  Comp ((Rep HeapSpec * PS) * option Word) :=
-  let ps := snd r in
-  h <- fst r;
+Definition buffer_uncons (ps : PS) (h : Rep HeapSpec) :
+  Comp (PS * (Rep HeapSpec * option Word)) :=
   If 0 <? psLength ps
   Then
     `(h, w) <- peek h (plusPtr (psBuffer ps) (psOffset ps));
-    ret ((h, {| psBuffer := psBuffer ps
+    ret (({| psBuffer := psBuffer ps
               ; psBufLen := psBufLen ps
               ; psOffset := if psLength ps =? 1
                             then 0
                             else psOffset ps + 1
               ; psLength := psLength ps - 1 |}),
-         Some w)
+         (h, Some w))
   Else
-    ret ((h, ps), None).
+    ret (ps, (h, None)).
 
-Lemma buffer_uncons_sound : forall r_o r_n a,
-  ByteString_list_AbsR r_o r_n
-    -> buffer_uncons r_n ↝ a
+Lemma buffer_uncons_sound : forall r_o r_n h a,
+  ByteString_list_AbsR r_o r_n h
+    -> buffer_uncons r_n h ↝ a
     -> ByteString_list_AbsR (match r_o with
                              | [] => r_o
                              | _ :: xs => xs
-                             end) (ret (fst (fst a)), snd (fst a)).
+                             end) (fst a) (fst (snd a)).
 Proof.
   unfold buffer_uncons; intros.
-  destruct_computations.
-  specialize (H _ H0).
   if_computes_to_inv; subst; simpl.
     destruct_computations; simpl.
     destruct_AbsR H; construct_AbsR.
-      destruct_ps (snd r_n).
-      assert (H2 : N.succ psLength0 =? 1 = false) by nomega.
-      rewrite H2.
+      destruct_ps r_n.
+      assert (H5 : N.succ psLength0 =? 1 = false) by nomega.
+      rewrite H5.
       nomega.
-    right; intuition;
-    destruct (psLength (@snd (Comp HeapState) PS r_n) =? 1); nomega.
-  assert (psLength (@snd (Comp HeapState) PS r_n) = 0) by nomega.
-  destruct_AbsR H; construct_AbsR.
+      right; intuition;
+    destruct (psLength r_n =? 1); nomega.
+      assert (psLength r_n = 0) by nomega.
+      destruct_AbsR H; construct_AbsR.
   - unfold buffer_to_list; simpl.
-    rewrite H1; trivial.
+    rewrite H4; trivial.
   - left; intuition.
   - unfold buffer_to_list; simpl.
-    rewrite H1; trivial.
+    rewrite H0; trivial.
   - right; intuition.
 Qed.
 
@@ -380,49 +371,40 @@ Lemma buffer_to_list_nil : forall h ps,
   0 = psLength ps -> buffer_to_list h ps = [].
 Proof. intros; destruct_ps ps; nomega. Qed.
 
-Lemma buffer_uncons_impl : forall r_o r_n a,
-  ByteString_list_AbsR r_o r_n
-    -> buffer_uncons r_n ↝ a
-    -> snd a = match r_o with
+Lemma buffer_uncons_impl : forall r_o r_n a h,
+  ByteString_list_AbsR r_o r_n h
+    -> buffer_uncons r_n h ↝ a
+    -> snd (snd a) = match r_o with
            | [] => None
            | x :: _ => Some x
            end.
 Proof.
   unfold buffer_uncons; intros.
   destruct_computations.
-  specialize (H _ H0).
   if_computes_to_inv; subst; simpl.
     destruct_computations; simpl.
     destruct_AbsR H;
-    destruct_ps (snd r_n); try nomega.
+    destruct_ps r_n; try nomega.
     clear IHpsLength0.
     f_equal.
-    destruct H1.
+    destruct H0.
       apply F.find_mapsto_iff in H.
-      admit.
-      (* rewrite H; reflexivity. *)
+      rewrite H; reflexivity.
     destruct H; subst.
-    assert (M.find (plusPtr psBuffer0 psOffset0) (bytes x) = None).
+    assert (M.find (plusPtr psBuffer0 psOffset0) (bytes h) = None).
       apply F.not_find_in_iff; trivial.
-      admit.
-    admit.
-    (* rewrite H0; trivial. *)
+      rewrite H0; trivial.
   destruct_AbsR H;
-  destruct_ps (snd r_n).
-    admit.
-  admit.
-Admitted.
+  destruct_ps r_n.
+Qed.
 
 (**************************************************************************)
 
 (* jww (2016-12-21): For now, just allocate and copy from both. *)
 
-Program Definition buffer_append (r1 r2 : bsrep) : Comp (Rep HeapSpec * PS) :=
-  let ps1 := snd r1 in
-  let ps2 := snd r2 in
-  h1 <- fst r1;
-  h2 <- fst r2;
-  h <- { h : Rep HeapSpec | h = h1 /\ HeapState_Equal h1 h2 };
+Program Definition buffer_append (ps1 ps2 : bsrep)
+        (h : Rep HeapSpec)
+  : Comp (PS * Rep HeapSpec) :=
   IfDep 0 <? psLength ps1
   Then fun _ =>
     IfDep 0 <? psLength ps2
@@ -432,46 +414,39 @@ Program Definition buffer_append (r1 r2 : bsrep) : Comp (Rep HeapSpec * PS) :=
                     a (psLength ps1);
       h <- memcpy h (plusPtr (psBuffer ps2) (psOffset ps2))
                     (a + psLength ps1) (psLength ps2);
-      ret (h, {| psBuffer := a
+      ret ({| psBuffer := a
                ; psBufLen := psLength ps1 + psLength ps2
                ; psOffset := 0
-               ; psLength := psLength ps1 + psLength ps2 |})
-    Else fun _ => ret (h1, ps1)
-  Else fun _ => ret (h2, ps2).
+               ; psLength := psLength ps1 + psLength ps2 |}, h)
+    Else fun _ => ret (ps1, h)
+  Else fun _ => ret (ps2, h).
 Obligation 1. nomega. Defined.
 
-Lemma refineEquiv_buffer_append (r1 r2 : bsrep) :
+Lemma refineEquiv_buffer_append
+      (ps1 ps2 : bsrep)
+      (h : Rep HeapSpec) :
   refineEquiv
-    (buffer_append r1 r2)
-    (let ps1 := snd r1 in
-     let ps2 := snd r2 in
-     h1 <- fst r1;
-     h2 <- fst r2;
-     h <- { h : Rep HeapSpec | h = h1 /\ HeapState_Equal h1 h2 };
-     If 0 <? psLength ps1
+    (buffer_append ps1 ps2 h)
+    (If 0 <? psLength ps1
      Then If 0 <? psLength ps2
        Then
          a <- find_free_block (psLength ps1 + psLength ps2) (resvs h);
          h <- memcpy {| resvs :=
-                          M.add a (psLength (snd r1) + psLength (snd r2))
+                          M.add a (psLength ps1 + psLength ps2)
                                 (resvs h)
                       ; bytes := bytes h |}
                      (plusPtr (psBuffer ps1) (psOffset ps1))
                      a (psLength ps1);
          h <- memcpy h (plusPtr (psBuffer ps2) (psOffset ps2))
                        (a + psLength ps1) (psLength ps2);
-         ret (h,
-              {| psBuffer := a
+         ret ({| psBuffer := a
                ; psBufLen := psLength ps1 + psLength ps2
                ; psOffset := 0
-               ; psLength := psLength ps1 + psLength ps2 |})
-       Else ret (h1, ps1)
-     Else ret (h2, ps2)).
+               ; psLength := psLength ps1 + psLength ps2 |}, h)
+       Else ret (ps1, h)
+     Else ret (ps2, h)).
 Proof.
   unfold buffer_append.
-  f_equiv; intros ?.
-  f_equiv; intros ?.
-  f_equiv; intros ?.
   etransitivity.
     apply refineEquiv_IfDep_Then_Else.
       intros.
@@ -546,27 +521,24 @@ Proof.
     reflexivity.
   intros; subst; f_equal.
   unfold f, g; clear f g.
-  destruct_ps ps1; try clear IHpsLength0;
+  (* destruct_ps ps1. try clear IHpsLength0;
   destruct_ps ps2; try clear IHpsLength1.
   - destruct (k <? N.succ psLength0) eqn:Heqe; repeat reduce_find.
   - destruct (k <? 0) eqn:Heqe; repeat reduce_find.
   - destruct (k <? N.succ psLength1) eqn:Heqe; repeat reduce_find.
-Qed.
+Qed. *)
+Admitted.
 
-Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2,
-  ByteString_list_AbsR r_o1 r_n1
-    -> ByteString_list_AbsR r_o2 r_n2
-    -> forall r_n' ps', buffer_append r_n1 r_n2 ↝ (r_n', ps')
-    -> ByteString_list_AbsR (r_o1 ++ r_o2) (ret r_n', ps').
+Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2 h,
+  ByteString_list_AbsR r_o1 r_n1 h
+    -> ByteString_list_AbsR r_o2 r_n2 h
+    -> forall h' ps', buffer_append r_n1 r_n2 h ↝ (ps', h')
+                      -> ByteString_list_AbsR (r_o1 ++ r_o2) ps' h'.
 Proof.
   intros.
   apply refine_computes_to in H1.
   rewrite refineEquiv_buffer_append in H1.
   apply computes_to_refine in H1.
-  destruct_computations.
-  specialize (H _ H1); clear H1.
-  specialize (H0 _ H2); clear H2.
-  destruct H3; subst.
   if_computes_to_inv.
     if_computes_to_inv.
       tsubst.
@@ -574,8 +546,13 @@ Proof.
       destruct_AbsR H.
         destruct_AbsR H0; construct_AbsR.
       construct_AbsR.
-        destruct_AbsR H0; tsubst.
-          admit.
+        destruct_AbsR H0; tsubst;
+        erewrite buffer_to_list_app.
+        repeat f_equal; try nomega.
+        admit.
+        admit.
+        repeat f_equal; try nomega.
+        admit.
         admit.
         (* apply buffer_to_list_app; nomega. *)
       right.
@@ -587,7 +564,7 @@ Proof.
     tsubst.
     assert (r_o2 = []).
       destruct H0; subst.
-      destruct r_n2, p; simpl in *.
+      destruct r_n2, ps'; simpl in *.
       unfold buffer_to_list; simpl.
       assert (psLength0 = 0) by nomega.
       rewrite H0; simpl.
@@ -600,37 +577,48 @@ Proof.
     right; intuition.
   assert (r_o1 = []).
     destruct H; subst.
-    destruct r_n1, p; simpl in *.
+    destruct r_n1, ps'; simpl in *.
     unfold buffer_to_list; simpl.
     assert (psLength0 = 0) by nomega.
     rewrite H; simpl.
     reflexivity.
   subst.
-  destruct_AbsR H;
-  destruct_AbsR H0;
-  subst; intuition;
-  construct_AbsR; tsubst; auto;
-  left; intuition.
-  destruct H2.
-  rewrite <- H in H9.
+  injections; simpl; auto.
 Admitted.
 
 (**************************************************************************)
 
-Theorem ByteStringHeap (heap : Rep HeapSpec) :
-  { adt : _ & refineADT ByteStringSpec adt }.
+Require Import Fiat.ADTRefinement.StatefulADTRefinement.
+Require Import Fiat.ADTRefinement.BuildADTRefinements.sHoneRepresentation.
+
+Theorem ByteStringHeap :
+  { adt : _ & refine_sADT (ST := Rep HeapSpec) ByteStringSpec adt }.
 Proof.
   eexists.
-
-  hone representation using ByteString_list_AbsR.
+  eapply refinesADT_BuildADT_Rep_refine_All
+  with (AbsR := ByteString_list_AbsR);
+    repeat first [apply refine_Methods_nil
+                 | apply refine_Methods_cons];
+    unfold sRefineMethod; simpl; intros;
+    try match goal with
+        |  |- refine _ (?E _ _ _ _ _ _ _ _) => is_evar E; let H := fresh in fast_set (H := E)
+        |  |- refine _ (?E _ _ _ _ _ _ _) => is_evar E; let H := fresh in fast_set (H := E)
+        |  |- refine _ (?E _ _ _ _ _ _) => is_evar E; let H := fresh in fast_set (H := E)
+        |  |- refine _ (?E _ _ _ _ _ ) => is_evar E; let H := fresh in fast_set (H := E)
+        |  |- refine _ (?E _ _ _ _ ) => is_evar E; let H := fresh in fast_set (H := E)
+        |  |- refine _ (?E _ _ _) => is_evar E; let H := fresh in fast_set (H := E)
+        |  |- refine _ (?E _ _) => is_evar E; let H := fresh in fast_set (H := E)
+        |  |- refine _ (?E _) => is_evar E; let H := fresh in fast_set (H := E)
+        | _ => idtac
+        end.
 
   {
     simplify with monad laws.
-    refine pick val (ret heap,
-                     {| psBuffer := 0
+    refine pick val ({| psBuffer := 0
                       ; psBufLen := 0
                       ; psOffset := 0
-                      ; psLength := 0 |}).
+                      ; psLength := 0 |},
+                     s).
       finish honing.
     construct_AbsR.
     firstorder.
@@ -638,11 +626,11 @@ Proof.
 
   {
     simplify with monad laws.
-    setoid_rewrite (@refine_skip2_pick _ (buffer_cons r_n d)).
+    setoid_rewrite (@refine_skip2_pick _ (buffer_cons r_n d s)).
     etransitivity.
       refine_under.
         finish honing.
-      refine pick val (ret (fst a), snd a).
+      refine pick val a.
         finish honing.
       eapply buffer_cons_sound; eauto.
       rewrite <- surjective_pairing; auto.
@@ -652,33 +640,31 @@ Proof.
 
   {
     simplify with monad laws.
-    setoid_rewrite (refine_skip2_bind (dummy:=buffer_uncons r_n)).
+    setoid_rewrite (refine_skip2_bind (dummy:=buffer_uncons r_n s)).
     etransitivity.
       refine_under.
         finish honing.
       rewrite fst_match_list, snd_match_list.
       erewrite <- buffer_uncons_impl by eauto.
-      refine pick val (ret (fst (fst a)), snd (fst a)).
+      refine pick val (fst a, fst (snd a)).
         simplify with monad laws.
         finish honing.
       eapply buffer_uncons_sound; eauto.
     simpl; unfold buffer_uncons.
-    simplify with monad laws.
     finish honing.
   }
 
   {
     simplify with monad laws.
-    rewrite (refine_skip2_pick (dummy:=buffer_append r_n r_n0)).
+    rewrite (refine_skip2_pick (dummy:=buffer_append r_n r_n0 s)).
     refine_under.
       finish honing.
-    refine pick val (ret (fst a), snd a).
+    refine pick val a.
       finish honing.
     eapply buffer_append_sound; eauto.
     rewrite <- surjective_pairing; auto.
   }
 
-  apply reflexivityT.
 Defined.
 
 End ByteStringHeap.
