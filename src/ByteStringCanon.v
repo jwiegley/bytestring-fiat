@@ -43,12 +43,14 @@ Lemma refine_ByteString_Heap_AbsR :
   forall heap_resvs heap_bytes buffer buflen offset length B (k : _ -> Comp B),
     refineEquiv
       (r_n' <- { r_n0 : cHeapRep * PS
-               | Heap_AbsR {| resvs := heap_resvs
-                            ; bytes := heap_bytes |} (fst r_n0) /\
-                 {| psBuffer := buffer
-                  ; psBufLen := buflen
-                  ; psOffset := offset
-                  ; psLength := length |} = snd r_n0 };
+               | forall oh : HeapState,
+                   ret {| resvs := heap_resvs
+                        ; bytes := heap_bytes |} ↝ oh ->
+                   Heap_AbsR oh (fst r_n0) /\
+                   {| psBuffer := buffer
+                    ; psBufLen := buflen
+                    ; psOffset := offset
+                    ; psLength := length |} = snd r_n0 };
        k r_n')
       (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
@@ -73,9 +75,11 @@ Proof.
       apply refine_computes_to.
       assumption.
     rewrite HeqP.
+    intros; destruct_computations.
     firstorder.
   intros; intros ??.
   destruct_computations.
+  specialize (H _ (ReturnComputes _)).
   destruct H, x; simpl in *.
   subst.
   remember (makePS _ _ _ _) as P; intros.
@@ -100,12 +104,14 @@ Lemma refine_ByteString_Heap_AbsR' :
   forall heap_resvs heap_bytes buffer buflen offset length,
     refineEquiv
       { r_n0 : cHeapRep * PS
-      | Heap_AbsR {| resvs := heap_resvs
-                   ; bytes := heap_bytes |} (fst r_n0) /\
-        {| psBuffer := buffer
-         ; psBufLen := buflen
-         ; psOffset := offset
-         ; psLength := length |} = snd r_n0 }
+      | forall oh : HeapState,
+          ret {| resvs := heap_resvs
+               ; bytes := heap_bytes |} ↝ oh ->
+          Heap_AbsR oh (fst r_n0) /\
+          {| psBuffer := buffer
+           ; psBufLen := buflen
+           ; psOffset := offset
+           ; psLength := length |} = snd r_n0 }
       (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
        brk'   <- {brk'   : N
@@ -127,9 +133,11 @@ Proof.
       apply refine_computes_to.
       constructor.
     rewrite HeqP.
+    intros; destruct_computations.
     firstorder.
   intros; intros ??.
   destruct_computations.
+  specialize (H _ (ReturnComputes _)).
   destruct H, v; simpl in *.
   subst.
   remember (makePS _ _ _ _) as P; intros.
@@ -153,10 +161,10 @@ Qed.
 
 Ltac apply_ByteString_Heap_AbsR :=
   match goal with
-    | [ H : Heap_AbsR (fst ?O) (fst ?N) /\ snd ?X = snd ?Y |- _ ] =>
+    | [ H : Heap_AbsR ?O (fst ?N) /\ snd ?X = snd ?Y |- _ ] =>
       destruct H as
           [ [ resvs_match0 [ bytes_match0 for_all_matches0 ] ] match0 ],
-          O as [ [ resvs_o bytes_o ] ps_o ];
+          O as [ resvs_o bytes_o ];
       simpl in *;
       rewrite ?match0
   end.
@@ -174,10 +182,12 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
         | [ |- refine (x <- ret _; _) _ ] =>
           simplify with monad laws; simpl
         | [ |- refine (x <- { X : cHeapRep * PS
-                            | Heap_AbsR _ (fst X) /\ _ = snd X }; _) _ ] =>
+                            | forall oh : HeapState, _ ↝ oh
+                                -> Heap_AbsR oh (fst X) /\ _ = snd X }; _) _ ] =>
           rewrite refine_ByteString_Heap_AbsR
         | [ |- refine { X : cHeapRep * PS
-                      | Heap_AbsR _ (fst X) /\ _ = snd X } _ ] =>
+                      | forall oh : HeapState, _ ↝ oh
+                          -> Heap_AbsR oh (fst X) /\ _ = snd X } _ ] =>
           rewrite refine_ByteString_Heap_AbsR'
         | [ |- refine (If ?B Then ?T Else ?E) _ ] =>
           apply refine_If_Then_Else
@@ -203,7 +213,7 @@ Proof.
 
   hone representation using
        (fun (or : Comp (Rep HeapSpec) * PS) (nr : cHeapRep * PS) =>
-          exists oh, fst or ↝ oh ->
+          forall oh, fst or ↝ oh ->
             Heap_AbsR oh (fst nr) /\ snd or = snd nr).
 
   (* refine method ByteString.emptyS. *)
@@ -214,66 +224,107 @@ Proof.
                              ; psOffset := 0
                              ; psLength := 0 |}).
       finish honing.
-    firstorder.
+    simpl; intuition.
+    destruct_computations.
+    assumption.
   }
 
   (* refine method ByteString.consS. *)
   {
+    simplify with monad laws.
+    etransitivity.
+      apply refine_under_bind; intros.
+      specialize (H0 _ H1); clear H1.
+      apply_ByteString_Heap_AbsR.
+      fracture H.
+      etransitivity.
+      {
+        refine using ByteString_Heap_AbsR;
+        unfold find_free_block;
+        refine pick val (fst (fst r_n)); eauto;
+        try simplify with monad laws;
+        try finish honing;
+        refine using ByteString_Heap_AbsR;
+        (rewrite resvs_match0;
+         eapply for_all_impl; eauto;
+         relational; simpl; intros;
+         clear -H0; nomega).
+      }
+      etransitivity.
+      {
+        apply refine_If_Then_Else.
+          reflexivity.
+        apply refine_If_Then_Else.
+          reflexivity.
+        apply refine_If_Then_Else.
+        - refine using ByteString_Heap_AbsR.
+          refine pick val (plusPtr (A:=Word) (fst (fst r_n))
+                                   (psLength (snd r_n) + alloc_quantum)); eauto.
+            simplify with monad laws.
+            finish honing.
+
+          rewrite <- remove_add.
+          apply for_all_remove; relational.
+            rewrite H0; reflexivity.
+          apply for_all_add_true; relational; try nomega.
+              rewrite H0; reflexivity.
+            simplify_maps.
+          split; [|clear; nomega].
+          apply for_all_remove; relational; try nomega.
+            rewrite H0; reflexivity.
+          eapply for_all_impl; auto;
+          relational; eauto;
+          rewrite ?H0; clear; nomega.
+
+        - refine using ByteString_Heap_AbsR.
+          refine pick val (plusPtr (A:=Word) (fst (fst r_n)) alloc_quantum); eauto.
+            simplify with monad laws.
+            finish honing.
+
+          rewrite <- remove_add.
+          apply for_all_add_true; relational; try nomega.
+              rewrite H0; reflexivity.
+            simplify_maps.
+          split; [|clear; nomega].
+          apply for_all_remove; relational; try nomega.
+            rewrite H0; reflexivity.
+          eapply for_all_impl; auto;
+          relational; eauto;
+          rewrite ?H0; clear; nomega.
+      }
+
+      rewrite !refine_If_Then_Else_ret.
+      finish honing.
+
+    simpl.
+    Fail finish honing.
     admit.
-(*
-    apply_ByteString_Heap_AbsR.
-    fracture H; unfold find_free_block;
-    refine using ByteString_Heap_AbsR;
-    refine pick val (fst (fst r_n)); eauto;
-    try simplify with monad laws;
-    try finish honing;
-    refine using ByteString_Heap_AbsR.
-
-    - refine pick val (plusPtr (A:=Word) (fst (fst r_n))
-                               (psLength (snd r_n) + alloc_quantum)); eauto.
-        simplify with monad laws.
-        finish honing.
-
-      rewrite <- remove_add.
-      apply for_all_remove; relational.
-        rewrite H; reflexivity.
-      apply for_all_add_true; relational; try nomega.
-        simplify_maps.
-      split; [|nomega].
-      apply for_all_remove; relational; try nomega.
-      eapply for_all_impl; auto;
-      relational; eauto; nomega.
-
-    - rewrite resvs_match0.
-      eapply for_all_impl; eauto;
-      relational; nomega.
-
-    - refine pick val (plusPtr (A:=Word) (fst (fst r_n)) alloc_quantum); eauto.
-        simplify with monad laws.
-        finish honing.
-
-      rewrite <- remove_add.
-      apply for_all_add_true; relational; try nomega.
-        simplify_maps.
-      split; [|nomega].
-      apply for_all_remove; relational; try nomega.
-      eapply for_all_impl; auto;
-      relational; eauto; nomega.
-
-    - rewrite resvs_match0.
-      eapply for_all_impl; eauto;
-      relational; nomega.
-*)
   }
 
   (* refine method ByteString.unconsS. *)
   {
     admit.
 (*
-    unfold buffer_uncons;
-    apply_ByteString_Heap_AbsR;
-    fracture H;
-    refine using ByteString_Heap_AbsR.
+    simplify with monad laws.
+    etransitivity.
+      apply refine_under_bind; intros.
+      specialize (H0 _ H1); clear H1.
+      apply_ByteString_Heap_AbsR.
+      fracture H.
+      etransitivity.
+      etransitivity.
+      {
+        refine using ByteString_Heap_AbsR;
+        unfold find_free_block.
+        refine pick val (fst (fst r_n)); eauto;
+        try simplify with monad laws;
+        try finish honing;
+        refine using ByteString_Heap_AbsR;
+        (rewrite resvs_match0;
+         eapply for_all_impl; eauto;
+         relational; simpl; intros;
+         clear -H0; nomega).
+      }
 
     - refine pick val (Ifopt M.find (plusPtr (A:=Word) (psBuffer (snd r_n))
                                              (psOffset (snd r_n)))
@@ -432,8 +483,8 @@ Proof.
   }
 
   finish_SharpeningADT_WithoutDelegation.
-Admitted.
 (* Defined. *)
+Admitted.
 
 End Refined.
 

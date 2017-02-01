@@ -51,8 +51,8 @@ Variable heap' : ComputationalADT.cRep (projT1 HeapCanonical).
 
 Variable heap_AbsR : Heap_AbsR heap heap'.
 
-Definition BSimpl :=
-  Eval simpl in projT1 (@ByteStringCanonical heap heap' heap_AbsR).
+Definition BSimpl' := projT1 (@ByteStringCanonical heap heap' heap_AbsR).
+Definition BSimpl := Eval simpl in BSimpl'.
 
 Definition BScrep := ComputationalADT.cRep BSimpl.
 
@@ -353,9 +353,9 @@ Extraction "ByteStringExt.hs"
   N.of_nat
   N.to_nat
 
-  emptyBS
-  consBS
-  unconsBS
+  (* emptyBS *)
+  (* consBS *)
+  (* unconsBS *)
 
   ghcEmptyDSL'
   ghcConsDSL'
