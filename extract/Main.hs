@@ -70,7 +70,8 @@ main = do
     putStrLn . ("b5 = " ++) =<< printPS any' h0 b5
     print mres2
 
-    let b6 = appendBS any' h0 b2 b3
+    -- b3 has the final heap state
+    let b6 = appendBS any' h0 b3 b2
     putStrLn . ("bs6 = " ++) =<< printPS any' h0 b6
 
     putStrLn "ByteString heap..."
@@ -90,5 +91,5 @@ main = do
     putStrLn . ("bs5 = " ++) =<< printPS0 bs5
     print mres2'
 
-    let bs6 = ghcAppendDSL' bs2 bs3
+    let bs6 = ghcAppendDSL' bs3 bs2
     putStrLn . ("bs6 = " ++) =<< printPS0 bs6
