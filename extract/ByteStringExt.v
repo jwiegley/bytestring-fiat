@@ -51,7 +51,10 @@ Variable heap' : ComputationalADT.cRep (projT1 HeapCanonical).
 
 Variable heap_AbsR : Heap_AbsR heap heap'.
 
-Definition BSimpl' := projT1 (@ByteStringCanonical heap heap' heap_AbsR).
+Axiom one_Haskell_heap : forall h1 h2 : Rep HeapSpec, h1 = h2.
+
+Definition BSimpl' :=
+  projT1 (@ByteStringCanonical heap heap' heap_AbsR one_Haskell_heap).
 Definition BSimpl := Eval simpl in BSimpl'.
 
 Definition BScrep := ComputationalADT.cRep BSimpl.
@@ -64,6 +67,8 @@ Definition consBS (r : BScrep) (w : Word) : BScrep :=
   Eval compute in CallMethod BSimpl consS r w.
 Definition unconsBS (r : BScrep) : BScrep * option Word :=
   Eval compute in CallMethod BSimpl unconsS r.
+Definition appendBS (r1 r2 : BScrep) : BScrep :=
+  Eval compute in CallMethod BSimpl appendS r1 r2.
 
 End ByteStringExt.
 
@@ -353,9 +358,10 @@ Extraction "ByteStringExt.hs"
   N.of_nat
   N.to_nat
 
-  (* emptyBS *)
-  (* consBS *)
-  (* unconsBS *)
+  emptyBS
+  consBS
+  unconsBS
+  appendBS
 
   ghcEmptyDSL'
   ghcConsDSL'

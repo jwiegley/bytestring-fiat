@@ -72,7 +72,7 @@ Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
 Definition consDSL r ps w :
-  reflect_ADT_DSL_computation HeapSpec (buffer_cons (ret r, ps) w).
+  reflect_ADT_DSL_computation HeapSpec (buffer_cons (r, ps) w).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -88,14 +88,14 @@ Proof.
 Defined.
 
 Corollary consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
-  refine (buffer_cons (ret r, bs) w)
+  refine (buffer_cons (r, bs) w)
          (denote HeapSpec (projT1 (consDSL r bs w))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
 Hint Unfold buffer_uncons.
 
 Definition unconsDSL r ps:
-  reflect_ADT_DSL_computation HeapSpec (buffer_uncons (ret r, ps)).
+  reflect_ADT_DSL_computation HeapSpec (buffer_uncons (r, ps)).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -111,7 +111,7 @@ Proof.
 Defined.
 
 Corollary unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
-  refine (buffer_uncons (ret r, bs))
+  refine (buffer_uncons (r, bs))
          (denote HeapSpec (projT1 (unconsDSL r bs))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
@@ -119,7 +119,7 @@ Hint Unfold ByteStringHeap.buffer_append_obligation_1.
 Hint Unfold buffer_append.
 
 Definition appendDSL r1 ps1 ps2:
-  reflect_ADT_DSL_computation HeapSpec (buffer_append (ret r1, ps1) (ret r1, ps2)).
+  reflect_ADT_DSL_computation HeapSpec (buffer_append (r1, ps1) (r1, ps2)).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -127,17 +127,13 @@ Proof.
   Local Opaque peek.
   Local Opaque memcpy.
   repeat autounfold; simpl.
-  simplify_reflection.
-  simplify_reflection.
   eapply reflect_ADT_DSL_computation_simplify.
     apply refineEquiv_bind.
       apply refineEquiv_pick_contr_ret.
-      instantiate (1:=r1).
+      instantiate (1:=tt).
       constructor.
-        intuition.
         constructor; intuition.
-      intros.
-      destruct H; auto.
+      destruct 1, x'; reflexivity.
     intros ?.
     finish honing.
   Time compile_term.
@@ -149,7 +145,7 @@ Proof.
 Defined.
 
 Corollary appendDSL_correct : forall (r1 : Rep HeapSpec) (bs1 bs2 : PS),
-  refine (buffer_append (ret r1, bs1) (ret r1, bs2))
+  refine (buffer_append (r1, bs1) (r1, bs2))
          (denote HeapSpec (projT1 (appendDSL r1 bs1 bs2))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
