@@ -8,7 +8,7 @@ Require Import
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx.
 
-Module Heap (M : WSfun N_as_DT).
+Module Heap (M : WSfun Ptr_as_DT).
 
 Module Import HeapState := HeapState M.
 
@@ -30,7 +30,7 @@ Definition HeapSpec := Def ADT {
      offsets to initialized bytes. *)
   rep := HeapState,
 
-  Def Constructor0 emptyS : rep := ret newHeapState,,
+  Def Constructor0 emptyS : rep := ret newHeapState,
 
   (* Allocation returns the address for the newly allocated block.
      NOTE: conditions such as out-of-memory are not handled here; the final
@@ -45,9 +45,9 @@ Definition HeapSpec := Def ADT {
           ; bytes := bytes r |}, addr),
 
   (* Freeing an unallocated block is a no-op. *)
-  Def Method1 freeS (r : rep) (addr : Ptr Word) : rep * unit :=
-    ret ({| resvs := M.remove addr (resvs r)
-          ; bytes := bytes r |}, tt),
+  Def Method1 freeS (r : rep) (addr : Ptr Word) : rep :=
+    ret {| resvs := M.remove addr (resvs r)
+         ; bytes := bytes r |},
 
   (* Realloc is not required to reuse the same block. If the address does not
      identify an allociated region, a new memory block is returned without any
@@ -64,45 +64,52 @@ Definition HeapSpec := Def ADT {
 
   (* Peeking an uninitialized address allows any value to be returned. *)
   Def Method1 peekS (r : rep) (addr : Ptr Word) : rep * Word :=
-    p <- { p : Word | forall v, M.MapsTo addr v (bytes r) -> p = v };
+    p <- { p : Word
+         | M.MapsTo addr p (bytes r) \/ (~ M.In addr (bytes r) /\ p = Zero) };
     ret (r, p),
 
-  Def Method2 pokeS (r : rep) (addr : Ptr Word) (w : Word) : rep * unit :=
-    ret ({| resvs := resvs r
-          ; bytes := M.add addr w (bytes r) |}, tt),
+  Def Method2 pokeS (r : rep) (addr : Ptr Word) (w : Word) : rep :=
+    ret {| resvs := resvs r
+         ; bytes := M.add addr w (bytes r) |},
 
   (* Data may only be copied from one allocated block to another (or within
      the same block), and the region must fit within both source and
      destination. Otherwise, the operation is a no-op. *)
-  Def Method3 memcpyS (r : rep) (addr1 : Ptr Word) (addr2 : Ptr Word) (len : Size) :
-    rep * unit :=
-    ret ({| resvs := resvs r
-          ; bytes := copy_bytes addr1 addr2 len (bytes r) |}, tt),
+  Def Method3 memcpyS (r : rep)
+      (addr1 : Ptr Word) (addr2 : Ptr Word) (len : Size) : rep :=
+    ret {| resvs := resvs r
+         ; bytes := copy_bytes addr1 addr2 len (bytes r) |},
 
   (* Any attempt to memset bytes outside of an allocated block is a no-op. *)
-  Def Method3 memsetS (r : rep) (addr : Ptr Word) (len : Size) (w : Word) :
-    rep * unit :=
-    ret ({| resvs := resvs r
-          ; bytes :=
-              P.update (bytes r)
-                       (N.peano_rect (fun _ => M.t Word) (bytes r)
-                                     (fun i => M.add (addr + i)%N w)
-                                     len) |}, tt)
+  Def Method3 memsetS (r : rep) (addr : Ptr Word) (len : Size) (w : Word) : rep :=
+    ret {| resvs := resvs r
+         ; bytes := P.update (bytes r)
+                             (N.peano_rect
+                                (fun _ => M.t Word) (bytes r)
+                                (fun i => M.add (plusPtr addr i)%N w) len) |}
 
 }%ADTParsing.
 
 Definition empty : Comp (Rep HeapSpec) :=
-  Eval simpl in callCons HeapSpec emptyS.
+  Eval simpl in callMeth HeapSpec emptyS.
 
 Definition alloc (r : Rep HeapSpec) (len : Size | 0 < len) :
   Comp (Rep HeapSpec * Ptr Word) :=
   Eval simpl in callMeth HeapSpec allocS r len.
 
+Corollary refineEquiv_unfold_alloc : forall r (x : Size) (H : 0 < x),
+  refineEquiv (alloc r (exist _ x H))
+              (addr <- find_free_block x (resvs r);
+               ret ({| resvs := M.add addr x (resvs r)
+                     ; bytes := bytes r |}, addr)).
+Proof. intros; reflexivity. Qed.
+
 Definition free (r : Rep HeapSpec) (addr : Ptr Word) :
-  Comp (Rep HeapSpec * unit) :=
+  Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec freeS r addr.
 
-Definition realloc (r : Rep HeapSpec) (addr : Ptr Word) (len : Size | 0 < len) :
+Definition realloc (r : Rep HeapSpec)
+           (addr : Ptr Word) (len : Size | 0 < len) :
   Comp (Rep HeapSpec * Ptr Word) :=
   Eval simpl in callMeth HeapSpec reallocS r addr len.
 
@@ -111,15 +118,17 @@ Definition peek (r : Rep HeapSpec) (addr : Ptr Word) :
   Eval simpl in callMeth HeapSpec peekS r addr.
 
 Definition poke (r : Rep HeapSpec) (addr : Ptr Word) (w : Word) :
-  Comp (Rep HeapSpec * unit) :=
+  Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec pokeS r addr w.
 
-Definition memcpy (r : Rep HeapSpec) (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) :
-  Comp (Rep HeapSpec * unit) :=
+Definition memcpy (r : Rep HeapSpec)
+           (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) :
+  Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec memcpyS r addr addr2 len.
 
-Definition memset (r : Rep HeapSpec) (addr : Ptr Word) (len : Ptr Word) (w : Word) :
-  Comp (Rep HeapSpec * unit) :=
+Definition memset (r : Rep HeapSpec)
+           (addr : Ptr Word) (len : Ptr Word) (w : Word) :
+  Comp (Rep HeapSpec) :=
   Eval simpl in callMeth HeapSpec memsetS r addr len w.
 
 (**
@@ -134,7 +143,7 @@ Ltac inspect :=
           repeat breakdown).
 
 Ltac complete IHfromADT :=
-  inspect;
+  repeat inspect;
   try match goal with
     [ H : (?X =? ?Y) = true |- _ ] => apply N.eqb_eq in H; subst
   end;
@@ -148,16 +157,41 @@ Ltac complete IHfromADT :=
 Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
   forall addr sz, M.MapsTo addr sz (resvs r) -> 0 < sz.
 Proof.
-  intros.
-  generalize dependent sz.
-  generalize dependent addr.
-  ADT induction r; complete IHfromADT.
+  intros r from_r.
+  pattern r.
+  apply ADT_ind; [|eassumption].
+  intro midx.
+  match goal with
+  | [ midx : MethodIndex _ |- _ ] => pattern midx
+  end.
+  apply IterateBoundedIndex.Iterate_Ensemble_equiv'.
+  repeat apply IterateBoundedIndex.Build_prim_and;
+  try solve [constructor];
+  simpl in *; intros;
+  simpl in *; destruct_ex; split_and;
+  repeat inspect; injections;
+  simpl in *; inspect; eauto.
+Qed.
+
+Lemma overlaps_bool_complete_true
+  : forall (addr2 : Ptr Word) sz2 x1 x0,
+    overlaps_bool addr2 sz2 x1 x0 = true <-> overlaps addr2 sz2 x1 x0.
+Proof.
+  unfold overlaps, overlaps_bool; intros; setoid_rewrite andb_true_iff.
+  nomega.
+Qed.
+
+Lemma overlaps_bool_complete_false
+  : forall (addr2 : Ptr Word) sz2 x1 x0,
+    overlaps_bool addr2 sz2 x1 x0 = false <-> ~ overlaps addr2 sz2 x1 x0.
+Proof.
+  intros; rewrite <- overlaps_bool_complete_true, <- not_true_iff_false; tauto.
 Qed.
 
 Theorem allocations_no_overlap : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr1 sz1, M.MapsTo addr1 sz1 (resvs r) ->
-  forall addr2 sz2, M.MapsTo addr2 sz2 (resvs r)
-    -> addr1 <> addr2
+  forall (addr1 : Ptr Word) sz1, M.MapsTo addr1 sz1 (resvs r) ->
+  forall (addr2 : Ptr Word) sz2, M.MapsTo addr2 sz2 (resvs r)
+    -> neqPtr addr1 addr2
     -> ~ overlaps addr1 sz1 addr2 sz2.
 Proof.
   intros.
@@ -167,76 +201,76 @@ Proof.
   generalize dependent addr2.
   generalize dependent sz1.
   generalize dependent addr1.
-  ADT induction r; complete IHfromADT.
+  pattern r; apply ADT_ind; try eassumption.
+  intro midx.
+  match goal with
+  | [ midx : MethodIndex _ |- _ ] => pattern midx
+  end.
+  apply IterateBoundedIndex.Iterate_Ensemble_equiv'.
+  repeat apply IterateBoundedIndex.Build_prim_and;
+  try solve [constructor];
+  simpl in *; intros;
+  destruct_ex; split_and; repeat inspect;
+  injections; inspect; eauto; try nomega.
   - apply_for_all; nomega.
   - apply_for_all; nomega.
   - eapply M.remove_2 in H4; eauto.
     apply_for_all; nomega.
-  - clear H8.
-    eapply M.remove_2 in H4; eauto.
+  - clear H10.
+    eapply M.remove_2 in H7; eauto.
     apply not_overlaps_sym.
     apply_for_all; nomega.
 Qed.
 
 Theorem allocations_no_overlap_r : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr1 sz1,
+  forall (addr1 : Ptr Word) sz1,
     P.for_all (fun a sz => negb (overlaps_bool a sz addr1 sz1)) (resvs r)
       -> 0 < sz1
       -> ~ M.In addr1 (resvs r).
 Proof.
-  unfold not; intros.
-  generalize dependent sz1.
-  generalize dependent addr1.
-  ADT induction r; complete IHfromADT.
-  - inversion H2.
-    simplify_maps.
+  intros r from_r; pattern r; apply ADT_ind; try eassumption.
+  intro midx;
+  match goal with
+  | [ midx : MethodIndex _ |- _ ] => pattern midx
+  end;
+  apply IterateBoundedIndex.Iterate_Ensemble_equiv';
+  repeat apply IterateBoundedIndex.Build_prim_and;
+  try solve [constructor];
+  simpl in *; intros;
+  simpl in *; destruct_ex; split_and;
+  repeat inspect; injections; simpl in *;
+  inspect; eauto; intro.
+  - apply F.empty_in_iff in H; eauto.
+  - apply (proj1 (in_mapsto_iff _ _ _)) in H3.
+    destruct_ex.
+    apply for_all_add_true in H0;
+    relational; simpl in *; eauto;
+    simplify_maps; try nomega.
+    intuition. eapply H; eauto.
+    apply in_mapsto_iff; eauto.
   - apply (proj1 (in_mapsto_iff _ _ _)) in H2.
     destruct H2.
-    apply for_all_add_true in H1;
-    relational; simpl in *.
-      simplify_maps.
-        nomega.
-      assert (M.In addr1 (resvs r)).
-        apply in_mapsto_iff.
-        exists x1; assumption.
-      eapply IHfromADT; eauto.
-      nomega.
-    unfold not; intros.
-    eapply IHfromADT; eauto.
-  - apply (proj1 (in_mapsto_iff _ _ _)) in H2.
-    destruct H2.
     simplify_maps.
-    eapply for_all_remove_inv in H1; relational.
-      eapply IHfromADT; eauto.
-      apply in_mapsto_iff.
-      exists x0; assumption.
-    unfold not; intros.
-    apply (proj1 (in_mapsto_iff _ _ _)) in H0.
-    destruct H0.
-    pose proof (allocations_have_size H H4).
-    apply not_eq_sym in H2.
-    eapply F.remove_neq_mapsto_iff in H4; eauto.
+    apply not_eq_sym in H3.
+    pose proof (allocations_have_size H4 H5).
+    apply not_eq_sym in H3.
+    eapply F.remove_neq_mapsto_iff in H5; eauto.
     apply_for_all; relational.
     nomega.
-  - apply (proj1 (in_mapsto_iff _ _ _)) in H2.
-    destruct H2.
+  - apply (proj1 (in_mapsto_iff _ _ _)) in H3.
+    destruct H3.
     simpl in *.
     apply_for_all; relational.
-    rewrite <- remove_add in H1.
+    apply F.add_mapsto_iff in H3; intuition; subst.
+    nomega.
     simplify_maps.
-      apply for_all_add_true in H1; relational; simpl in *.
-        nomega.
-      simplify_maps.
-    rewrite remove_add in H1.
-    apply_for_all; relational.
-    simplify_maps.
-    pose proof (allocations_have_size H H6).
+    pose proof (allocations_have_size H4 H8).
     nomega.
 Qed.
 
 Corollary allocations_no_overlap_for_all :
   forall r : Rep HeapSpec, fromADT _ r ->
-    forall addr sz,
+    forall (addr : Ptr Word) sz,
       M.MapsTo addr sz (resvs r) ->
       P.for_all (fun addr' sz' => negb (overlaps_bool addr' sz' addr sz))
                 (M.remove addr (resvs r)).
@@ -244,25 +278,28 @@ Proof.
   intros.
   pose proof (allocations_no_overlap H H0).
   apply P.for_all_iff; relational; intros.
+    nomega.
   simplify_maps.
   specialize (H1 _ _ H4 H3).
   nomega.
 Qed.
 
+(* Ben: This axiom is not consistent for all finite map implementations, *)
+(* so I wouldn't recommend using [refine_realloc] *)
 Axiom Extensionality_FMap : forall (elt : Type) (A B : M.t elt),
-  M.Equal (elt:=elt) A B -> A = B.
+    M.Equal (elt:=elt) A B -> A = B.
 
 (* Reallocation is just an optimization over alloc/memcpy/free. It optimizes
    the case where the newly allocated block resides at the same location, and
    thus no copying is needed. *)
-Lemma refine_realloc : forall addr len r,
+Lemma refine_realloc : forall (addr : Ptr Word) len r,
   forall sz, M.MapsTo addr sz (resvs r)
     -> 0 < sz
     -> sz <= ` len
     -> refine (realloc r addr len)
               (`(r, addr') <- alloc r len;
-               `(r, _) <- memcpy r addr addr' sz;
-               `(r, _) <- free r addr;
+               r <- memcpy r addr addr' sz;
+               r <- free r addr;
                ret (r, addr')).
 Proof.
   intros.
@@ -280,8 +317,9 @@ Proof.
     Local Transparent Pick.
     Local Transparent computes_to.
     unfold Pick, computes_to; simpl.
-    apply for_all_remove.
-      relational.
+    apply for_all_remove; relational.
+      rewrite H3.
+      reflexivity.
     apply H2.
   apply eq_ret_compute.
   f_equal.
@@ -303,6 +341,7 @@ Proof.
         simplify_maps.
         split.
           intuition.
+          nomega.
         simplify_maps.
       repeat simplify_maps.
       split.

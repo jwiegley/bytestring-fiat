@@ -1,6 +1,0 @@
--R ../fiat/src Fiat
--R ../coq-haskell/src Hask
--R ../src ByteString
--R ../lib ByteString.Lib
--R ../ffi ByteString.FFI
-ByteStringExt.v
