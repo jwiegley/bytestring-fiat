@@ -19,7 +19,6 @@ Require Import
   Hask.Control.Monad.Trans.FiatState
   Hask.Control.Monad.Free.
 
-
 (****************************************************************************
  * Compile [buffer_cons] into a [ClientDSL] term
  ****************************************************************************)
@@ -71,8 +70,8 @@ Hint Unfold ByteStringHeap.buffer_cons_obligation_3.
 Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
-Definition consDSL r ps w :
-  reflect_ADT_DSL_computation HeapSpec (buffer_cons (ret r, ps) w).
+Definition consDSL h ps w :
+  reflect_ADT_DSL_computation HeapSpec (buffer_cons ps w h).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -87,15 +86,17 @@ Proof.
   Local Transparent memcpy.
 Defined.
 
-Corollary consDSL_correct : forall (r : Rep HeapSpec) (bs : PS) w,
-  refine (buffer_cons (ret r, bs) w)
-         (denote HeapSpec (projT1 (consDSL r bs w))).
+Corollary consDSL_correct : forall (h : Rep HeapSpec) (bs : PS) w,
+  refine (buffer_cons bs w h)
+         (denote HeapSpec (projT1 (consDSL h bs w))).
 Proof. intros; apply denote_refineEquiv. Qed.
+
+Let consDSL' h bs w := Eval simpl in (projT1 (consDSL h bs w)).
 
 Hint Unfold buffer_uncons.
 
-Definition unconsDSL r ps:
-  reflect_ADT_DSL_computation HeapSpec (buffer_uncons (ret r, ps)).
+Definition unconsDSL h ps:
+  reflect_ADT_DSL_computation HeapSpec (buffer_uncons ps h).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -110,16 +111,16 @@ Proof.
   Local Transparent memcpy.
 Defined.
 
-Corollary unconsDSL_correct : forall (r : Rep HeapSpec) (bs : PS),
-  refine (buffer_uncons (ret r, bs))
-         (denote HeapSpec (projT1 (unconsDSL r bs))).
+Corollary unconsDSL_correct : forall (h : Rep HeapSpec) (bs : PS),
+  refine (buffer_uncons bs h)
+         (denote HeapSpec (projT1 (unconsDSL h bs))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
 Hint Unfold ByteStringHeap.buffer_append_obligation_1.
 Hint Unfold buffer_append.
 
-Definition appendDSL r1 ps1 ps2:
-  reflect_ADT_DSL_computation HeapSpec (buffer_append (ret r1, ps1) (ret r1, ps2)).
+Definition appendDSL h ps1 ps2:
+  reflect_ADT_DSL_computation HeapSpec (buffer_append ps1 ps2 h).
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
@@ -129,17 +130,8 @@ Proof.
   repeat autounfold; simpl.
   simplify_reflection.
   simplify_reflection.
-  eapply reflect_ADT_DSL_computation_simplify.
-    apply refineEquiv_bind.
-      apply refineEquiv_pick_contr_ret.
-      instantiate (1:=r1).
-      constructor.
-        intuition.
-        constructor; intuition.
-      intros.
-      destruct H; auto.
-    intros ?.
-    finish honing.
+  Time compile_term.
+  Time compile_term.
   Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
@@ -148,9 +140,9 @@ Proof.
   Local Transparent memcpy.
 Defined.
 
-Corollary appendDSL_correct : forall (r1 : Rep HeapSpec) (bs1 bs2 : PS),
-  refine (buffer_append (ret r1, bs1) (ret r1, bs2))
-         (denote HeapSpec (projT1 (appendDSL r1 bs1 bs2))).
+Corollary appendDSL_correct : forall (h : Rep HeapSpec) (bs1 bs2 : PS),
+  refine (buffer_append bs1 bs2 h)
+         (denote HeapSpec (projT1 (appendDSL h bs1 bs2))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
 (****************************************************************************
@@ -275,7 +267,7 @@ Lemma ghcConsDSL :
   { f : PS -> Word -> PS
   & forall r bs w,
       f bs w = unsafeDupablePerformIO
-                 (ghcDenote ((returnIO \o snd) <$> projT1 (consDSL r bs w))) }.
+                 (ghcDenote ((returnIO \o fst) <$> projT1 (consDSL r bs w))) }.
 Proof.
   eexists; intros.
   symmetry.
@@ -300,7 +292,7 @@ Lemma ghcUnconsDSL :
   { f : PS -> PS * option Word
   & forall r bs,
       f bs = unsafeDupablePerformIO
-               (ghcDenote ((fun x => returnIO (snd (fst x), snd x))
+               (ghcDenote ((fun x => returnIO (fst x, snd (snd x)))
                              <$> projT1 (unconsDSL r bs))) }.
 Proof.
   eexists; intros.
@@ -327,7 +319,7 @@ Lemma ghcAppendDSL :
   { f : PS -> PS -> PS
   & forall r1 bs1 bs2,
       f bs1 bs2 = unsafeDupablePerformIO
-                    (ghcDenote ((returnIO \o snd)
+                    (ghcDenote ((returnIO \o fst)
                                   <$> projT1 (appendDSL r1 bs1 bs2))) }.
 Proof.
   eexists; intros.
