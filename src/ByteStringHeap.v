@@ -521,13 +521,12 @@ Proof.
     reflexivity.
   intros; subst; f_equal.
   unfold f, g; clear f g.
-  (* destruct_ps ps1. try clear IHpsLength0;
+  destruct_ps ps1; try clear IHpsLength0;
   destruct_ps ps2; try clear IHpsLength1.
   - destruct (k <? N.succ psLength0) eqn:Heqe; repeat reduce_find.
   - destruct (k <? 0) eqn:Heqe; repeat reduce_find.
   - destruct (k <? N.succ psLength1) eqn:Heqe; repeat reduce_find.
-Qed. *)
-Admitted.
+Qed.
 
 Lemma buffer_append_sound : forall r_o1 r_o2 r_n1 r_n2 h,
   ByteString_list_AbsR r_o1 r_n1 h
@@ -547,14 +546,12 @@ Proof.
         destruct_AbsR H0; construct_AbsR.
       construct_AbsR.
         destruct_AbsR H0; tsubst;
-        erewrite buffer_to_list_app.
+        erewrite buffer_to_list_app;
         repeat f_equal; try nomega.
-        admit.
-        admit.
-        repeat f_equal; try nomega.
-        admit.
-        admit.
-        (* apply buffer_to_list_app; nomega. *)
+          clear H7.
+          apply_for_all; nomega.
+        clear H4.
+        apply_for_all; nomega.
       right.
       split.
         nomega.
@@ -584,7 +581,7 @@ Proof.
     reflexivity.
   subst.
   injections; simpl; auto.
-Admitted.
+Qed.
 
 (**************************************************************************)
 
