@@ -43,11 +43,15 @@ Lemma refine_ByteString_Heap_AbsR :
   forall heap_resvs heap_bytes buffer buflen offset length B (k : _ -> Comp B),
     refineEquiv
       (r_n' <- { r_n0 : cHeapRep * PS
-               | Heap_AbsR heap (fst r_n0) /\
-                 pbuffer = snd r_n0 };
+               | Heap_AbsR {| resvs := heap_resvs
+                            ; bytes := heap_bytes |} (fst r_n0) /\
+                 {| psBuffer := buffer
+                  ; psBufLen := buflen
+                  ; psOffset := offset
+                  ; psLength := length |} = snd r_n0 };
        k r_n')
-      (resvs' <- {resvs' : M.t Size | M.Equal (resvs heap) resvs'};
-       bytes' <- {bytes' : M.t Word | M.Equal (bytes heap) bytes'};
+      (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
+       bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
        brk'   <- {brk'   : N
                  | P.for_all (fun addr sz =>
                                 lebPtr (A:=Word) (plusPtr (A:=Word) addr sz) brk')
@@ -193,14 +197,14 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
     end
   end.
 
-Theorem ByteStringCanonical : FullySharpened (projT1 (ByteStringHeap heap)).
+Variable only_one_heap : forall h1 h2 : Rep HeapSpec, h1 = h2.
+
+Theorem ByteStringCanonical : FullySharpened (projT1 ByteStringHeap).
 Proof.
   start sharpening ADT.
 
   hone representation using
-       (fun (or : Comp (Rep HeapSpec) * PS) (nr : cHeapRep * PS) =>
-          exists oh, fst or ↝ oh ->
-            Heap_AbsR oh (fst nr) /\ snd or = snd nr).
+       (fun (or : Rep (projT1 ByteStringHeap)) (nr : cHeapRep) => or = nr).
 
   (* refine method ByteString.emptyS. *)
   {
@@ -215,10 +219,7 @@ Proof.
 
   (* refine method ByteString.consS. *)
   {
-    admit.
-(*
     apply_ByteString_Heap_AbsR.
-    simplify_with_applied_monad_laws.
     fracture H; unfold find_free_block;
     refine using ByteString_Heap_AbsR;
     refine pick val (fst (fst r_n)); eauto;
@@ -260,16 +261,13 @@ Proof.
     - rewrite resvs_match0.
       eapply for_all_impl; eauto;
       relational; nomega.
-*)
   }
 
   (* refine method ByteString.unconsS. *)
   {
-    admit.
-(*
     unfold buffer_uncons;
     apply_ByteString_Heap_AbsR;
-    fracture H.
+    fracture H;
     refine using ByteString_Heap_AbsR.
 
     - refine pick val (Ifopt M.find (plusPtr (A:=Word) (psBuffer (snd r_n))
@@ -298,15 +296,18 @@ Proof.
         finish honing.
       split; trivial.
       constructor; auto.
-*)
   }
 
   (* refine method ByteString.appendS. *)
   {
     unfold buffer_append, alloc, Bind2, find_free_block; simpl.
 
-    admit.
-(*
+    simplify with monad laws.
+    refine_under.
+      apply refine_pick_val.
+      rewrite only_one_heap with (h1:=fst r_o) (h2:=fst r_o0).
+      split; reflexivity.
+
     rewrite !refine_IfDep_Then_Else_Bind,
             !refineEquiv_strip_IfDep_Then_Else.
     refine pick val (plusPtr (A:=Word) (fst (fst r_n)) 1).
@@ -318,10 +319,10 @@ Proof.
             simplify with monad laws; simpl.
             destruct H0, H1.
             rewrite e, e0; clear e e0.
-            destruct h, H1, h0, H4.
+            destruct h, H1, h0, H5.
             refine pick val
               ((plusPtr (A:=Word) (fst (fst r_n))
-                        (psLength (snd r_n) + psLength (snd r_n0) + 1),
+                        (1 + psLength (snd r_n) + psLength (snd r_n0)),
                 {| resvs := M.add (plusPtr (A:=Word) (fst (fst r_n)) 1)
                                   (psLength (snd r_n) + psLength (snd r_n0))
                                   (resvs (snd (fst r_n)))
@@ -329,16 +330,15 @@ Proof.
                      copy_bytes (A:=Word)
                        (plusPtr (A:=Word) (psBuffer (snd r_n0))
                                 (psOffset (snd r_n0)))
-                       (plusPtr (A:=Word) (fst (fst r_n))
-                                (psLength (snd r_n) + 1))
+                       (plusPtr (A:=Word)
+                                (plusPtr (A:=Word) (fst (fst r_n)) 1)
+                                (psLength (snd r_n)))
                        (psLength (snd r_n0))
-                       (bytes (snd (fst r_n0)))
                        (copy_bytes (A:=Word)
                                    (plusPtr (A:=Word) (psBuffer (snd r_n))
                                             (psOffset (snd r_n)))
                                    (plusPtr (A:=Word) (fst (fst r_n)) 1)
                                    (psLength (snd r_n))
-                                   (bytes (snd (fst r_n)))
                                    (bytes (snd (fst r_n)))) |}),
                {| psBuffer := plusPtr (A:=Word) (fst (fst r_n)) 1
                 ; psBufLen := psLength (snd r_n) + psLength (snd r_n0)
@@ -352,9 +352,12 @@ Proof.
               rewrite H0.
               reflexivity.
             split.
-              rewrite H1, H4.
+              rewrite H1.
+              replace (plusPtr (A:=Word) (fst (fst r_n)) 1 + psLength (snd r_n))
+                 with (plusPtr (A:=Word) (fst (fst r_n)) (psLength (snd r_n) + 1))
+                   by nomega.
               reflexivity.
-            clear -H2.
+            clear -H3.
             apply for_all_add_true; relational; try nomega.
               destruct 1.
               apply_for_all; relational.
@@ -373,19 +376,18 @@ Proof.
           finish honing.
         assumption.
       intuition.
-      rewrite !H3, !H4.
+      rewrite !H4, !H5.
       rewrite !refine_If_Then_Else_ret.
       finish honing.
     intuition.
-    rewrite H3, H4.
-    destruct H2.
+    rewrite H4, H5.
+    destruct H3.
     rewrite H1.
     intuition.
     clear -H6.
     remember (fun _ _ => _) as P.
     remember (fun _ _ => negb _) as P'.
     apply for_all_impl with (P:=P) (P':=P'); relational; nomega.
-*)
   }
 
   (** Apply some common functional optimizations, such as common subexpression
@@ -414,12 +416,9 @@ Proof.
     simplify with monad laws.
     refine pick eq.
     simplify with monad laws.
-    admit.
-(*
     rewrite !If_Then_Else_fst, !If_Then_Else_snd; simpl.
     rewrite If_Then_Else_pair.
     subst; finish honing.
-*)
   }
 
   (* refine method ByteString.appendS. *)
@@ -429,8 +428,10 @@ Proof.
   }
 
   finish_SharpeningADT_WithoutDelegation.
-Admitted.
-(* Defined. *)
+
+  Unshelve.
+  constructor.
+Defined.
 
 End Refined.
 
