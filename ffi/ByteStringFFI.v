@@ -42,17 +42,7 @@ Hint Unfold buffer_empty.
 
 Definition emptyDSL : reflect_ADT_DSL_computation HeapSpec buffer_empty.
 Proof.
-  Local Opaque poke.
-  Local Opaque alloc.
-  Local Opaque free.
-  Local Opaque peek.
-  Local Opaque memcpy.
   Time compile_term.
-  Local Transparent poke.
-  Local Transparent alloc.
-  Local Transparent free.
-  Local Transparent peek.
-  Local Transparent memcpy.
 Defined.
 
 Corollary emptyDSL_correct :
@@ -126,16 +116,6 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
-  repeat autounfold; simpl.
-  eapply reflect_ADT_DSL_computation_simplify.
-    apply refineEquiv_bind.
-      apply refineEquiv_pick_contr_ret.
-      instantiate (1:=tt).
-      constructor.
-        constructor; intuition.
-      destruct 1, x'; reflexivity.
-    intros ?.
-    finish honing.
   Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
@@ -190,7 +170,8 @@ Proof.
   simpl in midx.
   revert h y.
   pattern midx; apply IterateBoundedIndex.Lookup_Iterate_Dep_Type;
-    simpl; repeat constructor; intros.
+  simpl; repeat constructor; intros.
+
   exact (y HeapState.newHeapState).
   exact (bindIO (malloc (` (hlist_head (hlist_tail h))))
                 (y (hlist_head h))).
@@ -212,7 +193,6 @@ Proof.
                         (hlist_head (hlist_tail (hlist_tail h)))
                         (hlist_head (hlist_tail (hlist_tail (hlist_tail h)))))
                 (fun _ => y (hlist_head h))).
-
 Defined.
 
 Corollary bind_If `{Monad f} : forall A B (k : A -> f B) b t e,
