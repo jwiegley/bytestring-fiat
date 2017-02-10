@@ -1,30 +1,21 @@
 module Main where
 
-import ByteStringExt hiding (IO, fmap, map)
+import Data.ByteString.Fiat hiding (putStrLn)
 import Data.Word
-import Foreign.Marshal.Alloc
-import Foreign.Marshal.Utils
-import Foreign.Ptr
-import Foreign.Storable
-import System.IO.Unsafe
-import GHC.Prim
-
-any' :: GHC.Prim.Any
-any' = unsafeCoerce ()
 
 c2w8 :: Char -> Word8
 c2w8 = fromIntegral . fromEnum
 
 {- | Converts a String to a [Word8]. -}
 s2w8 :: String -> [Word8]
-s2w8 = map c2w8
+s2w8 = Prelude.map c2w8
 
 {- | Converts a Word8 to a Char. -}
 w82c :: Word8 -> Char
 w82c = toEnum . fromIntegral
 
 w82s :: [Word8] -> String
-w82s = map w82c
+w82s = Prelude.map w82c
 
 printPS :: Rep -> CRep -> BScrep -> IO String
 printPS h h' bs =

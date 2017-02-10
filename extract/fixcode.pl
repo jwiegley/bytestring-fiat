@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 
 $imports = <<'END_IMPORTS';
+import qualified Data.ByteString.Fiat.HString as HString
 import qualified Data.Char
 import qualified Data.Function
 import qualified Data.List
@@ -12,10 +13,8 @@ import qualified Foreign.Marshal.Utils
 import qualified Foreign.Ptr
 import qualified Foreign.Storable
 import qualified GHC.Real
-import qualified HString
 import qualified Prelude
 import qualified System.IO.Unsafe
-import Debug.Trace
 END_IMPORTS
 
 while (<>) {
@@ -31,6 +30,7 @@ while (<>) {
     next if /^ghcAppendDSL ::/ .. /^$/;
 
     s/'\\000'/0/g;
+    s/ByteStringExt/Data.ByteString.Fiat.Internal/;
     s/import qualified Prelude/$imports/;
     s/unsafeCoerce :: a -> b/--unsafeCoerce :: a -> b/;
     s/\bfun /\\/;

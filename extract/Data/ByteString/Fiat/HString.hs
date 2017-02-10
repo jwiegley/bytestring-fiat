@@ -1,4 +1,4 @@
-module HString where
+module Data.ByteString.Fiat.HString where
 
 import Data.Char
 import Data.Bits
