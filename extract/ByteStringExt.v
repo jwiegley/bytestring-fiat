@@ -341,7 +341,7 @@ Set Extraction AutoInline.
 Set Extraction Optimize.
 Set Extraction AccessOpaque.
 
-Extraction "ByteStringExt.hs"
+Extraction "Data/ByteString/Fiat/Internal.hs"
   emptyHeap
   allocHeap
   freeHeap

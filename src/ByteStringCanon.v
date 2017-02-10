@@ -199,6 +199,7 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
 
 Variable only_one_heap : forall h1 h2 : Rep HeapSpec, h1 = h2.
 
+(*
 Theorem ByteStringCanonical : FullySharpened (projT1 ByteStringHeap).
 Proof.
   start sharpening ADT.
@@ -432,6 +433,7 @@ Proof.
   Unshelve.
   constructor.
 Defined.
+*)
 
 End Refined.
 
