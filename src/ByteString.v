@@ -10,6 +10,8 @@ Require Import
 Open Scope string_scope.
 
 Definition emptyS  := "empty".
+Definition packS   := "pack".
+Definition unpackS := "unpack".
 Definition consS   := "cons".
 Definition unconsS := "uncons".
 Definition appendS := "append".
@@ -18,6 +20,20 @@ Definition ByteStringSpec := Def ADT {
   rep := list Word,
 
   Def Constructor0 emptyS : rep := ret []%list,
+
+  (* jww (2017-02-12): For some reason, the following does not work here:
+  Def Constructor1_ packS (xs : list Word) : rep :=
+    ret xs,
+  *)
+  (Build_methDef _
+     {| methID    := packS
+      ; methArity := 0
+      ; methDom   := [_]%list
+      ; methCod   := None|}
+     (fun xs => ret xs)),
+
+  Def Method0 unpackS (r : rep) : rep * (list Word) :=
+    ret (r, r),
 
   Def Method1 consS (r : rep) (w : Word) : rep :=
     ret (cons w r),
@@ -37,6 +53,12 @@ Definition ByteString := Rep ByteStringSpec.
 
 Definition empty : Comp ByteString :=
   Eval simpl in callMeth ByteStringSpec emptyS.
+
+Definition pack (xs : list Word) : Comp ByteString :=
+  Eval simpl in callMeth ByteStringSpec packS xs.
+
+Definition unpack (bs : ByteString) : Comp (ByteString * list Word) :=
+  Eval simpl in callMeth ByteStringSpec unpackS bs.
 
 Definition cons (w : Word) (bs : ByteString) : Comp ByteString :=
   Eval simpl in (callMeth ByteStringSpec consS bs w).

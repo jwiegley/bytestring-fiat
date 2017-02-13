@@ -267,6 +267,22 @@ Ltac nomega' :=
 Ltac nomega  := solve [ abstract nomega' | autounfold in *; abstract nomega' ].
 Ltac nomega_ := solve [ nomega' | autounfold in *; nomega' ].
 
+
+Lemma Npeano_rect_eq :
+  forall (P : N -> Type) (a : P 0)
+         (f g : forall n : N, P n -> P (N.succ n)) (n : N),
+    (forall (n : N) (p : P n), f n p = g n p)
+      -> N.peano_rect P a f n = N.peano_rect P a g n.
+Proof.
+  intros.
+  induction n using N.peano_ind; simpl.
+    reflexivity.
+  rewrite !N.peano_rect_succ.
+  rewrite H.
+  f_equal.
+  assumption.
+Qed.
+
 Lemma Npeano_rec_eq : forall (P : N -> Set) (z : P 0) f g n,
   (forall k x y, k < n -> x = y -> f k x = g k y)
     -> N.peano_rec P z f n = N.peano_rec P z g n.
