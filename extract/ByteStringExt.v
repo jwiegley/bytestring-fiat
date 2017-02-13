@@ -323,6 +323,10 @@ Extract Inlined Constant memcpy   =>
   "(\x y -> Foreign.Marshal.Utils.copyBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y) ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
 Extract Inlined Constant memset   =>
   "(\x -> Foreign.Marshal.Utils.fillBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
+Extract Inlined Constant read     =>
+  "(\x -> Foreign.Marshal.Array.peekArray x (unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)))".
+Extract Inlined Constant write    =>
+  "(\x -> Foreign.Marshal.Array.pokeArray (unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x)".
 Extract Inlined Constant plusPtr  =>
   "(\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))".
 Extract Inlined Constant minusPtr =>

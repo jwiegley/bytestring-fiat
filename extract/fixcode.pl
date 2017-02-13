@@ -22,6 +22,10 @@ while (<>) {
 
     next if /^emptyDSL ::/ .. /^$/;
     next if /^ghcEmptyDSL ::/ .. /^$/;
+    next if /^packDSL ::/ .. /^$/;
+    next if /^ghcPackDSL ::/ .. /^$/;
+    next if /^unpackDSL ::/ .. /^$/;
+    next if /^ghcUnpackDSL ::/ .. /^$/;
     next if /^consDSL ::/ .. /^$/;
     next if /^ghcConsDSL ::/ .. /^$/;
     next if /^unconsDSL ::/ .. /^$/;

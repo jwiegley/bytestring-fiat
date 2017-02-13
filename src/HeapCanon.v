@@ -38,7 +38,9 @@ Proof.
                  (icons {|methBody :=  _|}
                  (icons {|methBody :=  _|}
                  (icons {|methBody :=  _|}
-                 (icons {|methBody :=  _|} inil ) ) ) ) ) ) ) )
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|}
+                 (icons {|methBody :=  _|} inil ) ) ) ) ) ) ) ) ) )
     (AbsR := fun or nr =>
        M.Equal (resvs or) (resvs (snd nr)) /\
        M.Equal (bytes or) (bytes (snd nr)) /\
@@ -291,6 +293,42 @@ Proof.
     rewrite !N.peano_rect_succ.
     apply F.add_m; auto.
   }
+
+  (* refine method readS. *)
+  {
+    refine pick eq.
+    simplify with monad laws; simpl.
+    refine pick val r_n.
+      simplify with monad laws; simpl.
+      destruct H0, H2.
+      rewrite Npeano_rect_eq
+        with (g := fun (i : N) (xs : list Word) =>
+                     match M.find (plusPtr d i) (bytes (snd r_n)) with
+                     | Some w => w
+                     | None => Zero
+                     end :: xs).
+        finish honing.
+      intros.
+      f_equal.
+      rewrite H2.
+      reflexivity.
+
+    simpl in *; intuition.
+  }
+
+  (* refine method writeS. *)
+  {
+    refine pick val
+       (fst r_n,
+        {| resvs := resvs (snd r_n)
+         ; bytes := load_into_map d d0 (bytes (snd r_n)) |}).
+      finish honing.
+
+    simpl in *; intuition.
+    apply load_into_map_Proper; auto.
+    reflexivity.
+  }
+
   constructor.
   finish_SharpeningADT_WithoutDelegation.
 Defined.

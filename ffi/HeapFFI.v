@@ -52,6 +52,9 @@ Record HeapIntf (Env : Type) := {
   copyBytes    : Ptr Word -> Ptr Word -> Size -> Mem Env -> Mem Env;
   fillBytes    : Ptr Word -> Word -> Size -> Mem Env -> Mem Env;
 
+  peekArray    : Ptr Word -> Size -> Mem Env -> (list Word * Mem Env);
+  pokeArray    : Ptr Word -> list Word -> Mem Env -> Mem Env;
+
   empty_correct : forall mem, @Mem_AbsR Env newHeapState mem;
 
   malloc_correct : forall r env env' sz ptr,
@@ -87,7 +90,27 @@ Record HeapIntf (Env : Type) := {
   memset_correct : forall r env env' addr w sz,
     Mem_AbsR r env
       -> fillBytes addr w sz env = env'
-      -> forall r', memset r addr sz w ↝ r' /\ Mem_AbsR r' env'
+      -> forall r', memset r addr sz w ↝ r' /\ Mem_AbsR r' env';
+
+  read_correct : forall r env env' addr sz xs,
+    Mem_AbsR r env
+      -> peekArray addr sz env = (xs, env')
+      -> forall r', read r addr sz ↝ (r', xs) /\ Mem_AbsR r' env';
+
+  read_bytes : forall r env addr sz,
+    Mem_AbsR r env
+      -> fst (peekArray addr sz env) =
+         N.peano_rect (fun _ : N => list Word) []
+                      (fun (i : N) (xs : list Word) =>
+                         match M.find (Memory.plusPtr addr i) (bytes r) with
+                         | Some w => w
+                         | None => Zero
+                         end :: xs) sz;
+
+  write_correct : forall r env env' addr xs,
+    Mem_AbsR r env
+      -> pokeArray addr xs env = env'
+      -> forall r', write r addr xs ↝ r' /\ Mem_AbsR r' env'
 }.
 
 (** In order to refine to a computable heap, we have to add the notion of
@@ -113,7 +136,9 @@ Proof.
                (icons {|methBody :=  _|} (* pokeS *)
                (icons {|methBody :=  _|} (* memcpyS *)
                (icons {|methBody :=  _|} (* memsetS *)
-                inil ) ) ) ) ) ) ) )
+               (icons {|methBody :=  _|} (* readS *)
+               (icons {|methBody :=  _|} (* writeS *)
+                inil ) ) ) ) ) ) ) ) ) )
                (AbsR := @Mem_AbsR Env).
   simpl.
   repeat apply Build_prim_prod;
@@ -241,6 +266,32 @@ Proof.
       finish honing.
 
     eapply memset_correct; eauto.
+  }
+
+  (* refine method readS. *)
+  {
+    simpl in *.
+    clear H.
+    refine pick val (fst (peekArray ffi d d0 r_n)).
+      simplify with monad laws; simpl.
+      refine pick val (snd (peekArray ffi d d0 r_n)).
+        simplify with monad laws; simpl.
+        finish honing.
+
+      eapply read_correct; eauto.
+      instantiate (1:=fst (peekArray ffi d d0 r_n)).
+      rewrite <- surjective_pairing.
+      reflexivity.
+    apply read_bytes.
+    assumption.
+  }
+
+  (* refine method writeS. *)
+  {
+    refine pick val (pokeArray ffi d d0 r_n).
+      finish honing.
+
+    eapply write_correct; eauto.
   }
 
   finish_SharpeningADT_WithoutDelegation.

@@ -144,9 +144,9 @@ Program Definition allocate_buffer (h : Rep HeapSpec) (len : N | 0 < len) :
   Comp (PS * Rep HeapSpec) :=
   `(h, a) <- alloc h len;
     ret ({| psBuffer := a
-            ; psBufLen := len
-            ; psOffset := 0
-            ; psLength := len |},
+          ; psBufLen := len
+          ; psOffset := 0
+          ; psLength := len |},
          h).
 
 Definition poke_at_offset (h : Rep HeapSpec) (r : PS) (d : Word) :
@@ -163,7 +163,26 @@ Definition poke_at_offset (h : Rep HeapSpec) (r : PS) (d : Word) :
 Definition alloc_quantum := 1.
 Arguments alloc_quantum /.
 
+Program Definition buffer_pack (d : list Word) (h : Rep HeapSpec) :
+  Comp (PS * Rep HeapSpec) :=
+  IfDep 0 <? N.of_nat (length d)
+  Then fun _ =>
+    `(ps, h) <- allocate_buffer h (N.of_nat (length d));
+    h <- write h (psBuffer ps + psOffset ps) d;
+    ret (ps, h)
+  Else fun _ =>
+    ret ({| psBuffer := 0
+          ; psBufLen := 0
+          ; psOffset := 0
+          ; psLength := 0 |}, h).
+Obligation 1. nomega. Defined.
+
 Definition bsrep := PS.
+
+Definition buffer_unpack (ps : bsrep) (h : Rep HeapSpec) :
+  Comp (list Word) :=
+  `(h, xs) <- read h (psBuffer ps + psOffset ps) (psLength ps);
+  ret xs.
 
 Program Definition buffer_cons (ps : bsrep) (d : Word) (h : Rep HeapSpec) :
   Comp (PS * Rep HeapSpec) :=
@@ -220,6 +239,86 @@ Ltac destruct_ps ps :=
   try destruct ps as [? ? ? psLength]; simpl in *;
   destruct psLength using N.peano_ind; simpl; intros;
   repeat (rewrite_ptr; repeat reduce_find).
+
+Lemma load_into_map_cons : forall b elt a xs (m : M.t elt),
+  load_into_map b (a :: xs) m = M.add b a (load_into_map (N.succ b) xs m).
+Proof.
+Admitted.
+
+Lemma find_load_into_map : forall (b x : N) A (xs : list A) m,
+  b <= x < b + N.of_nat (length xs)
+    -> M.find x (load_into_map b xs m) = nth_error xs (N.to_nat (x - b)%N).
+Proof.
+  intros.
+  generalize dependent b.
+  induction xs; simpl; intros.
+    nomega.
+  rewrite load_into_map_cons.
+  destruct (N.eq_dec x b); subst.
+    rewrite F.add_eq_o; auto.
+    replace (b - b) with 0 by nomega.
+    reflexivity.
+  rewrite F.add_neq_o; auto.
+  rewrite IHxs.
+    replace (a :: xs) with ([a] ++ xs) by auto.
+    rewrite nth_error_app2; auto.
+      f_equal.
+      nomega.
+    nomega.
+  nomega.
+Qed.
+
+Lemma buffer_pack_sound :
+  forall xs s r_n ps, buffer_pack xs s ↝ (ps, r_n)
+    -> ByteString_list_AbsR xs ps r_n.
+Proof.
+  unfold buffer_pack; intros.
+  construct_AbsR.
+    revert H.
+    unfold allocate_buffer, alloc, Bind2; simpl.
+    rewrite strip_IfDep_Then_Else.
+    intros.
+    if_computes_to_inv; tsubst; simpl in *.
+      destruct_computations.
+      clear H Heqe; simpl.
+      unfold buffer_to_list; simpl.
+      rewrite !plusPtr_zero, !N.add_0_r.
+      induction xs; auto.
+      rewrite IHxs at 1; clear IHxs.
+      simpl length.
+      rewrite Nat2N.inj_succ.
+      rewrite !N.peano_rec_succ; simpl.
+      f_equal.
+        rewrite find_load_into_map; simpl.
+          replace (a :: xs) with ([a] ++ xs) by auto.
+          rewrite nth_error_app1; [|nomega].
+          remember (_ - _) as x.
+          replace x with 0 by nomega.
+          reflexivity.
+        nomega.
+      remember (fun _ _ => _) as f.
+      remember (fun (k : N) (ws : list Word) =>
+                  match M.find _ (load_into_map _ (_ :: _) (bytes s)) with
+                  | Some w => w
+                  | None => Zero
+                  end :: ws) as g.
+      apply Npeano_rec_eq with (f:=f) (g:=g); intros; subst.
+      f_equal.
+      rewrite !find_load_into_map; simpl; try nomega.
+      replace (a :: xs) with ([a] ++ xs) by auto.
+      rewrite nth_error_app2; simpl; [|nomega].
+      remember (N.to_nat _) as i.
+      remember (N.to_nat _ - 1)%nat as j.
+      replace i with j by nomega.
+      reflexivity.
+    unfold buffer_to_list; simpl.
+    destruct xs; nomega.
+  destruct xs; simpl in *;
+  destruct_computations; tsubst.
+    firstorder.
+  simpl in *.
+  right; firstorder; nomega.
+Qed.
 
 Lemma buffer_cons_eq_shift_1 : forall x h ps buflen,
   0 < psOffset ps
@@ -623,6 +722,35 @@ Proof.
 
   {
     simplify with monad laws.
+    setoid_rewrite (@refine_skip2_pick _ (buffer_pack d s)).
+    etransitivity.
+      refine_under.
+        finish honing.
+      refine pick val a.
+        finish honing.
+      eapply buffer_pack_sound.
+      rewrite <- surjective_pairing.
+      apply H0.
+    simplify with monad laws; simpl.
+    finish honing.
+  }
+
+  {
+    simplify with monad laws.
+    unfold Bind2.
+    setoid_rewrite (@refine_skip2_pick _ (buffer_unpack r_n s)).
+    simplify with monad laws; simpl.
+    refine pick eq.
+    simplify with monad laws; simpl.
+    refine pick val (r_n, s).
+      simplify with monad laws; simpl.
+      destruct H; subst.
+      finish honing.
+    apply H.
+  }
+
+  {
+    simplify with monad laws.
     setoid_rewrite (@refine_skip2_pick _ (buffer_cons r_n d s)).
     etransitivity.
       refine_under.
@@ -661,7 +789,6 @@ Proof.
     eapply buffer_append_sound; eauto.
     rewrite <- surjective_pairing; auto.
   }
-
 Defined.
 
 End ByteStringHeap.
