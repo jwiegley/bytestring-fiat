@@ -119,8 +119,6 @@ Corollary consDSL_correct : forall (h : Rep HeapSpec) (bs : PS) w,
          (denote HeapSpec (projT1 (consDSL h bs w))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
-Let consDSL' h bs w := Eval simpl in (projT1 (consDSL h bs w)).
-
 Hint Unfold buffer_uncons.
 
 Check "Compiling unconsDSL...".
