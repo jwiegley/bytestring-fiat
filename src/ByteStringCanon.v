@@ -26,8 +26,7 @@ Variable heap  : Rep HeapSpec.
 Variable heap' : cHeapRep.
 
 Definition Heap_AbsR (or : Rep HeapSpec) (nr : cHeapRep) :=
-  M.Equal (resvs or) (resvs (snd nr)) /\
-  M.Equal (bytes or) (bytes (snd nr)) /\
+  HeapState_Equal or (snd nr) /\
   P.for_all (fun addr sz =>
                lebPtr (A:=Word) (plusPtr (A:=Word) addr sz) (fst nr))
             (resvs (snd nr)).
@@ -52,7 +51,7 @@ Lemma refine_ByteString_Heap_AbsR :
        k r_n')
       (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
-       brk'   <- {brk'   : N
+       brk'   <- {brk'   : Ptr Word
                  | P.for_all (fun addr sz =>
                                 lebPtr (A:=Word) (plusPtr (A:=Word) addr sz) brk')
                              resvs' };
@@ -92,8 +91,8 @@ Proof.
         rewrite H1, <- surjective_pairing.
         apply refine_computes_to; assumption.
       destruct H; intuition.
-    destruct H; intuition.
-  destruct H; intuition.
+    destruct H, H; intuition.
+  destruct H, H; intuition.
 Qed.
 
 Lemma refine_ByteString_Heap_AbsR' :
@@ -108,7 +107,7 @@ Lemma refine_ByteString_Heap_AbsR' :
          ; psLength := length |} = snd r_n0 }
       (resvs' <- {resvs' : M.t Size | M.Equal heap_resvs resvs'};
        bytes' <- {bytes' : M.t Word | M.Equal heap_bytes bytes'};
-       brk'   <- {brk'   : N
+       brk'   <- {brk'   : Ptr Word
                  | P.for_all (fun addr sz =>
                                 lebPtr (A:=Word) (plusPtr (A:=Word) addr sz) brk')
                              resvs' };
@@ -147,18 +146,33 @@ Proof.
         apply refine_computes_to.
         constructor.
       destruct H; intuition.
-    destruct H; intuition.
-  destruct H; intuition.
+    destruct H, H; intuition.
+  destruct H, H; intuition.
 Qed.
 
 Ltac apply_ByteString_Heap_AbsR :=
   match goal with
-    | [ H : Heap_AbsR (fst ?O) (fst ?N) /\ snd ?X = snd ?Y |- _ ] =>
-      destruct H as
-          [ [ resvs_match0 [ bytes_match0 for_all_matches0 ] ] match0 ],
-          O as [ [ resvs_o bytes_o ] ps_o ];
-      simpl in *;
-      rewrite ?match0
+  | [ H : Heap_AbsR (fst ?O) (fst ?N) /\ snd ?X = snd ?Y |- _ ] =>
+    let resvs_match := fresh "resvs_match" in
+    let bytes_match := fresh "bytes_match" in
+    let for_all_matches := fresh "for_all_matches" in
+    let matched := fresh "matched" in
+    let resvs_o := fresh "resvs_o" in
+    let bytes_o := fresh "bytes_o" in
+    let ps_o := fresh "ps_o" in
+    destruct H as
+        [ [ [ resvs_match bytes_match ] for_all_matches ] matched ],
+        O as [ [ resvs_o bytes_o ] ps_o ]; simpl in *;
+    rewrite ?matched
+  | [ H : Heap_AbsR ?O ?N |- _ ] =>
+    let resvs_match := fresh "resvs_match" in
+    let bytes_match := fresh "bytes_match" in
+    let for_all_matches := fresh "for_all_matches" in
+    let resvs_o := fresh "resvs_o" in
+    let bytes_o := fresh "bytes_o" in
+    destruct H as
+        [ [ resvs_match bytes_match ] for_all_matches ],
+        O as [ resvs_o bytes_o ]; simpl in *
   end.
 
 Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
@@ -217,6 +231,83 @@ Proof.
     firstorder.
   }
 
+  (* refine method ByteString.packS. *)
+  {
+    unfold buffer_pack, allocate_buffer, alloc, find_free_block, Bind2; simpl.
+    rewrite strip_IfDep_Then_Else.
+    autorewrite with monad laws; simpl.
+    etransitivity.
+      apply refine_If_Then_Else_Bind.
+    etransitivity.
+      apply refine_If_Then_Else.
+        simplify with monad laws; simpl.
+        refine pick val (plusPtr (A:=Word) (fst heap') 1); eauto.
+          simplify with monad laws; simpl.
+          rewrite refine_ByteString_Heap_AbsR'.
+          apply_ByteString_Heap_AbsR.
+          try setoid_rewrite resvs_match;
+          refine pick val (M.add (plusPtr (A:=Word) (fst heap') 1)
+                                 (N.of_nat (length d))
+                                 (resvs (snd heap'))).
+            simplify with monad laws; simpl.
+            refine pick val (load_into_map (plusPtr (A:=Word) (fst heap') 1)
+                                           d (bytes (snd heap'))).
+              simplify with monad laws; simpl.
+              refine pick val (plusPtr (A:=Word) (plusPtr (fst heap') 1)
+                                       (N.of_nat (length d))); eauto.
+                simplify with monad laws; simpl.
+                finish honing.
+              apply for_all_add_true; relational; rewrite ?H0; auto.
+                unfold not; intros.
+                destruct H0.
+                apply_for_all; relational.
+                nomega_.
+              split.
+                eapply for_all_impl; eauto; relational; rewrite ?H0; auto.
+                nomega_.
+              nomega_.
+            rewrite N.add_0_r.
+            apply load_into_map_Proper; auto.
+            reflexivity.
+          reflexivity.
+        apply_ByteString_Heap_AbsR.
+        rewrite resvs_match.
+        eapply for_all_impl; eauto; relational; rewrite ?H0; auto.
+        nomega_.
+      simplify with monad laws; simpl.
+      apply refine_ByteString_Heap_AbsR'.
+    etransitivity.
+      apply refine_If_Then_Else.
+        finish honing.
+      refine pick val _.
+        simplify with monad laws.
+        refine pick val _.
+          simplify with monad laws.
+          refine pick val (fst heap'); eauto.
+            simplify with monad laws.
+            finish honing.
+          apply_ByteString_Heap_AbsR;
+          refine using ByteString_Heap_AbsR.
+        reflexivity.
+      apply_ByteString_Heap_AbsR.
+      assumption.
+    rewrite refine_If_Then_Else_ret.
+    finish honing.
+  }
+
+  (* refine method ByteString.unpackS. *)
+  {
+    simplify with monad laws; simpl.
+    refine pick val r_n; auto.
+    simplify with monad laws.
+    replace (buffer_to_list (fst r_o) (snd r_o))
+       with (buffer_to_list (snd (fst r_n)) (snd r_n)).
+      finish honing.
+    apply buffer_to_list_Proper; auto.
+      symmetry; firstorder.
+    intuition.
+  }
+
   (* refine method ByteString.consS. *)
   {
     apply_ByteString_Heap_AbsR.
@@ -242,7 +333,7 @@ Proof.
       eapply for_all_impl; auto;
       relational; eauto; nomega.
 
-    - rewrite resvs_match0.
+    - rewrite resvs_match.
       eapply for_all_impl; eauto;
       relational; nomega.
 
@@ -258,7 +349,7 @@ Proof.
       eapply for_all_impl; auto;
       relational; eauto; nomega.
 
-    - rewrite resvs_match0.
+    - rewrite resvs_match.
       eapply for_all_impl; eauto;
       relational; nomega.
   }
@@ -284,17 +375,18 @@ Proof.
       intros.
       destruct (M.find _ _) eqn:Heqe; simpl.
         normalize.
-        rewrite bytes_match0.
+        rewrite bytes_match.
         left; assumption.
       right; split; trivial.
       apply HeapState.F.not_find_in_iff.
-      rewrite bytes_match0.
+      rewrite bytes_match.
       assumption.
 
     - refine pick val r_n; eauto.
         simplify with monad laws.
         finish honing.
       split; trivial.
+      constructor; auto.
       constructor; auto.
   }
 
@@ -319,7 +411,7 @@ Proof.
             simplify with monad laws; simpl.
             destruct H0, H1.
             rewrite e, e0; clear e e0.
-            destruct h, H1, h0, H5.
+            apply_ByteString_Heap_AbsR.
             refine pick val
               ((plusPtr (A:=Word) (fst (fst r_n))
                         (1 + psLength (snd r_n) + psLength (snd r_n0)),
@@ -348,16 +440,13 @@ Proof.
             intuition.
             rewrite_ptr.
             rewrite !N.add_comm with (n:=1).
+            apply_ByteString_Heap_AbsR.
             constructor; simpl.
-              rewrite H0.
-              reflexivity.
-            split.
-              rewrite H1.
+              rewrite resvs_match0, bytes_match0.
               replace (plusPtr (A:=Word) (fst (fst r_n)) 1 + psLength (snd r_n))
                  with (plusPtr (A:=Word) (fst (fst r_n)) (psLength (snd r_n) + 1))
                    by nomega.
               reflexivity.
-            clear -H3.
             apply for_all_add_true; relational; try nomega.
               destruct 1.
               apply_for_all; relational.
@@ -382,9 +471,8 @@ Proof.
     intuition.
     rewrite H4, H5.
     destruct H3.
-    rewrite H1.
+    rewrite (proj1 H1).
     intuition.
-    clear -H6.
     remember (fun _ _ => _) as P.
     remember (fun _ _ => negb _) as P'.
     apply for_all_impl with (P:=P) (P':=P'); relational; nomega.
@@ -398,6 +486,19 @@ Proof.
   (* refine method ByteString.emptyS. *)
   {
     simplify with monad laws.
+    finish honing.
+  }
+
+  (* refine method ByteString.packS. *)
+  {
+    simplify with monad laws.
+    finish honing.
+  }
+
+  (* refine method ByteString.unpackS. *)
+  {
+    simplify with monad laws.
+    subst.
     finish honing.
   }
 

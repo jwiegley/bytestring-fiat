@@ -166,21 +166,23 @@ Arguments alloc_quantum /.
 Definition bsrep := (Rep HeapSpec * PS)%type.
 
 Program Definition buffer_pack (d : list Word) (h : Rep HeapSpec) :
-  Comp (PS * Rep HeapSpec) :=
+  Comp (Rep HeapSpec * PS) :=
   IfDep 0 <? N.of_nat (length d)
   Then fun _ =>
-    `(ps, h) <- allocate_buffer h (N.of_nat (length d));
+    `(h, ps) <- allocate_buffer h (N.of_nat (length d));
     h <- write h (psBuffer ps + psOffset ps) d;
-    ret (ps, h)
+    ret (h, ps)
   Else fun _ =>
-    ret ({| psBuffer := 0
-          ; psBufLen := 0
-          ; psOffset := 0
-          ; psLength := 0 |}, h).
+    ret (h, {| psBuffer := 0
+             ; psBufLen := 0
+             ; psOffset := 0
+             ; psLength := 0 |}).
 Obligation 1. nomega. Defined.
 
-Definition buffer_unpack (ps : bsrep) (h : Rep HeapSpec) :
+Definition buffer_unpack (r : bsrep) (h : Rep HeapSpec) :
   Comp (list Word) :=
+  let h  := fst r in
+  let ps := snd r in
   `(h, xs) <- read h (psBuffer ps + psOffset ps) (psLength ps);
   ret xs.
 
@@ -242,37 +244,9 @@ Ltac destruct_ps ps :=
   destruct psLength using N.peano_ind; simpl; intros;
   repeat (rewrite_ptr; repeat reduce_find).
 
-Lemma load_into_map_cons : forall b elt a xs (m : M.t elt),
-  load_into_map b (a :: xs) m = M.add b a (load_into_map (N.succ b) xs m).
-Proof.
-Admitted.
-
-Lemma find_load_into_map : forall (b x : N) A (xs : list A) m,
-  b <= x < b + N.of_nat (length xs)
-    -> M.find x (load_into_map b xs m) = nth_error xs (N.to_nat (x - b)%N).
-Proof.
-  intros.
-  generalize dependent b.
-  induction xs; simpl; intros.
-    nomega.
-  rewrite load_into_map_cons.
-  destruct (N.eq_dec x b); subst.
-    rewrite F.add_eq_o; auto.
-    replace (b - b) with 0 by nomega.
-    reflexivity.
-  rewrite F.add_neq_o; auto.
-  rewrite IHxs.
-    replace (a :: xs) with ([a] ++ xs) by auto.
-    rewrite nth_error_app2; auto.
-      f_equal.
-      nomega.
-    nomega.
-  nomega.
-Qed.
-
 Lemma buffer_pack_sound :
   forall xs s r_n ps, buffer_pack xs s ↝ (ps, r_n)
-    -> ByteString_list_AbsR xs ps r_n.
+    -> ByteString_list_AbsR xs (ps, r_n).
 Proof.
   unfold buffer_pack; intros.
   construct_AbsR.
@@ -487,25 +461,22 @@ Proof.
   destruct_computations.
   if_computes_to_inv; subst; simpl.
     destruct_computations; simpl.
+    destruct r_n; simpl in *.
     destruct_AbsR H;
-    destruct_ps (snd r_n); try nomega.
+    destruct_ps p; try nomega.
     clear IHpsLength0.
     f_equal.
     destruct H0.
       apply F.find_mapsto_iff in H.
-      admit.
-      (* rewrite H; reflexivity. *)
+      rewrite H; reflexivity.
     destruct H; subst.
-    assert (M.find (plusPtr psBuffer0 psOffset0) (bytes (fst r_n)) = None).
+    assert (M.find (plusPtr psBuffer0 psOffset0) (bytes r) = None).
       apply F.not_find_in_iff; trivial.
-      admit.
-    admit.
-    (* rewrite H0; trivial. *)
+      rewrite H0; trivial.
+  destruct r_n; simpl in *.
   destruct_AbsR H;
-  destruct_ps (snd r_n).
-    admit.
-  admit.
-Admitted.
+  destruct_ps p.
+Qed.
 
 (**************************************************************************)
 
@@ -664,10 +635,21 @@ Proof.
       destruct_AbsR H.
         destruct_AbsR H0; construct_AbsR.
       construct_AbsR.
-        destruct_AbsR H0; tsubst.
-          admit.
-        admit.
-        (* apply buffer_to_list_app; nomega. *)
+        assert (HeapState_Equal (fst r_n1) (fst r_n2)).
+          constructor; auto.
+        assert (buffer_to_list (fst r_n2) (snd r_n2) =
+                buffer_to_list (fst r_n1) (snd r_n2)).
+          apply buffer_to_list_Proper; trivial.
+          symmetry; assumption.
+        destruct_AbsR H0; tsubst; simpl;
+        rewrite H4;
+        erewrite buffer_to_list_app;
+        repeat f_equal; try nomega.
+          clear H9.
+          apply_for_all; nomega.
+        clear H6.
+        rewrite H1 in H2.
+        apply_for_all; nomega.
       right.
       split.
         nomega.
@@ -696,13 +678,10 @@ Proof.
     assert (psLength0 = 0) by nomega.
     rewrite H; simpl.
     reflexivity.
-  subst.
-  destruct_AbsR H;
-  destruct_AbsR H0;
-  subst; intuition;
-  construct_AbsR; tsubst; auto;
-  left; intuition.
-Admitted.
+  subst; simpl; tsubst.
+  rewrite <- surjective_pairing.
+  assumption.
+Qed.
 
 (**************************************************************************)
 
@@ -727,14 +706,15 @@ Proof.
 
   {
     simplify with monad laws.
-    setoid_rewrite (@refine_skip2_pick _ (buffer_pack d)).
+    rewrite (refine_skip2_pick (dummy:=buffer_pack d heap)).
     etransitivity.
       refine_under.
         finish honing.
       refine pick val a.
         finish honing.
       eapply buffer_pack_sound.
-      rewrite <- surjective_pairing.
+      instantiate (1:=heap).
+      destruct a.
       apply H0.
     simplify with monad laws; simpl.
     finish honing.
@@ -742,16 +722,11 @@ Proof.
 
   {
     simplify with monad laws.
-    unfold Bind2.
-    setoid_rewrite (@refine_skip2_pick _ (buffer_unpack r_n)).
-    simplify with monad laws; simpl.
-    refine pick eq.
-    simplify with monad laws; simpl.
-    refine pick val (r_n, s).
+    refine pick val r_n.
       simplify with monad laws; simpl.
-      destruct H; subst.
+      destruct H0; subst.
       finish honing.
-    apply H.
+    apply H0.
   }
 
   {

@@ -23,6 +23,19 @@ Record HeapState := {
 Definition HeapState_Equal (x y : HeapState) : Prop :=
   M.Equal (resvs x) (resvs y) /\ M.Equal (bytes x) (bytes y).
 
+Global Program Instance HeapState_Equal_Equivalence : Equivalence HeapState_Equal.
+Obligation 1.
+  constructor; reflexivity.
+Defined.
+Obligation 2.
+  constructor; destruct H; symmetry; assumption.
+Defined.
+Obligation 3.
+  constructor; destruct H, H0.
+    transitivity (resvs y); assumption.
+  transitivity (bytes y); assumption.
+Defined.
+
 Global Program Instance Build_HeapState_Proper :
   Proper (M.Equal ==> M.Equal ==> HeapState_Equal) Build_HeapState.
 Obligation 1. relational; unfold HeapState_Equal; simpl; intuition. Qed.
@@ -300,6 +313,106 @@ Proof.
   intros.
   relational.
   destruct c; eauto.
+Qed.
+
+Definition load_into_map {elt} (k : M.key) (xs : list elt) (m : M.t elt) :=
+  fst (fold_left (fun (acc : M.t elt * Ptr Word) x =>
+                    let (m, i) := acc in
+                    (M.add i x m, plusPtr (A:=Word) i 1)) xs (m, k)).
+
+Corollary load_into_map_singleton : forall b elt a (m : M.t elt),
+  M.Equal (load_into_map b [a] m) (M.add b a m).
+Proof. reflexivity. Qed.
+
+Corollary load_into_map_cons b elt a xs (m : M.t elt) :
+  M.Equal (load_into_map b (a :: xs) m)
+          (load_into_map (plusPtr (A:=Word) b 1) xs (M.add b a m)).
+Proof. reflexivity. Qed.
+
+Lemma load_into_map_add : forall b k elt a xs (m : M.t elt),
+  ltPtr b k ->
+    M.Equal (load_into_map k xs (M.add b a m)) (M.add b a (load_into_map k xs m)).
+Proof.
+  intros.
+  generalize dependent b.
+  generalize dependent k.
+  generalize dependent a.
+  generalize dependent m.
+  induction xs; simpl; intros.
+    unfold load_into_map; simpl.
+    reflexivity.
+  rewrite !load_into_map_cons.
+  repeat rewrite IHxs by nomega.
+  rewrite add_associative.
+  f_equiv.
+  nomega.
+Qed.
+
+Lemma load_into_map_Proper {elt} :
+  Proper (N.eq ==> eq ==> @M.Equal elt ==> @M.Equal elt) (@load_into_map elt).
+Proof.
+  relational.
+  rewrite H; clear H x.
+  generalize dependent y.
+  generalize dependent x1.
+  generalize dependent y1.
+  induction y0; simpl; intros; subst.
+    assumption.
+  rewrite !load_into_map_cons.
+  apply IHy0.
+  f_equiv.
+  assumption.
+Qed.
+
+Lemma load_into_map_app b elt xs ys (m : M.t elt) :
+  M.Equal (load_into_map b (xs ++ ys) m)
+          (load_into_map b xs (load_into_map (plusPtr (A:=Word) b
+                                                      (N.of_nat (length xs)))
+                                             ys m)).
+Proof.
+  intros.
+  generalize dependent b.
+  generalize dependent m.
+  generalize dependent ys.
+  induction xs; simpl; intros.
+    unfold load_into_map; simpl.
+    rewrite plusPtr_zero.
+    reflexivity.
+  rewrite load_into_map_cons.
+  rewrite IHxs; clear IHxs.
+  rewrite load_into_map_cons.
+  apply load_into_map_Proper; auto.
+    reflexivity.
+  rewrite load_into_map_add by nomega.
+  f_equiv.
+  apply load_into_map_Proper; auto.
+    unfold N.eq.
+    nomega.
+  reflexivity.
+Qed.
+
+Lemma find_load_into_map : forall (b x : N) A (xs : list A) m,
+  b <= x < b + N.of_nat (length xs)
+    -> M.find x (load_into_map b xs m) = nth_error xs (N.to_nat (x - b)%N).
+Proof.
+  intros.
+  generalize dependent b.
+  induction xs; simpl; intros.
+    nomega.
+  rewrite load_into_map_cons.
+  destruct (N.eq_dec x b); subst;
+  rewrite load_into_map_add by nomega.
+    rewrite F.add_eq_o; auto.
+    replace (b - b) with 0 by nomega.
+    reflexivity.
+  rewrite F.add_neq_o; auto.
+  rewrite IHxs.
+    replace (a :: xs) with ([a] ++ xs) by auto.
+    rewrite nth_error_app2; auto.
+      f_equal.
+      nomega.
+    nomega.
+  nomega.
 Qed.
 
 End HeapState.

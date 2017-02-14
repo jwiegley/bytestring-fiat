@@ -41,7 +41,7 @@ Proof.
                  (icons {|methBody :=  _|}
                  (icons {|methBody :=  _|}
                  (icons {|methBody :=  _|} inil ) ) ) ) ) ) ) ) ) )
-    (AbsR := fun or nr =>
+    (AbsR := fun or (nr : Ptr Word * Rep HeapSpec) =>
        M.Equal (resvs or) (resvs (snd nr)) /\
        M.Equal (bytes or) (bytes (snd nr)) /\
        P.for_all (fun addr sz => plusPtr addr sz <=? fst nr) (resvs (snd nr))).
