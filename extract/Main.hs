@@ -1,13 +1,13 @@
 module Main where
 
-import Data.ByteString.Fiat.Internal hiding (IO, putStrLn)
-import Data.Word
-import Data.Word (Word8)
-import Foreign.Marshal.Alloc (mallocBytes)
-import Foreign.Marshal.Utils (copyBytes)
-import Foreign.Ptr (Ptr, plusPtr)
-import GHC.Prim
-import System.IO.Unsafe (unsafePerformIO)
+import qualified Data.ByteString.Fiat as BS
+import           Data.ByteString.Fiat.Internal hiding (IO, putStrLn)
+import           Data.Word (Word8)
+import           Foreign.Marshal.Alloc (mallocBytes)
+import           Foreign.Marshal.Utils (copyBytes)
+import           Foreign.Ptr (Ptr, plusPtr)
+import           GHC.Prim
+import           System.IO.Unsafe (unsafePerformIO)
 
 c2w8 :: Char -> Word8
 c2w8 = fromIntegral . fromEnum
@@ -36,6 +36,12 @@ printPS0 bs =
     case mres of
         Nothing -> return []
         Just c  -> (w82c c:) <$> printPS0 bs'
+
+printPS1 :: BS.ByteString -> IO String
+printPS1 bs =
+    case BS.uncons bs of
+        Nothing -> return []
+        Just (c, bs') -> (w82c c:) <$> printPS1 bs'
 
 main :: IO ()
 main = do
@@ -83,6 +89,30 @@ main = do
 
     let bs6'' = ghcAppendDSL'' bs3 bs2
     putStrLn . ("bs6'' = " ++) =<< printPS0 bs6''
+
+    putStrLn "ByteString via Internal..."
+
+    let s0 = BS.empty
+    putStrLn . ("s0 = " ++) =<< printPS1 s0
+    let s1 = BS.cons (c2w8 'a') s0
+    putStrLn . ("s1 = " ++) =<< printPS1 s1
+    let s2 = BS.cons (c2w8 'b') s1
+    putStrLn . ("s2 = " ++) =<< printPS1 s2
+    let s3 = BS.cons (c2w8 'c') s2
+    putStrLn . ("s3 = " ++) =<< printPS1 s3
+    case BS.uncons s3 of
+        Nothing -> return ()
+        Just (mres1', s4) -> do
+            putStrLn . ("s4 = " ++) =<< printPS1 s4
+            print mres1'
+            case BS.uncons s4 of
+                Nothing -> return ()
+                Just (mres2', s5) -> do
+                    putStrLn . ("s5 = " ++) =<< printPS1 s5
+                    print mres2'
+
+            let s6 = BS.append s3 s2
+            putStrLn . ("s6 = " ++) =<< printPS1 s6
   where
     any' = unsafeCoerce ()
 

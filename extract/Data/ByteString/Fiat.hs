@@ -2,6 +2,7 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TupleSections #-}
 
 module Data.ByteString.Fiat (
 
@@ -230,21 +231,23 @@ import GHC.Base                 (build)
 import GHC.Word hiding (Word8)
 
 
-data ByteString = PS (ForeignPtr Word8) Int Int
+type ByteString = Internal.PS0
+
+pattern PS a b c <- Internal.MakePS0 a l b c
 
 empty :: ByteString
-empty = error "NYI"
+empty = Internal.ghcEmptyDSL'
 
 singleton :: Word8 -> ByteString
-singleton c = error "NYI"
+singleton = Internal.ghcConsDSL' Internal.ghcEmptyDSL'
 
 
 
 pack :: [Word8] -> ByteString
-pack = error "NYI"
+pack = Internal.ghcPackDSL'
 
 unpack :: ByteString -> [Word8]
-unpack bs = error "NYI"
+unpack = Internal.ghcUnpackDSL'
 
 unpackFoldr :: ByteString -> (Word8 -> a -> a) -> a -> a
 unpackFoldr bs k z = error "NYI"
@@ -252,17 +255,17 @@ unpackFoldr bs k z = error "NYI"
 
 
 null :: ByteString -> Bool
-null (PS _ _ l) = error "NYI"
+null (PS _ _ l) = l == 0
 
 length :: ByteString -> Int
-length (PS _ _ l) = error "NYI"
+length (PS _ _ l) = l
 
 
 infixr 5 `cons`
 infixl 5 `snoc`
 
 cons :: Word8 -> ByteString -> ByteString
-cons c (PS x s l) = error "NYI"
+cons = flip Internal.ghcConsDSL'
 
 snoc :: ByteString -> Word8 -> ByteString
 snoc (PS x s l) c = error "NYI"
@@ -275,7 +278,7 @@ tail :: ByteString -> ByteString
 tail (PS p s l) = error "NYI"
 
 uncons :: ByteString -> Maybe (Word8, ByteString)
-uncons (PS x s l) = error "NYI"
+uncons bs = let (bs', mres) = Internal.ghcUnconsDSL' bs in fmap (, bs') mres
 
 last :: ByteString -> Word8
 last ps@(PS x s l) = error "NYI"
@@ -287,7 +290,7 @@ unsnoc :: ByteString -> Maybe (ByteString, Word8)
 unsnoc (PS x s l) = error "NYI"
 
 append :: ByteString -> ByteString -> ByteString
-append = error "NYI"
+append = Internal.ghcAppendDSL'
 
 
 map :: (Word8 -> Word8) -> ByteString -> ByteString
