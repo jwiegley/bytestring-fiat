@@ -55,43 +55,6 @@ Hint Unfold bind.
 Hint Unfold Bind2.
 Hint Unfold allocate_buffer.
 Hint Unfold HeapState.find_free_block.
-<<<<<<< HEAD
-Hint Unfold ByteStringHeap.buffer_pack_obligation_1.
-Hint Unfold buffer_pack.
-
-Definition packDSL h xs:
-  reflect_ADT_DSL_computation HeapSpec (buffer_pack xs h).
-Proof.
-  Local Opaque alloc.
-  Local Opaque write.
-  Time compile_term.
-    admit.
-  Local Transparent alloc.
-  Local Transparent write.
-Admitted.
-
-Corollary packDSL_correct : forall (h : Rep HeapSpec) xs,
-  refine (buffer_pack xs h)
-         (denote HeapSpec (projT1 (packDSL h xs))).
-Proof. intros; apply denote_refineEquiv. Qed.
-
-Hint Unfold buffer_unpack.
-
-Definition unpackDSL h bs:
-  reflect_ADT_DSL_computation HeapSpec (buffer_unpack bs h).
-Proof.
-  Local Opaque read.
-  Time compile_term.
-  Local Transparent read.
-Defined.
-
-Corollary unpackDSL_correct : forall (h : Rep HeapSpec) bs,
-  refine (buffer_unpack bs h)
-         (denote HeapSpec (projT1 (unpackDSL h bs))).
-Proof. intros; apply denote_refineEquiv. Qed.
-
-||||||| merged common ancestors
-=======
 Hint Unfold ByteStringHeap.buffer_pack_obligation_1.
 Hint Unfold buffer_pack.
 
@@ -127,7 +90,6 @@ Corollary unpackDSL_correct : forall (h : Rep HeapSpec) bs,
          (denote HeapSpec (projT1 (unpackDSL h bs))).
 Proof. intros; apply denote_refineEquiv. Qed.
 
->>>>>>> master
 Hint Unfold make_room_by_growing_buffer.
 Hint Unfold make_room_by_shifting_up.
 Hint Unfold ByteStringHeap.buffer_cons_obligation_2.
