@@ -2,7 +2,12 @@ module Main where
 
 import Data.ByteString.Fiat.Internal hiding (IO, putStrLn)
 import Data.Word
+import Data.Word (Word8)
+import Foreign.Marshal.Alloc (mallocBytes)
+import Foreign.Marshal.Utils (copyBytes)
+import Foreign.Ptr (Ptr, plusPtr)
 import GHC.Prim
+import System.IO.Unsafe (unsafePerformIO)
 
 c2w8 :: Char -> Word8
 c2w8 = fromIntegral . fromEnum
@@ -73,7 +78,28 @@ main = do
     putStrLn . ("bs5 = " ++) =<< printPS0 bs5
     print mres2'
 
-    let bs6 = ghcAppendDSL' bs3 bs2
+    let bs6 = ghcAppendDSL'' bs3 bs2
     putStrLn . ("bs6 = " ++) =<< printPS0 bs6
+
+    let bs6'' = ghcAppendDSL'' bs3 bs2
+    putStrLn . ("bs6'' = " ++) =<< printPS0 bs6''
   where
     any' = unsafeCoerce ()
+
+ghcAppendDSL'' :: PS0 -> PS0 -> PS0
+ghcAppendDSL'' p p0 = unsafePerformIO $
+  if 0 < psLength0 p
+  then
+    if 0 < psLength0 p0
+    then do
+      cod <- mallocBytes ((+) (psLength0 p) (psLength0 p0))
+      copyBytes cod (plusPtr (unsafeCoerce (psBuffer0 p)) (psOffset0 p))
+                (psLength0 p)
+      copyBytes (plusPtr cod (psLength0 p))
+                (plusPtr (unsafeCoerce (psBuffer0 p0)) (psOffset0 p0))
+                (psLength0 p0)
+      return $ MakePS0 (unsafeCoerce cod)
+                       ((+) (psLength0 p) (psLength0 p0)) 0
+                       ((+) (psLength0 p) (psLength0 p0))
+    else return p
+  else return p0

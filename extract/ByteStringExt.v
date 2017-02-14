@@ -331,7 +331,7 @@ Extract Inlined Constant peek     =>
 Extract Inlined Constant poke     =>
   "(\x y -> Foreign.Storable.poke ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y)".
 Extract Inlined Constant memcpy   =>
-  "(\x y -> Foreign.Marshal.Utils.copyBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y) ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
+  "(\x y -> Foreign.Marshal.Utils.copyBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y))".
 Extract Inlined Constant memset   =>
   "(\x -> Foreign.Marshal.Utils.fillBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
 Extract Inlined Constant read     =>
