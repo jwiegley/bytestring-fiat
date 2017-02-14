@@ -1,7 +1,8 @@
 module Main where
 
-import Data.ByteString.Fiat hiding (putStrLn)
+import Data.ByteString.Fiat.Internal hiding (IO, putStrLn)
 import Data.Word
+import GHC.Prim
 
 c2w8 :: Char -> Word8
 c2w8 = fromIntegral . fromEnum
@@ -33,19 +34,9 @@ printPS0 bs =
 
 main :: IO ()
 main = do
-    putStrLn "Heaps..."
-
-    let h0 = emptyHeap
-    let (h1, addr) = allocHeap h0 (of_nat 100)
-    print $ to_nat0 addr
-    let (h2, addr') = allocHeap h1 (of_nat 200)
-    print $ to_nat0 addr'
-    let h3 = pokeHeap h2 (of_nat 105) (c2w8 'a')
-    let (_h4, val) = peekHeap h3 (of_nat 105)
-    print val
-
     putStrLn "ByteString list..."
 
+    let h0 = emptyHeap
     let b0 = emptyBS any' h0
     putStrLn . ("b0 = " ++) =<< printPS any' h0 b0
     let b1 = consBS any' h0 b0 (c2w8 'a')
@@ -84,3 +75,5 @@ main = do
 
     let bs6 = ghcAppendDSL' bs3 bs2
     putStrLn . ("bs6 = " ++) =<< printPS0 bs6
+  where
+    any' = unsafeCoerce ()
