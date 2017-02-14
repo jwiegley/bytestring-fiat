@@ -6,6 +6,7 @@ Require Import
   ByteString.ByteString
   ByteString.ByteStringCanon
   ByteString.FFI.ByteStringFFI
+  ByteString.FFI.HaskellFFI
   Coq.Strings.Ascii
   Coq.Strings.String
   Coq.FSets.FMapList
@@ -63,6 +64,10 @@ Open Scope N_scope.
 
 Definition emptyBS   : BScrep :=
   Eval compute in CallMethod BSimpl emptyS.
+Definition packBS (xs : list Word) : BScrep :=
+  Eval compute in CallMethod BSimpl packS xs.
+Definition unpackBS (r : BScrep) : BScrep * list Word :=
+  Eval compute in CallMethod BSimpl unpackS r.
 Definition consBS (r : BScrep) (w : Word) : BScrep :=
   Eval compute in CallMethod BSimpl consS r w.
 Definition unconsBS (r : BScrep) : BScrep * option Word :=
@@ -297,7 +302,8 @@ Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
 
 (** Haskell IO *)
 
-Module Import BS := ByteStringFFI M.
+Module Import BS  := ByteStringFFI M.
+Module Import FFI := HaskellFFI M.
 
 Extract Constant Word => "Data.Word.Word8".
 
@@ -329,9 +335,9 @@ Extract Inlined Constant memcpy   =>
 Extract Inlined Constant memset   =>
   "(\x -> Foreign.Marshal.Utils.fillBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
 Extract Inlined Constant read     =>
-  "(\x -> Foreign.Marshal.Array.peekArray x (unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)))".
+  "(\x y -> Foreign.Marshal.Array.peekArray x ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y))".
 Extract Inlined Constant write    =>
-  "(\x -> Foreign.Marshal.Array.pokeArray (unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x)".
+  "(\x -> Foreign.Marshal.Array.pokeArray ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
 Extract Inlined Constant plusPtr  =>
   "(\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))".
 Extract Inlined Constant minusPtr =>
@@ -350,24 +356,19 @@ Set Extraction AutoInline.
 Set Extraction Optimize.
 Set Extraction AccessOpaque.
 
-Extraction "Data/ByteString/Fiat/Internal.hs"
+Extraction "Internal.hs"
   emptyHeap
-  allocHeap
-  freeHeap
-  reallocHeap
-  peekHeap
-  pokeHeap
-  memcpyHeap
-  memsetHeap
-  N.of_nat
-  N.to_nat
 
   emptyBS
+  packBS
+  unpackBS
   consBS
   unconsBS
   appendBS
 
   ghcEmptyDSL'
+  ghcPackDSL'
+  ghcUnpackDSL'
   ghcConsDSL'
   ghcUnconsDSL'
   ghcAppendDSL'.

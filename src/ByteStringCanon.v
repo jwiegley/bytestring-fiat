@@ -324,8 +324,6 @@ Proof.
         finish honing.
 
       rewrite <- remove_add.
-      apply for_all_remove; relational.
-        rewrite H; reflexivity.
       apply for_all_add_true; relational; try nomega.
         simplify_maps.
       split; [|nomega].

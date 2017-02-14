@@ -1,24 +1,34 @@
 Require Import
   ByteString.Lib.Tactics
   (* ByteString.Lib.Nomega *)
-  (* ByteString.Lib.Fiat *)
+  ByteString.Lib.Fiat
   (* ByteString.Lib.TupleEnsembles *)
   (* ByteString.Lib.FunMaps *)
   (* ByteString.Lib.FromADT *)
-  (* ByteString.Lib.HList *)
-  (* ByteString.Memory *)
-  (* ByteString.Heap *)
+  ByteString.Lib.HList
+  ByteString.Memory
+  ByteString.Heap
   (* ByteString.FFI.HeapFFI *)
-  (* ByteString.FFI.CompileFFI *)
+  ByteString.FFI.CompileFFI
   ByteString.FFI.ByteStringFFI
   (* ByteString.ByteString *)
   (* ByteString.ByteStringHeap *)
-  (* Coq.FSets.FMapFacts *)
-  (* Coq.Structures.DecidableTypeEx *)
-  (* Hask.Data.Functor *)
-  (* Hask.Control.Monad *)
-  (* Hask.Control.Monad.Trans.FiatState *)
+  Coq.FSets.FMapFacts
+  Coq.Structures.DecidableTypeEx
+  Hask.Data.Functor
+  Hask.Control.Monad
+  Hask.Control.Monad.Free
+  Hask.Control.Monad.Trans.FiatState
   .
+
+Module HaskellFFI (M : WSfun N_as_DT).
+
+Module Import ByteStringFFI := ByteStringFFI M.
+
+Import ByteStringHeap.
+Import FunMaps.
+Import HeapCanonical.
+Import Heap.
 
 (****************************************************************************
  * Denote a [ClientDSL HeapSpec] term into a GHC computation
@@ -155,21 +165,20 @@ Lemma ghcPackDSL :
   { f : list Word -> PS
   & forall r xs,
       f xs = unsafeDupablePerformIO
-               (ghcDenote ((returnIO \o fst) <$> projT1 (packDSL r xs))) }.
+               (ghcDenote ((returnIO \o snd) <$> projT1 (packDSL r xs))) }.
 Proof.
   eexists; intros.
   symmetry.
   simpl projT1.
   unfold comp.
-  rewrite !fmap_If.
+  rewrite !fmap_IfDep.
   etransitivity.
-    do 3 setoid_rewrite ghcDenote_If.
+    setoid_rewrite ghcDenote_IfDep.
     reflexivity.
   simpl.
-  do 4 (unfold compose, comp; simpl).
+  repeat (unfold compose, comp; simpl).
   unfold ghcDenote; simpl.
-  rewrite !bindIO_returnIO.
-  unfold If_Then_Else.
+  rewrite strip_IfDep_Then_Else.
   higher_order_reflexivity.
 Defined.
 
@@ -181,7 +190,7 @@ Lemma ghcUnpackDSL :
   { f : PS -> list Word
   & forall r bs,
       f bs = unsafeDupablePerformIO
-               (ghcDenote (returnIO <$> projT1 (unpackDSL r bs))) }.
+               (ghcDenote (returnIO <$> projT1 (unpackDSL r (r, bs)))) }.
 Proof.
   eexists; intros.
   symmetry.
@@ -263,6 +272,8 @@ Proof.
   symmetry.
   simpl projT1.
   unfold comp.
+  unfold appendDSL.
+  simpl projT1.
   rewrite fmap_IfDep.
   etransitivity.
     setoid_rewrite ghcDenote_IfDep.
@@ -335,3 +346,5 @@ ByteString:
                           PS x (s+1) (l-1))
 
 ****************************************************************************)
+
+End HaskellFFI.

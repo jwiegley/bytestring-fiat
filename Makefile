@@ -14,8 +14,9 @@ bstring: Makefile.coq $(wildcard *.v)
 	rm -f ByteStringExt.hs
 	touch extract/ByteStringExt.v
 	make -f Makefile.coq -j
-	perl -i extract/fixcode.pl ByteStringExt.hs
-	mv ByteStringExt.hs extract
+	perl -i extract/fixcode.pl Internal.hs
+	perl -i -pe 's/module Internal where/module Data.ByteString.Fiat.Internal where/' Internal.hs
+	mv Internal.hs extract/Data/ByteString/Fiat/Internal.hs
 	(cd extract; nix-cabal-build)
 
 Makefile.coq: _CoqProject

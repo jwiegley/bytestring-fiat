@@ -1,7 +1,13 @@
 module Main where
 
-import Data.ByteString.Fiat hiding (putStrLn)
-import Data.Word
+import qualified Data.ByteString.Fiat as BS
+import           Data.ByteString.Fiat.Internal hiding (IO, putStrLn)
+import           Data.Word (Word8)
+import           Foreign.Marshal.Alloc (mallocBytes)
+import           Foreign.Marshal.Utils (copyBytes)
+import           Foreign.Ptr (Ptr, plusPtr)
+import           GHC.Prim
+import           System.IO.Unsafe (unsafePerformIO)
 
 c2w8 :: Char -> Word8
 c2w8 = fromIntegral . fromEnum
@@ -31,21 +37,17 @@ printPS0 bs =
         Nothing -> return []
         Just c  -> (w82c c:) <$> printPS0 bs'
 
+printPS1 :: BS.ByteString -> IO String
+printPS1 bs =
+    case BS.uncons bs of
+        Nothing -> return []
+        Just (c, bs') -> (w82c c:) <$> printPS1 bs'
+
 main :: IO ()
 main = do
-    putStrLn "Heaps..."
-
-    let h0 = emptyHeap
-    let (h1, addr) = allocHeap h0 (of_nat 100)
-    print $ to_nat0 addr
-    let (h2, addr') = allocHeap h1 (of_nat 200)
-    print $ to_nat0 addr'
-    let h3 = pokeHeap h2 (of_nat 105) (c2w8 'a')
-    let (_h4, val) = peekHeap h3 (of_nat 105)
-    print val
-
     putStrLn "ByteString list..."
 
+    let h0 = emptyHeap
     let b0 = emptyBS any' h0
     putStrLn . ("b0 = " ++) =<< printPS any' h0 b0
     let b1 = consBS any' h0 b0 (c2w8 'a')
@@ -84,3 +86,50 @@ main = do
 
     let bs6 = ghcAppendDSL' bs3 bs2
     putStrLn . ("bs6 = " ++) =<< printPS0 bs6
+
+    let bs6'' = ghcAppendDSL'' bs3 bs2
+    putStrLn . ("bs6'' = " ++) =<< printPS0 bs6''
+
+    putStrLn "ByteString via Internal..."
+
+    let s0 = BS.empty
+    putStrLn . ("s0 = " ++) =<< printPS1 s0
+    let s1 = BS.cons (c2w8 'a') s0
+    putStrLn . ("s1 = " ++) =<< printPS1 s1
+    let s2 = BS.cons (c2w8 'b') s1
+    putStrLn . ("s2 = " ++) =<< printPS1 s2
+    let s3 = BS.cons (c2w8 'c') s2
+    putStrLn . ("s3 = " ++) =<< printPS1 s3
+    case BS.uncons s3 of
+        Nothing -> return ()
+        Just (mres1', s4) -> do
+            putStrLn . ("s4 = " ++) =<< printPS1 s4
+            print mres1'
+            case BS.uncons s4 of
+                Nothing -> return ()
+                Just (mres2', s5) -> do
+                    putStrLn . ("s5 = " ++) =<< printPS1 s5
+                    print mres2'
+
+            let s6 = BS.append s3 s2
+            putStrLn . ("s6 = " ++) =<< printPS1 s6
+  where
+    any' = unsafeCoerce ()
+
+ghcAppendDSL'' :: PS0 -> PS0 -> PS0
+ghcAppendDSL'' p p0 = unsafePerformIO $
+  if 0 < psLength0 p
+  then
+    if 0 < psLength0 p0
+    then do
+      cod <- mallocBytes ((+) (psLength0 p) (psLength0 p0))
+      copyBytes cod (plusPtr (unsafeCoerce (psBuffer0 p)) (psOffset0 p))
+                (psLength0 p)
+      copyBytes (plusPtr cod (psLength0 p))
+                (plusPtr (unsafeCoerce (psBuffer0 p0)) (psOffset0 p0))
+                (psLength0 p0)
+      return $ MakePS0 (unsafeCoerce cod)
+                       ((+) (psLength0 p) (psLength0 p0)) 0
+                       ((+) (psLength0 p) (psLength0 p0))
+    else return p
+  else return p0
