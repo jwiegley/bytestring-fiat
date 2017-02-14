@@ -146,6 +146,24 @@ Proof. intros; apply denote_refineEquiv. Qed.
 Hint Unfold ByteStringHeap.buffer_append_obligation_1.
 Hint Unfold buffer_append.
 
+Lemma reflect_ADT_DSL_computation_Pick :
+  forall sig (adt : ADT sig) (P : Prop) A (k : () -> Comp A),
+    P -> reflect_ADT_DSL_computation adt (k tt)
+      -> reflect_ADT_DSL_computation adt (H <- { x : () | P }; k H).
+Proof.
+  intros.
+  eapply reflect_ADT_DSL_computation_simplify; eauto.
+  split; intros.
+    refine pick val tt.
+      simplify with monad laws.
+      reflexivity.
+    assumption.
+  intros ??.
+  destruct_computations.
+  destruct x.
+  assumption.
+Qed.
+
 Check "Compiling appendDSL...".
 Definition appendDSL r1 ps1 ps2:
   reflect_ADT_DSL_computation HeapSpec (buffer_append (r1, ps1) (r1, ps2)).
@@ -155,6 +173,9 @@ Proof.
   Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
+  repeat (autounfold; simpl).
+  apply reflect_ADT_DSL_computation_Pick; intros.
+    reflexivity.
   Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
