@@ -273,7 +273,6 @@ infixr 5 `cons`
 infixl 5 `snoc`
 
 cons :: Word8 -> ByteString -> ByteString
--- jww (2017-02-14): This could be wrong
 cons w bs = wrap_ (Internal.ghcConsDSL' (getPS bs) w)
 
 snoc :: ByteString -> Word8 -> ByteString
