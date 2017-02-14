@@ -10,6 +10,8 @@ import qualified Data.List
 import qualified Data.Maybe
 import qualified Data.Ratio
 import qualified Data.Word
+import qualified Foreign.ForeignPtr
+import qualified Foreign.ForeignPtr.Unsafe
 import qualified Foreign.Marshal.Alloc
 import qualified Foreign.Marshal.Array
 import qualified Foreign.Marshal.Utils
@@ -15454,10 +15456,9 @@ byteStringCanonical heap heap' =
                         (Prelude.fst (Prelude.fst p))
                         ((Prelude.+) (psLength (Prelude.snd p)) ((\x -> x)
                           1))) (Build_HeapState
-                      (remove0 (psBuffer (Prelude.snd p))
-                        (add1 (Prelude.fst (Prelude.fst p))
-                          ((Prelude.+) (psLength (Prelude.snd p)) ((\x -> x)
-                            1)) (resvs (Prelude.snd (Prelude.fst p)))))
+                      (add1 (Prelude.fst (Prelude.fst p))
+                        ((Prelude.+) (psLength (Prelude.snd p)) ((\x -> x)
+                          1)) (resvs (Prelude.snd (Prelude.fst p))))
                       (add1
                         ((\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))
                           (Prelude.fst (Prelude.fst p)) 0) w
@@ -15828,11 +15829,10 @@ byteStringCanonical heap heap' =
                             (Prelude.fst (Prelude.fst p))
                             ((Prelude.+) (psLength (Prelude.snd p))
                               ((\x -> x) 1))) (Build_HeapState
-                          (remove0 (psBuffer (Prelude.snd p))
-                            (add1 (Prelude.fst (Prelude.fst p))
-                              ((Prelude.+) (psLength (Prelude.snd p))
-                                ((\x -> x) 1))
-                              (resvs (Prelude.snd (Prelude.fst p)))))
+                          (add1 (Prelude.fst (Prelude.fst p))
+                            ((Prelude.+) (psLength (Prelude.snd p))
+                              ((\x -> x) 1))
+                            (resvs (Prelude.snd (Prelude.fst p))))
                           (add1
                             ((\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))
                               (Prelude.fst (Prelude.fst p)) 0) w
@@ -16420,11 +16420,10 @@ byteStringCanonical heap heap' =
                               (Prelude.fst (Prelude.fst p))
                               ((Prelude.+) (psLength (Prelude.snd p))
                                 ((\x -> x) 1))) (Build_HeapState
-                            (remove0 (psBuffer (Prelude.snd p))
-                              (add1 (Prelude.fst (Prelude.fst p))
-                                ((Prelude.+) (psLength (Prelude.snd p))
-                                  ((\x -> x) 1))
-                                (resvs (Prelude.snd (Prelude.fst p)))))
+                            (add1 (Prelude.fst (Prelude.fst p))
+                              ((Prelude.+) (psLength (Prelude.snd p))
+                                ((\x -> x) 1))
+                              (resvs (Prelude.snd (Prelude.fst p))))
                             (add1
                               ((\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))
                                 (Prelude.fst (Prelude.fst p)) 0) w
@@ -17412,11 +17411,10 @@ byteStringCanonical heap heap' =
                             (Prelude.fst (Prelude.fst p))
                             ((Prelude.+) (psLength (Prelude.snd p))
                               ((\x -> x) 1))) (Build_HeapState
-                          (remove0 (psBuffer (Prelude.snd p))
-                            (add1 (Prelude.fst (Prelude.fst p))
-                              ((Prelude.+) (psLength (Prelude.snd p))
-                                ((\x -> x) 1))
-                              (resvs (Prelude.snd (Prelude.fst p)))))
+                          (add1 (Prelude.fst (Prelude.fst p))
+                            ((Prelude.+) (psLength (Prelude.snd p))
+                              ((\x -> x) 1))
+                            (resvs (Prelude.snd (Prelude.fst p))))
                           (add1
                             ((\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))
                               (Prelude.fst (Prelude.fst p)) 0) w
@@ -17802,11 +17800,10 @@ byteStringCanonical heap heap' =
                               (Prelude.fst (Prelude.fst p))
                               ((Prelude.+) (psLength (Prelude.snd p))
                                 ((\x -> x) 1))) (Build_HeapState
-                            (remove0 (psBuffer (Prelude.snd p))
-                              (add1 (Prelude.fst (Prelude.fst p))
-                                ((Prelude.+) (psLength (Prelude.snd p))
-                                  ((\x -> x) 1))
-                                (resvs (Prelude.snd (Prelude.fst p)))))
+                            (add1 (Prelude.fst (Prelude.fst p))
+                              ((Prelude.+) (psLength (Prelude.snd p))
+                                ((\x -> x) 1))
+                              (resvs (Prelude.snd (Prelude.fst p))))
                             (add1
                               ((\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))
                                 (Prelude.fst (Prelude.fst p)) 0) w
@@ -18616,11 +18613,10 @@ byteStringCanonical heap heap' =
                             (Prelude.fst (Prelude.fst p))
                             ((Prelude.+) (psLength (Prelude.snd p))
                               ((\x -> x) 1))) (Build_HeapState
-                          (remove0 (psBuffer (Prelude.snd p))
-                            (add1 (Prelude.fst (Prelude.fst p))
-                              ((Prelude.+) (psLength (Prelude.snd p))
-                                ((\x -> x) 1))
-                              (resvs (Prelude.snd (Prelude.fst p)))))
+                          (add1 (Prelude.fst (Prelude.fst p))
+                            ((Prelude.+) (psLength (Prelude.snd p))
+                              ((\x -> x) 1))
+                            (resvs (Prelude.snd (Prelude.fst p))))
                           (add1
                             ((\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))
                               (Prelude.fst (Prelude.fst p)) 0) w
@@ -19288,11 +19284,10 @@ byteStringCanonical heap heap' =
                                   (Prelude.fst (Prelude.fst p))
                                   ((Prelude.+) (psLength (Prelude.snd p))
                                     ((\x -> x) 1))) (Build_HeapState
-                                (remove0 (psBuffer (Prelude.snd p))
-                                  (add1 (Prelude.fst (Prelude.fst p))
-                                    ((Prelude.+) (psLength (Prelude.snd p))
-                                      ((\x -> x) 1))
-                                    (resvs (Prelude.snd (Prelude.fst p)))))
+                                (add1 (Prelude.fst (Prelude.fst p))
+                                  ((Prelude.+) (psLength (Prelude.snd p))
+                                    ((\x -> x) 1))
+                                  (resvs (Prelude.snd (Prelude.fst p))))
                                 (add1
                                   ((\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))
                                     (Prelude.fst (Prelude.fst p)) 0) w
@@ -24228,12 +24223,12 @@ consBS _ _ r w =
                     (,) x _ -> x} of {
                (,) x _ -> x})) (Build_HeapState
           (let {
-            remove1 k s =
+            add2 k x s =
               case s of {
-               [] -> [];
+               [] -> (:) ((,) k x) [];
                (:) p l ->
                 case p of {
-                 (,) k' x ->
+                 (,) k' y ->
                   case (\fO fP n -> if n Prelude.== 0 then fO () else fP n)
                          (\_ ->
                          (\fO fP n -> if n Prelude.== 0 then fO () else fP n)
@@ -24248,7 +24243,7 @@ consBS _ _ r w =
                            Prelude.GT)
                            (\m' ->
                            let {
-                            compare_cont0 r0 x0 y =
+                            compare_cont0 r0 x0 y0 =
                               (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
@@ -24262,7 +24257,7 @@ consBS _ _ r w =
                                   compare_cont0 Prelude.GT p0 q)
                                   (\_ ->
                                   Prelude.GT)
-                                  y)
+                                  y0)
                                 (\p0 ->
                                 (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
@@ -24273,7 +24268,7 @@ consBS _ _ r w =
                                   compare_cont0 r0 p0 q)
                                   (\_ ->
                                   Prelude.GT)
-                                  y)
+                                  y0)
                                 (\_ ->
                                 (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
@@ -24284,254 +24279,179 @@ consBS _ _ r w =
                                   Prelude.LT)
                                   (\_ ->
                                   r0)
-                                  y)
+                                  y0)
                                 x0}
                            in compare_cont0 Prelude.EQ n' m')
                            k')
                          k of {
-                   Prelude.EQ -> l;
-                   Prelude.LT -> s;
-                   Prelude.GT -> (:) ((,) k' x) (remove1 k l)}}}}
-           in remove1
+                   Prelude.EQ -> (:) ((,) k x) l;
+                   Prelude.LT -> (:) ((,) k x) s;
+                   Prelude.GT -> (:) ((,) k' y) (add2 k x l)}}}}
+           in add2
                 (case case unsafeCoerce r of {
-                       (,) _ y -> y} of {
-                  MakePS psBuffer1 _ _ _ -> psBuffer1})
-                (let {
-                  add2 k x s =
-                    case s of {
-                     [] -> (:) ((,) k x) [];
-                     (:) p l ->
-                      case p of {
-                       (,) k' y ->
-                        case (\fO fP n -> if n Prelude.== 0 then fO () else fP n)
-                               (\_ ->
-                               (\fO fP n -> if n Prelude.== 0 then fO () else fP n)
-                                 (\_ ->
-                                 Prelude.EQ)
-                                 (\_ ->
-                                 Prelude.LT)
-                                 k')
-                               (\n' ->
-                               (\fO fP n -> if n Prelude.== 0 then fO () else fP n)
-                                 (\_ ->
-                                 Prelude.GT)
-                                 (\m' ->
-                                 let {
-                                  compare_cont0 r0 x0 y0 =
-                                    (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                       (,) x _ -> x} of {
+                  (,) x _ -> x})
+                ((\fO fP n -> if n Prelude.== 0 then fO () else fP n)
+                   (\_ -> (\x -> x)
+                   1)
+                   (\p -> (\x -> x)
+                   (let {
+                     add2 x y =
+                       (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                                      (\p0 ->
-                                      (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                         (\p0 ->
+                         (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                                        (\q ->
-                                        compare_cont0 r0 p0 q)
-                                        (\q ->
-                                        compare_cont0 Prelude.GT p0 q)
-                                        (\_ ->
-                                        Prelude.GT)
-                                        y0)
-                                      (\p0 ->
-                                      (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                                        (\q ->
-                                        compare_cont0 Prelude.LT p0 q)
-                                        (\q ->
-                                        compare_cont0 r0 p0 q)
-                                        (\_ ->
-                                        Prelude.GT)
-                                        y0)
-                                      (\_ ->
-                                      (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                                        (\_ ->
-                                        Prelude.LT)
-                                        (\_ ->
-                                        Prelude.LT)
-                                        (\_ ->
-                                        r0)
-                                        y0)
-                                      x0}
-                                 in compare_cont0 Prelude.EQ n' m')
-                                 k')
-                               k of {
-                         Prelude.EQ -> (:) ((,) k x) l;
-                         Prelude.LT -> (:) ((,) k x) s;
-                         Prelude.GT -> (:) ((,) k' y) (add2 k x l)}}}}
-                 in add2
-                      (case case unsafeCoerce r of {
-                             (,) x _ -> x} of {
-                        (,) x _ -> x})
-                      ((\fO fP n -> if n Prelude.== 0 then fO () else fP n)
-                         (\_ -> (\x -> x)
-                         1)
-                         (\p -> (\x -> x)
-                         (let {
-                           add2 x y =
-                             (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                               (\p0 ->
+                           (\q -> (\x -> 2 Prelude.* x)
+                           (add_carry0 p0 q))
+                           (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           (add2 p0 q))
+                           (\_ -> (\x -> 2 Prelude.* x)
+                           (let {
+                             succ1 x0 =
                                (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                                 (\q -> (\x -> 2 Prelude.* x)
-                                 (add_carry0 p0 q))
-                                 (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
-                                 (add2 p0 q))
+                                 (\p1 -> (\x -> 2 Prelude.* x)
+                                 (succ1 p1))
+                                 (\p1 -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                                 p1)
                                  (\_ -> (\x -> 2 Prelude.* x)
-                                 (let {
-                                   succ1 x0 =
-                                     (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                                 1)
+                                 x0}
+                            in succ1 p0))
+                           y)
+                         (\p0 ->
+                         (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                                       (\p1 -> (\x -> 2 Prelude.* x)
-                                       (succ1 p1))
-                                       (\p1 ->
-                                       (\x -> 2 Prelude.* x Prelude.+ 1)
-                                       p1)
-                                       (\_ -> (\x -> 2 Prelude.* x)
-                                       1)
-                                       x0}
-                                  in succ1 p0))
-                                 y)
-                               (\p0 ->
+                           (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           (add2 p0 q))
+                           (\q -> (\x -> 2 Prelude.* x)
+                           (add2 p0 q))
+                           (\_ -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           p0)
+                           y)
+                         (\_ ->
+                         (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                   if Prelude.odd n then fI (n `Prelude.div` 2)
+                                    else fO (n `Prelude.div` 2))
+                           (\q -> (\x -> 2 Prelude.* x)
+                           (let {
+                             succ1 x0 =
                                (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                                 (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
-                                 (add2 p0 q))
-                                 (\q -> (\x -> 2 Prelude.* x)
-                                 (add2 p0 q))
-                                 (\_ -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                                 (\p0 -> (\x -> 2 Prelude.* x)
+                                 (succ1 p0))
+                                 (\p0 -> (\x -> 2 Prelude.* x Prelude.+ 1)
                                  p0)
-                                 y)
-                               (\_ ->
-                               (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                                 (\q -> (\x -> 2 Prelude.* x)
-                                 (let {
-                                   succ1 x0 =
-                                     (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                                       (\p0 -> (\x -> 2 Prelude.* x)
-                                       (succ1 p0))
-                                       (\p0 ->
-                                       (\x -> 2 Prelude.* x Prelude.+ 1)
-                                       p0)
-                                       (\_ -> (\x -> 2 Prelude.* x)
-                                       1)
-                                       x0}
-                                  in succ1 q))
-                                 (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
-                                 q)
                                  (\_ -> (\x -> 2 Prelude.* x)
                                  1)
-                                 y)
-                               x;
-                           add_carry0 x y =
-                             (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                                 x0}
+                            in succ1 q))
+                           (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           q)
+                           (\_ -> (\x -> 2 Prelude.* x)
+                           1)
+                           y)
+                         x;
+                     add_carry0 x y =
+                       (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                               (\p0 ->
+                         (\p0 ->
+                         (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                   if Prelude.odd n then fI (n `Prelude.div` 2)
+                                    else fO (n `Prelude.div` 2))
+                           (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           (add_carry0 p0 q))
+                           (\q -> (\x -> 2 Prelude.* x)
+                           (add_carry0 p0 q))
+                           (\_ -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           (let {
+                             succ1 x0 =
                                (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                                 (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
-                                 (add_carry0 p0 q))
-                                 (\q -> (\x -> 2 Prelude.* x)
-                                 (add_carry0 p0 q))
-                                 (\_ -> (\x -> 2 Prelude.* x Prelude.+ 1)
-                                 (let {
-                                   succ1 x0 =
-                                     (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                                       (\p1 -> (\x -> 2 Prelude.* x)
-                                       (succ1 p1))
-                                       (\p1 ->
-                                       (\x -> 2 Prelude.* x Prelude.+ 1)
-                                       p1)
-                                       (\_ -> (\x -> 2 Prelude.* x)
-                                       1)
-                                       x0}
-                                  in succ1 p0))
-                                 y)
-                               (\p0 ->
-                               (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                                 (\q -> (\x -> 2 Prelude.* x)
-                                 (add_carry0 p0 q))
-                                 (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
-                                 (add2 p0 q))
+                                 (\p1 -> (\x -> 2 Prelude.* x)
+                                 (succ1 p1))
+                                 (\p1 -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                                 p1)
                                  (\_ -> (\x -> 2 Prelude.* x)
-                                 (let {
-                                   succ1 x0 =
-                                     (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                                 1)
+                                 x0}
+                            in succ1 p0))
+                           y)
+                         (\p0 ->
+                         (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                                       (\p1 -> (\x -> 2 Prelude.* x)
-                                       (succ1 p1))
-                                       (\p1 ->
-                                       (\x -> 2 Prelude.* x Prelude.+ 1)
-                                       p1)
-                                       (\_ -> (\x -> 2 Prelude.* x)
-                                       1)
-                                       x0}
-                                  in succ1 p0))
-                                 y)
-                               (\_ ->
+                           (\q -> (\x -> 2 Prelude.* x)
+                           (add_carry0 p0 q))
+                           (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           (add2 p0 q))
+                           (\_ -> (\x -> 2 Prelude.* x)
+                           (let {
+                             succ1 x0 =
                                (\fI fO fH n -> if n Prelude.== 1 then fH () else
                    if Prelude.odd n then fI (n `Prelude.div` 2)
                                     else fO (n `Prelude.div` 2))
-                                 (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
-                                 (let {
-                                   succ1 x0 =
-                                     (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                                       (\p0 -> (\x -> 2 Prelude.* x)
-                                       (succ1 p0))
-                                       (\p0 ->
-                                       (\x -> 2 Prelude.* x Prelude.+ 1)
-                                       p0)
-                                       (\_ -> (\x -> 2 Prelude.* x)
-                                       1)
-                                       x0}
-                                  in succ1 q))
-                                 (\q -> (\x -> 2 Prelude.* x)
-                                 (let {
-                                   succ1 x0 =
-                                     (\fI fO fH n -> if n Prelude.== 1 then fH () else
-                   if Prelude.odd n then fI (n `Prelude.div` 2)
-                                    else fO (n `Prelude.div` 2))
-                                       (\p0 -> (\x -> 2 Prelude.* x)
-                                       (succ1 p0))
-                                       (\p0 ->
-                                       (\x -> 2 Prelude.* x Prelude.+ 1)
-                                       p0)
-                                       (\_ -> (\x -> 2 Prelude.* x)
-                                       1)
-                                       x0}
-                                  in succ1 q))
-                                 (\_ -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                                 (\p1 -> (\x -> 2 Prelude.* x)
+                                 (succ1 p1))
+                                 (\p1 -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                                 p1)
+                                 (\_ -> (\x -> 2 Prelude.* x)
                                  1)
-                                 y)
-                               x}
-                          in add2 p 1))
-                         (case case unsafeCoerce r of {
-                                (,) _ y -> y} of {
-                           MakePS _ _ _ psLength1 -> psLength1}))
-                      (case case case unsafeCoerce r of {
-                                  (,) x _ -> x} of {
-                             (,) _ y -> y} of {
-                        Build_HeapState resvs1 _ -> resvs1})))
+                                 x0}
+                            in succ1 p0))
+                           y)
+                         (\_ ->
+                         (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                   if Prelude.odd n then fI (n `Prelude.div` 2)
+                                    else fO (n `Prelude.div` 2))
+                           (\q -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           (let {
+                             succ1 x0 =
+                               (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                   if Prelude.odd n then fI (n `Prelude.div` 2)
+                                    else fO (n `Prelude.div` 2))
+                                 (\p0 -> (\x -> 2 Prelude.* x)
+                                 (succ1 p0))
+                                 (\p0 -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                                 p0)
+                                 (\_ -> (\x -> 2 Prelude.* x)
+                                 1)
+                                 x0}
+                            in succ1 q))
+                           (\q -> (\x -> 2 Prelude.* x)
+                           (let {
+                             succ1 x0 =
+                               (\fI fO fH n -> if n Prelude.== 1 then fH () else
+                   if Prelude.odd n then fI (n `Prelude.div` 2)
+                                    else fO (n `Prelude.div` 2))
+                                 (\p0 -> (\x -> 2 Prelude.* x)
+                                 (succ1 p0))
+                                 (\p0 -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                                 p0)
+                                 (\_ -> (\x -> 2 Prelude.* x)
+                                 1)
+                                 x0}
+                            in succ1 q))
+                           (\_ -> (\x -> 2 Prelude.* x Prelude.+ 1)
+                           1)
+                           y)
+                         x}
+                    in add2 p 1))
+                   (case case unsafeCoerce r of {
+                          (,) _ y -> y} of {
+                     MakePS _ _ _ psLength1 -> psLength1}))
+                (case case case unsafeCoerce r of {
+                            (,) x _ -> x} of {
+                       (,) _ y -> y} of {
+                  Build_HeapState resvs1 _ -> resvs1}))
           (let {
             add2 k x s =
               case s of {
@@ -59570,14 +59490,11 @@ ghcConsDSL' p w =
                  (psBuffer0 p) ((Prelude.+) cod ((\x -> x) 1)) (psLength0 p))
                (\_ ->
                (GHC.Base.>>=)
-                 ((\x -> Foreign.Marshal.Alloc.free ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))
-                   (psBuffer0 p)) (\_ ->
-                 (GHC.Base.>>=)
-                   ((\x y -> Foreign.Storable.poke ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y)
-                     ((Prelude.+) cod 0) w) (\_ ->
-                   Prelude.return (MakePS0 cod
-                     ((Prelude.+) (psLength0 p) ((\x -> x) 1)) 0
-                     ((Prelude.+) (psLength0 p) ((\x -> x) 1)))))));
+                 ((\x y -> Foreign.Storable.poke ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y)
+                   ((Prelude.+) cod 0) w) (\_ ->
+                 Prelude.return (MakePS0 cod
+                   ((Prelude.+) (psLength0 p) ((\x -> x) 1)) 0
+                   ((Prelude.+) (psLength0 p) ((\x -> x) 1))))));
           Prelude.False ->
            (GHC.Base.>>=)
              ((\x -> (unsafeCoerce :: Prelude.IO (Foreign.Ptr.Ptr Data.Word.Word8) -> Prelude.IO (Ptr Word)) (Foreign.Marshal.Alloc.mallocBytes x))

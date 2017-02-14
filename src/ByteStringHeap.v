@@ -134,7 +134,7 @@ Program Definition make_room_by_growing_buffer
      future calls to [buffer_cons]. *)
   `(h, a) <- alloc h (psLength r + n);
   h <- memcpy h (psBuffer r) (plusPtr a n) (psLength r);
-  h <- free h (psBuffer r);
+  (* h <- free h (psBuffer r); *)
   ret (h, {| psBuffer := a
            ; psBufLen := psLength r + n
            ; psOffset := 0
@@ -336,9 +336,7 @@ Lemma buffer_cons_eq_alloc_new : forall x y h ps,
     -> x :: buffer_to_list h ps
          = buffer_to_list
              {| resvs :=
-                  M.remove (psBuffer ps)
-                           (M.add y (psLength ps + 1)
-                                  (resvs h))
+                  M.add y (psLength ps + 1) (resvs h)
               ; bytes :=
                   M.add y x (copy_bytes (psBuffer ps) (plusPtr y 1)
                                         (psLength ps)
@@ -373,11 +371,7 @@ Proof.
       rewrite N.add_0_r, <- buffer_cons_eq_alloc_new; trivial.
         nomega.
       apply_for_all; nomega.
-    right; intuition.
-      nomega.
-    apply F.remove_neq_mapsto_iff; trivial.
-      apply_for_all; nomega.
-    simplify_maps.
+    right; intuition; nomega.
   destruct_computations; simpl in *.
   destruct_AbsR AbsR; construct_AbsR.
     destruct_ps (snd r_n); nomega.
@@ -544,14 +538,12 @@ Proof.
                make_room_by_growing_buffer, Bind2.
         rewrite refineEquiv_unfold_alloc; simpl.
         Opaque memcpy.
-        Opaque free.
         split.
           simplify with monad laws; simpl.
           finish honing.
         simpl.
         autorewrite with monad laws; simpl.
         Transparent memcpy.
-        Transparent free.
         reflexivity.
       intros.
       finish honing.

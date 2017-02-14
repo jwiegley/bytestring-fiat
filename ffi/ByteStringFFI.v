@@ -103,13 +103,11 @@ Definition consDSL r ps w :
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
-  Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
   Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
-  Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
 Defined.
@@ -127,13 +125,11 @@ Definition unconsDSL r ps:
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
-  Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
   Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
-  Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
 Defined.
@@ -170,7 +166,6 @@ Definition appendDSL r1 ps1 ps2:
 Proof.
   Local Opaque poke.
   Local Opaque alloc.
-  Local Opaque free.
   Local Opaque peek.
   Local Opaque memcpy.
   repeat (autounfold; simpl).
@@ -179,7 +174,6 @@ Proof.
   Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.
-  Local Transparent free.
   Local Transparent peek.
   Local Transparent memcpy.
 Defined.

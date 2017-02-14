@@ -8,6 +8,8 @@ import qualified Data.List
 import qualified Data.Maybe
 import qualified Data.Ratio
 import qualified Data.Word
+import qualified Foreign.ForeignPtr
+import qualified Foreign.ForeignPtr.Unsafe
 import qualified Foreign.Marshal.Alloc
 import qualified Foreign.Marshal.Array
 import qualified Foreign.Marshal.Utils

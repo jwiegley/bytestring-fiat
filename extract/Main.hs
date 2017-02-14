@@ -78,7 +78,7 @@ main = do
     putStrLn . ("bs5 = " ++) =<< printPS0 bs5
     print mres2'
 
-    let bs6 = ghcAppendDSL'' bs3 bs2
+    let bs6 = ghcAppendDSL' bs3 bs2
     putStrLn . ("bs6 = " ++) =<< printPS0 bs6
 
     let bs6'' = ghcAppendDSL'' bs3 bs2
