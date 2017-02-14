@@ -1,4 +1,3 @@
-
 Require Export
   Fiat.ADT
   Fiat.ADTNotation

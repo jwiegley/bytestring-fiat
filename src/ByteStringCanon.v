@@ -387,6 +387,7 @@ Proof.
         finish honing.
       split; trivial.
       constructor; auto.
+      constructor; auto.
   }
 
   (* refine method ByteString.appendS. *)

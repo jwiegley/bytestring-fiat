@@ -378,9 +378,7 @@ Proof.
   destruct_AbsR AbsR; construct_AbsR.
     destruct_ps r_n; nomega.
   right; intuition.
-    discriminate.
-  simpl in *.
-  simplify_maps.
+  discriminate.
 Qed.
 
 (**************************************************************************)
@@ -448,15 +446,14 @@ Lemma buffer_uncons_impl : forall r_o r_n a h,
   ByteString_list_AbsR r_o r_n h
     -> buffer_uncons r_n h ↝ a
     -> snd (snd a) = match r_o with
-           | [] => None
-           | x :: _ => Some x
-           end.
+                     | [] => None
+                     | x :: _ => Some x
+                     end.
 Proof.
   unfold buffer_uncons; intros.
   destruct_computations.
   if_computes_to_inv; subst; simpl.
     destruct_computations; simpl.
-    destruct r_n; simpl in *.
     destruct_AbsR H;
     destruct_ps r_n; try nomega.
     clear IHpsLength0.
@@ -767,6 +764,7 @@ Proof.
     destruct a.
     assumption.
   }
+
 Defined.
 
 End ByteStringHeap.
