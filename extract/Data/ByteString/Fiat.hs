@@ -200,9 +200,10 @@ import Control.Monad            (when)
 
 import Foreign.C.String         (CString, CStringLen)
 import Foreign.C.Types          (CSize)
-import Foreign.ForeignPtr       (ForeignPtr, withForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr       (ForeignPtr, withForeignPtr, touchForeignPtr,
+                                 newForeignPtr)
 import Foreign.ForeignPtr.Unsafe(unsafeForeignPtrToPtr)
-import Foreign.Marshal.Alloc    (allocaBytes)
+import Foreign.Marshal.Alloc    (allocaBytes, finalizerFree)
 import Foreign.Marshal.Array    (allocaArray)
 import Foreign.Ptr
 import Foreign.Storable         (Storable(..))
@@ -231,23 +232,30 @@ import GHC.Base                 (build)
 import GHC.Word hiding (Word8)
 
 
-type ByteString = Internal.PS0
+data ByteString = BPS { getPS :: Internal.PS0
+                      , getFptr :: Maybe (ForeignPtr Word8) }
 
-pattern PS a b c <- Internal.MakePS0 a l b c
+pattern PS a b c <- BPS (Internal.MakePS0 a _ b c) _
+
+wrap_ :: Internal.PS0 -> ByteString
+wrap_ ps0 =
+    let bs@(Internal.MakePS0 p _ _ _) = ps0
+        fptr = unsafePerformIO $ newForeignPtr finalizerFree (unsafeCoerce p) in
+    BPS bs (Just fptr)
 
 empty :: ByteString
-empty = Internal.ghcEmptyDSL'
+empty = wrap_ Internal.ghcEmptyDSL'
 
 singleton :: Word8 -> ByteString
-singleton = Internal.ghcConsDSL' Internal.ghcEmptyDSL'
+singleton w = wrap_ (Internal.ghcConsDSL' Internal.ghcEmptyDSL' w)
 
 
 
 pack :: [Word8] -> ByteString
-pack = Internal.ghcPackDSL'
+pack xs = wrap_ (Internal.ghcPackDSL' xs)
 
 unpack :: ByteString -> [Word8]
-unpack = Internal.ghcUnpackDSL'
+unpack = Internal.ghcUnpackDSL' . getPS
 
 unpackFoldr :: ByteString -> (Word8 -> a -> a) -> a -> a
 unpackFoldr bs k z = error "NYI"
@@ -265,7 +273,8 @@ infixr 5 `cons`
 infixl 5 `snoc`
 
 cons :: Word8 -> ByteString -> ByteString
-cons = flip Internal.ghcConsDSL'
+-- jww (2017-02-14): This could be wrong
+cons w bs = wrap_ (Internal.ghcConsDSL' (getPS bs) w)
 
 snoc :: ByteString -> Word8 -> ByteString
 snoc (PS x s l) c = error "NYI"
@@ -278,7 +287,9 @@ tail :: ByteString -> ByteString
 tail (PS p s l) = error "NYI"
 
 uncons :: ByteString -> Maybe (Word8, ByteString)
-uncons bs = let (bs', mres) = Internal.ghcUnconsDSL' bs in fmap (, bs') mres
+uncons bs =
+    let (bs', mres) = Internal.ghcUnconsDSL' (getPS bs) in
+    fmap (, BPS bs' Nothing) mres
 
 last :: ByteString -> Word8
 last ps@(PS x s l) = error "NYI"
@@ -290,7 +301,7 @@ unsnoc :: ByteString -> Maybe (ByteString, Word8)
 unsnoc (PS x s l) = error "NYI"
 
 append :: ByteString -> ByteString -> ByteString
-append = Internal.ghcAppendDSL'
+append bs1 bs2 = wrap_ (Internal.ghcAppendDSL' (getPS bs1) (getPS bs2))
 
 
 map :: (Word8 -> Word8) -> ByteString -> ByteString
