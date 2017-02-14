@@ -19,6 +19,9 @@ END_IMPORTS
 
 while (<>) {
     next if /^ghcDenote ::/ .. /^$/;
+    next if /^heapSpec0 ::/ .. /^$/;
+    next if /^heapCanonical0 ::/ .. /^$/;
+    next if /^byteStringHeap0 ::/ .. /^$/;
 
     next if /^emptyDSL ::/ .. /^$/;
     next if /^ghcEmptyDSL ::/ .. /^$/;

@@ -146,7 +146,7 @@ Proof. intros; apply denote_refineEquiv. Qed.
 Hint Unfold ByteStringHeap.buffer_append_obligation_1.
 Hint Unfold buffer_append.
 
-Lemma reflect_ADT_DSL_computation_Pick :
+Definition reflect_ADT_DSL_computation_Pick :
   forall sig (adt : ADT sig) (P : Prop) A (k : () -> Comp A),
     P -> reflect_ADT_DSL_computation adt (k tt)
       -> reflect_ADT_DSL_computation adt (H <- { x : () | P }; k H).
@@ -162,7 +162,7 @@ Proof.
   destruct_computations.
   destruct x.
   assumption.
-Qed.
+Defined.
 
 Check "Compiling appendDSL...".
 Definition appendDSL r1 ps1 ps2:

@@ -5,7 +5,7 @@ Require Import
   ByteString.Heap
   ByteString.ByteString
   ByteString.ByteStringCanon
-  ByteString.FFI.ByteStringFFI
+  ByteString.FFI.HaskellFFI
   Coq.Strings.Ascii
   Coq.Strings.String
   Coq.FSets.FMapList
@@ -297,7 +297,7 @@ Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
 
 (** Haskell IO *)
 
-Module Import BS := ByteStringFFI M.
+Module Import BS := HaskellFFI M.
 
 Extract Constant Word => "Data.Word.Word8".
 
@@ -350,24 +350,10 @@ Set Extraction AutoInline.
 Set Extraction Optimize.
 Set Extraction AccessOpaque.
 
-Extraction "Data/ByteString/Fiat/Internal.hs"
-  emptyHeap
-  allocHeap
-  freeHeap
-  reallocHeap
-  peekHeap
-  pokeHeap
-  memcpyHeap
-  memsetHeap
-  N.of_nat
-  N.to_nat
-
-  emptyBS
-  consBS
-  unconsBS
-  appendBS
-
+Extraction "Internal.hs"
   ghcEmptyDSL'
+  ghcPackDSL'
+  ghcUnpackDSL'
   ghcConsDSL'
   ghcUnconsDSL'
   ghcAppendDSL'.
