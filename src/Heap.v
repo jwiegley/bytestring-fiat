@@ -27,53 +27,6 @@ Definition memsetS  := "memset".
 Definition readS    := "read".
 Definition writeS   := "write".
 
-Definition fold_left_index
-           {A B} (f : A -> N -> B -> A) (xs : list B) (n : N) (z : A) : A :=
-  fst (fold_left (fun (acc : A * N) x =>
-                    let (m, i) := acc in (f m i x, N.succ i)) xs (z, n)).
-
-Definition load_into_map {elt} (k : M.key) (xs : list elt) (m : M.t elt) :=
-  fold_left_index (fun m i x => M.add (plusPtr (A:=M.key) k i) x m) xs 0 m.
-
-Lemma fold_left_index_cons : forall A B f xs n (a : A) (m : B),
-  fold_left_index f (a :: xs) n m = fold_left_index f xs (N.succ n) (f m n a).
-Proof.
-  induction xs; simpl; intros.
-    reflexivity.
-  rewrite IHxs; clear IHxs.
-  unfold fold_left_index; simpl.
-  reflexivity.
-Qed.
-
-Lemma Equal_fold_left_index :
-  forall elt (addr : Ptr Word) xs n (x y : M.t elt),
-    M.Equal x y ->
-    M.Equal (fold_left_index (fun m i x => M.add (plusPtr addr i) x m) xs n x)
-            (fold_left_index (fun m i x => M.add (plusPtr addr i) x m) xs n y).
-Proof.
-  intros.
-  generalize dependent n.
-  generalize dependent x.
-  generalize dependent y.
-  induction xs; simpl; intros.
-    unfold fold_left_index; simpl.
-    assumption.
-  rewrite !fold_left_index_cons.
-  apply IHxs; eauto.
-  rewrite H.
-  reflexivity.
-Qed.
-
-Lemma load_into_map_Proper {elt} :
-  Proper (N.eq ==> eq ==> @M.Equal elt ==> @M.Equal elt) (@load_into_map elt).
-Proof.
-  relational.
-  unfold load_into_map.
-  rewrite H.
-  apply Equal_fold_left_index.
-  assumption.
-Qed.
-
 Definition HeapSpec := Def ADT {
   (* Map of memory addresses to blocks, which contain another mapping from
      offsets to initialized bytes. *)

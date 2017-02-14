@@ -240,34 +240,6 @@ Ltac destruct_ps ps :=
   destruct psLength using N.peano_ind; simpl; intros;
   repeat (rewrite_ptr; repeat reduce_find).
 
-Lemma load_into_map_cons : forall b elt a xs (m : M.t elt),
-  load_into_map b (a :: xs) m = M.add b a (load_into_map (N.succ b) xs m).
-Proof.
-Admitted.
-
-Lemma find_load_into_map : forall (b x : N) A (xs : list A) m,
-  b <= x < b + N.of_nat (length xs)
-    -> M.find x (load_into_map b xs m) = nth_error xs (N.to_nat (x - b)%N).
-Proof.
-  intros.
-  generalize dependent b.
-  induction xs; simpl; intros.
-    nomega.
-  rewrite load_into_map_cons.
-  destruct (N.eq_dec x b); subst.
-    rewrite F.add_eq_o; auto.
-    replace (b - b) with 0 by nomega.
-    reflexivity.
-  rewrite F.add_neq_o; auto.
-  rewrite IHxs.
-    replace (a :: xs) with ([a] ++ xs) by auto.
-    rewrite nth_error_app2; auto.
-      f_equal.
-      nomega.
-    nomega.
-  nomega.
-Qed.
-
 Lemma buffer_pack_sound :
   forall xs s r_n ps, buffer_pack xs s ↝ (ps, r_n)
     -> ByteString_list_AbsR xs ps r_n.
@@ -407,6 +379,8 @@ Proof.
     destruct_ps r_n; nomega.
   right; intuition.
     discriminate.
+  simpl in *.
+  simplify_maps.
 Qed.
 
 (**************************************************************************)
@@ -482,6 +456,7 @@ Proof.
   destruct_computations.
   if_computes_to_inv; subst; simpl.
     destruct_computations; simpl.
+    destruct r_n; simpl in *.
     destruct_AbsR H;
     destruct_ps r_n; try nomega.
     clear IHpsLength0.
@@ -665,7 +640,8 @@ Proof.
       assert (psLength0 = 0) by nomega.
       rewrite H0; simpl.
       reflexivity.
-    rewrite H1, app_nil_r.
+    subst.
+    rewrite app_nil_r.
     destruct_AbsR H;
     destruct_AbsR H0;
     subst; intuition;
@@ -758,7 +734,8 @@ Proof.
       refine pick val a.
         finish honing.
       eapply buffer_cons_sound; eauto.
-      rewrite <- surjective_pairing; auto.
+      destruct a.
+      assumption.
     simplify with monad laws; simpl.
     finish honing.
   }
@@ -787,7 +764,8 @@ Proof.
     refine pick val a.
       finish honing.
     eapply buffer_append_sound; eauto.
-    rewrite <- surjective_pairing; auto.
+    destruct a.
+    assumption.
   }
 Defined.
 

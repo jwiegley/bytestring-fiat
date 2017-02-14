@@ -653,6 +653,16 @@ Ltac solve_for1 :=
           | eapply CallNone with (args := HCons A HNil);
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ ?A ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))));
+        first
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A HNil);
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
+          | eapply CallNone with (args := HCons A HNil);
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
  end.
 
 Ltac solve_for2 :=
@@ -739,6 +749,16 @@ Ltac solve_for2 :=
           ]; instantiate (1 := id); higher_order_reflexivity
     | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
       eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))));
+        first
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B HNil));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ ?A ?B ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))));
         first
           [destruct R as [? ?];
          eapply CallSome with (args := HCons A (HCons B HNil));
@@ -841,6 +861,16 @@ Ltac solve_for3 :=
           | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
             [ | eapply H]
           ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ ?A ?B ?C ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))));
+        first
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C HNil)));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
+          | eapply CallNone with (args := HCons A (HCons B (HCons C HNil)));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
  end.
 
 Ltac solve_for4 :=
@@ -927,6 +957,16 @@ Ltac solve_for4 :=
           ]; instantiate (1 := id); higher_order_reflexivity
     | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
       eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))))));
+        first
+          [destruct R as [? ?];
+         eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D (HCons C (HCons D HNil))))));
+           [ | eapply H];
+         instantiate (1 := fun h p => (h, p)); higher_order_reflexivity
+          | eapply CallNone with (args := HCons A (HCons B HNil));
+            [ | eapply H]
+          ]; instantiate (1 := id); higher_order_reflexivity
+    | [ H : _ ?A ?B ?C ?D ↝ ?R |- MethodCall_Computes ?ADTSpec _ ?R ] =>
+      eapply (CallComputes ADTSpec (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))));
         first
           [destruct R as [? ?];
          eapply CallSome with (args := HCons A (HCons B (HCons C (HCons D (HCons C (HCons D HNil))))));

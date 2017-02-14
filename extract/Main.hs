@@ -17,12 +17,12 @@ w82c = toEnum . fromIntegral
 w82s :: [Word8] -> String
 w82s = Prelude.map w82c
 
-printPS :: CRep -> BScrep -> IO String
-printPS h bs =
-    let (bs', mres) = unconsBS h bs in
+printPS :: Rep -> CRep -> BScrep -> IO String
+printPS h h' bs =
+    let (bs', mres) = unconsBS h h' bs in
     case mres of
         Nothing -> return []
-        Just c  -> (w82c c:) <$> printPS h bs'
+        Just c  -> (w82c c:) <$> printPS h h' bs'
 
 printPS0 :: PS0 -> IO String
 printPS0 bs =
@@ -46,20 +46,24 @@ main = do
 
     putStrLn "ByteString list..."
 
-    let b0 = emptyBS h0
-    putStrLn . ("b0 = " ++) =<< printPS h0 b0
-    let b1 = consBS h0 b0 (c2w8 'a')
-    putStrLn . ("b1 = " ++) =<< printPS h0 b1
-    let b2 = consBS h0 b1 (c2w8 'b')
-    putStrLn . ("b2 = " ++) =<< printPS h0 b2
-    let b3 = consBS h0 b2 (c2w8 'c')
-    putStrLn . ("b3 = " ++) =<< printPS h0 b3
-    let (b4, mres1) = unconsBS h0 b3
-    putStrLn . ("b4 = " ++) =<< printPS h0 b4
+    let b0 = emptyBS any' h0
+    putStrLn . ("b0 = " ++) =<< printPS any' h0 b0
+    let b1 = consBS any' h0 b0 (c2w8 'a')
+    putStrLn . ("b1 = " ++) =<< printPS any' h0 b1
+    let b2 = consBS any' h0 b1 (c2w8 'b')
+    putStrLn . ("b2 = " ++) =<< printPS any' h0 b2
+    let b3 = consBS any' h0 b2 (c2w8 'c')
+    putStrLn . ("b3 = " ++) =<< printPS any' h0 b3
+    let (b4, mres1) = unconsBS any' h0 b3
+    putStrLn . ("b4 = " ++) =<< printPS any' h0 b4
     print mres1
-    let (b5, mres2) = unconsBS h0 b4
-    putStrLn . ("b5 = " ++) =<< printPS h0 b5
+    let (b5, mres2) = unconsBS any' h0 b4
+    putStrLn . ("b5 = " ++) =<< printPS any' h0 b5
     print mres2
+
+    -- b3 has the final heap state
+    let b6 = appendBS any' h0 b3 b2
+    putStrLn . ("bs6 = " ++) =<< printPS any' h0 b6
 
     putStrLn "ByteString heap..."
 
@@ -78,5 +82,5 @@ main = do
     putStrLn . ("bs5 = " ++) =<< printPS0 bs5
     print mres2'
 
-    let bs6 = ghcAppendDSL' bs2 bs3
+    let bs6 = ghcAppendDSL' bs3 bs2
     putStrLn . ("bs6 = " ++) =<< printPS0 bs6
