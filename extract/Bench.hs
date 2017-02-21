@@ -1,33 +1,127 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
 import qualified Blaze.ByteString.Builder as Blaze
 import qualified Blaze.ByteString.Builder.Char8 as Blaze
+import           Control.DeepSeq
 import           Criterion.Main
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Internal as BSI
 import qualified Data.ByteString.Builder as BB
 import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.ByteString.Fiat as Fiat
+import qualified Data.ByteString.Fiat.Internal as Internal
+import qualified Data.ByteString.Lazy as LBS
 import           Data.List (foldl')
+import qualified Data.List as List
 import           Data.Monoid ((<>))
+import           Data.Word (Word8)
 import           Test.QuickCheck.Arbitrary
 import           Test.QuickCheck.Gen
 import           Test.QuickCheck.Random
-import qualified Text.Show.ByteString as BS
+
+import System.IO.Unsafe
+import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
+import Foreign.Storable (poke)
+import Foreign.Marshal.Array
+import Foreign.Marshal.Alloc
+import GHC.Base
+import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+
+unsafeCoerce = GHC.Base.unsafeCoerce#
+
+-- instance NFData Fiat.ByteString where
+--     rnf (Fiat.BPS (Internal.MakePS0 !a !b !c !d) !e) = ()
+
+instance NFData Internal.PS0 where
+    rnf (Internal.MakePS0 !a !b !c !d) = ()
+
+c2w8 :: Char -> Word8
+c2w8 = fromIntegral . fromEnum
 
 showStr :: [Integer] -> ByteString
-showStr = BS.pack . concatMap show
+showStr = BS.pack . map c2w8 . concatMap show
+
+packBytes :: [Word8] -> ByteString
+packBytes ws = unsafePackLenBytes (List.length ws) ws
+
+unsafePackLenBytes :: Int -> [Word8] -> ByteString
+unsafePackLenBytes len xs0 =
+    unsafeCreate len $ \p -> go p xs0
+  where
+    go !_ []     = return ()
+    go !p (x:xs) = poke p x >> go (p `plusPtr` 1) xs
+
+unsafeCreate :: Int -> (Ptr Word8 -> IO ()) -> ByteString
+unsafeCreate l f = unsafeDupablePerformIO (create l f)
+{-# INLINE unsafeCreate #-}
+
+create :: Int -> (Ptr Word8 -> IO ()) -> IO ByteString
+create l f = do
+    fp <- mallocByteString l
+    withForeignPtr fp $ \p -> f p
+    return $! BSI.PS fp 0 l
+{-# INLINE create #-}
+
+mallocByteString :: Int -> IO (ForeignPtr a)
+mallocByteString l = mallocPlainForeignPtrBytes l
+{-# INLINE mallocByteString #-}
+
+showStr' :: [Integer] -> ByteString
+showStr' = packBytes . map c2w8 . concatMap show
+
+showFiatStr :: [Integer] -> Fiat.ByteString
+showFiatStr = Fiat.pack . map c2w8 . concatMap show
+
+{-
+pack' :: [Word8] -> Internal.PS0
+pack' l = unsafePerformIO $
+    if 0 < len
+    then do
+        cod <- mallocBytes len
+        pokeArray cod l
+        return $ Internal.MakePS0 (unsafeCoerce cod) len 0 len
+    else
+        return $ Internal.MakePS0 0 0 0 0
+  where
+    len = length l
+-}
+
+pack' :: [Word8] -> Internal.PS0
+pack' l = unsafeDupablePerformIO $ do
+    cod <- mallocPlainForeignPtrBytes len
+    -- withForeignPtr cod $ \p -> pokeArray p l
+    withForeignPtr cod $ \p -> go p l
+    return $ Internal.MakePS0 (unsafeCoerce cod) len 0 len
+  where
+    len = length l
+
+    go !_ []     = return ()
+    go !p (x:xs) = poke p x >> go (p `plusPtr` 1) xs
+
+showFiatStr' :: [Integer] -> Fiat.ByteString
+showFiatStr' = pack' . map c2w8 . concatMap show
+
+pack'' :: [Word8] -> Internal.PS0
+pack'' l = unsafePerformIO $
+    Internal.if_Then_Else
+        (Internal.ltb 0 len)
+        (do cod <- mallocBytes len
+            pokeArray cod l
+            return $ Internal.MakePS0 (unsafeCoerce cod) len 0 len)
+        (return $ Internal.MakePS0 0 0 0 0)
+  where
+    len = length l
+
+showFiatStr'' :: [Integer] -> Fiat.ByteString
+showFiatStr'' = pack'' . map c2w8 . concatMap show
 
 showByteString :: [Integer] -> ByteString
-showByteString = foldl' (<>) "" . map (BS.pack . show)
-
-showPutM :: [Integer] -> ByteString
-showPutM = LBS.toStrict . BS.show . go
-  where
-    go [] = return ()
-    go (x:xs) = BS.showp x >> go xs
-
+showByteString = foldl' (<>) "" . map (BS.pack . map c2w8 . show)
 
 showByteStringBuilder :: [Integer] -> ByteString
 showByteStringBuilder = LBS.toStrict . BB.toLazyByteString . go
@@ -47,16 +141,20 @@ main = defaultMain
   bgroup "[Integer]" $
     map (\i ->
       let sz = 10^i
-          inp = take sz is
+          inp = take sz [1..]
       in bgroup (show sz)
          [ bench "(++) . show" (nf showStr inp)
+         -- , bench "(++)' . show" (nf showStr' inp)
          --, bench "(<>) . show" (nf showByteString (if i < 6 then inp else []))
-         , bench "putM" (nf showPutM inp)
-         , bench "bytestring-builder" (nf showByteStringBuilder inp)
-         , bench "blaze-builder" (nf showBlazeBuilder inp)
+         -- , bench "Fiat (++) . show" (nf showFiatStr inp)
+         , bench "Fiat' (++) . show" (nf showFiatStr' inp)
+         -- , bench "Fiat'' (++) . show" (nf showFiatStr'' inp)
+         -- -- , bench "putM" (nf showPutM inp)
+         -- , bench "bytestring-builder" (nf showByteStringBuilder inp)
+         -- , bench "blaze-builder" (nf showBlazeBuilder inp)
          ]
     )
-    [1..6 :: Integer]
+    [1..2 :: Integer]
   ]
   where
 

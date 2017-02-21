@@ -7,7 +7,7 @@
 module Data.ByteString.Fiat (
 
         -- * The @ByteString@ type
-        ByteString,             -- abstract, instances: Eq, Ord, Show, Read, Data, Typeable, Monoid
+        ByteString(..),         -- abstract, instances: Eq, Ord, Show, Read, Data, Typeable, Monoid
 
         -- * Introducing and eliminating 'ByteString's
         empty,                  -- :: ByteString
@@ -232,16 +232,22 @@ import GHC.Base                 (build)
 import GHC.Word hiding (Word8)
 
 
-data ByteString = BPS { getPS :: Internal.PS0
-                      , getFptr :: Maybe (ForeignPtr Word8) }
+type ByteString = Internal.PS0
 
-pattern PS a b c <- BPS (Internal.MakePS0 a _ b c) _
+pattern PS a b c <- Internal.MakePS0 a _ b c
+
+-- data ByteString = BPS { getPS ::   {-# UNPACK #-} !Internal.PS0
+--                       , getFptr :: {-# UNPACK #-} !(Maybe (ForeignPtr Word8)) }
+
+-- pattern PS a b c <- BPS (Internal.MakePS0 a _ b c) _
+
+getPS = Prelude.id
 
 wrap_ :: Internal.PS0 -> ByteString
-wrap_ ps0 =
-    let bs@(Internal.MakePS0 p _ _ _) = ps0
-        fptr = unsafePerformIO $ newForeignPtr finalizerFree (unsafeCoerce p) in
-    BPS bs (Just fptr)
+wrap_ ps0 = ps0
+    -- let bs@(Internal.MakePS0 p _ _ _) = ps0
+    --     fptr = unsafePerformIO $ newForeignPtr finalizerFree (unsafeCoerce p) in
+    -- BPS bs (Just fptr)
 
 empty :: ByteString
 empty = wrap_ Internal.ghcEmptyDSL'
@@ -288,7 +294,8 @@ tail (PS p s l) = error "NYI"
 uncons :: ByteString -> Maybe (Word8, ByteString)
 uncons bs =
     let (bs', mres) = Internal.ghcUnconsDSL' (getPS bs) in
-    fmap (, BPS bs' Nothing) mres
+    -- fmap (, BPS bs' Nothing) mres
+    fmap (, bs') mres
 
 last :: ByteString -> Word8
 last ps@(PS x s l) = error "NYI"
