@@ -72,45 +72,48 @@ Record HeapIntf (Env : Type) := {
       -> reallocBytes old (` sz) env = (new, env')
       -> forall r', realloc r old sz ↝ (r', new) /\ Mem_AbsR r' env';
 
-  peek_correct : forall r env env' ptr w,
+  peek_correct : forall r env env' ptr off w,
     Mem_AbsR r env
-      -> peekPtr ptr env = (w, env')
-      -> forall r', peek r ptr ↝ (r', w) /\ Mem_AbsR r' env';
+      -> peekPtr (Memory.plusPtr ptr off) env = (w, env')
+      -> forall r', peek r ptr off ↝ (r', w) /\ Mem_AbsR r' env';
 
-  poke_correct : forall r env env' ptr w,
+  poke_correct : forall r env env' ptr off w,
     Mem_AbsR r env
-      -> pokePtr ptr w env = env'
-      -> forall r', poke r ptr w ↝ r' /\ Mem_AbsR r' env';
+      -> pokePtr (Memory.plusPtr ptr off) w env = env'
+      -> forall r', poke r ptr off w ↝ r' /\ Mem_AbsR r' env';
 
-  memcpy_correct : forall r env env' addr1 addr2 sz,
+  memcpy_correct : forall r env env' addr1 off1 addr2 off2 sz,
     Mem_AbsR r env
-      -> copyBytes addr1 sz addr2 env = env'
-      -> forall r', memcpy r addr1 addr2 sz ↝ r' /\ Mem_AbsR r' env';
+      -> copyBytes (Memory.plusPtr addr1 off1) sz
+                   (Memory.plusPtr addr2 off2) env = env'
+      -> forall r', memcpy r addr1 off1 addr2 off2 sz ↝ r' /\ Mem_AbsR r' env';
 
-  memset_correct : forall r env env' addr w sz,
+  memset_correct : forall r env env' addr off w sz,
     Mem_AbsR r env
-      -> fillBytes addr w sz env = env'
-      -> forall r', memset r addr sz w ↝ r' /\ Mem_AbsR r' env';
+      -> fillBytes (Memory.plusPtr addr off) w sz env = env'
+      -> forall r', memset r addr off sz w ↝ r' /\ Mem_AbsR r' env';
 
-  read_correct : forall r env env' addr sz xs,
+  read_correct : forall r env env' addr off sz xs,
     Mem_AbsR r env
-      -> peekArray addr sz env = (xs, env')
-      -> forall r', read r addr sz ↝ (r', xs) /\ Mem_AbsR r' env';
+      -> peekArray (Memory.plusPtr addr off) sz env = (xs, env')
+      -> forall r', read r addr off sz ↝ (r', xs) /\ Mem_AbsR r' env';
 
-  read_bytes : forall r env addr sz,
+  read_bytes : forall r env addr off sz,
     Mem_AbsR r env
-      -> fst (peekArray addr sz env) =
-         N.peano_rect (fun _ : N => list Word) []
-                      (fun (i : N) (xs : list Word) =>
-                         match M.find (Memory.plusPtr addr i) (bytes r) with
-                         | Some w => w
-                         | None => Zero
-                         end :: xs) sz;
+      -> fst (peekArray (Memory.plusPtr addr off) sz env) =
+         N.peano_rect
+           (fun _ : N => list Word) []
+           (fun (i : N) (xs : list Word) =>
+              match M.find (Memory.plusPtr (A:=Word) addr
+                                           (off + i)) (bytes r) with
+              | Some w => w
+              | None => Zero
+              end :: xs) sz;
 
-  write_correct : forall r env env' addr xs,
+  write_correct : forall r env env' addr off xs,
     Mem_AbsR r env
-      -> pokeArray addr xs env = env'
-      -> forall r', write r addr xs ↝ r' /\ Mem_AbsR r' env'
+      -> pokeArray (Memory.plusPtr addr off) xs env = env'
+      -> forall r', write r addr off xs ↝ r' /\ Mem_AbsR r' env'
 }.
 
 (** In order to refine to a computable heap, we have to add the notion of
@@ -227,7 +230,7 @@ Proof.
 
   (* refine method peekS. *)
   {
-    refine pick val (fst (peekPtr ffi d r_n)).
+    refine pick val (fst (peekPtr ffi (Memory.plusPtr d d0) r_n)).
       simplify with monad laws.
       refine pick val r_n.
         simplify with monad laws; simpl.
@@ -246,7 +249,7 @@ Proof.
 
   (* refine method pokeS. *)
   {
-    refine pick val (pokePtr ffi d d0 r_n).
+    refine pick val (pokePtr ffi (Memory.plusPtr d d0) d1 r_n).
       finish honing.
 
     eapply poke_correct; eauto.
@@ -254,7 +257,9 @@ Proof.
 
   (* refine method memcpyS. *)
   {
-    refine pick val (copyBytes ffi d d1 d0 r_n).
+    refine pick val (copyBytes ffi (Memory.plusPtr d d0)
+                               d3 (Memory.plusPtr d1 d2) r_n).
+      subst_evars.
       finish honing.
 
     eapply memcpy_correct; eauto.
@@ -262,7 +267,7 @@ Proof.
 
   (* refine method memsetS. *)
   {
-    refine pick val (fillBytes ffi d d1 d0 r_n).
+    refine pick val (fillBytes ffi (Memory.plusPtr d d0) d2 d1 r_n).
       finish honing.
 
     eapply memset_correct; eauto.
@@ -272,14 +277,14 @@ Proof.
   {
     simpl in *.
     clear H.
-    refine pick val (fst (peekArray ffi d d0 r_n)).
+    refine pick val (fst (peekArray ffi (Memory.plusPtr d d0) d1 r_n)).
       simplify with monad laws; simpl.
-      refine pick val (snd (peekArray ffi d d0 r_n)).
+      refine pick val (snd (peekArray ffi (Memory.plusPtr d d0) d1 r_n)).
         simplify with monad laws; simpl.
         finish honing.
 
       eapply read_correct; eauto.
-      instantiate (1:=fst (peekArray ffi d d0 r_n)).
+      instantiate (1:=fst (peekArray ffi (Memory.plusPtr d d0) d1 r_n)).
       rewrite <- surjective_pairing.
       reflexivity.
     apply read_bytes.
@@ -288,7 +293,7 @@ Proof.
 
   (* refine method writeS. *)
   {
-    refine pick val (pokeArray ffi d d0 r_n).
+    refine pick val (pokeArray ffi (Memory.plusPtr d d0) d1 r_n).
       finish honing.
 
     eapply write_correct; eauto.

@@ -223,7 +223,7 @@ Proof.
   (* refine method ByteString.emptyS. *)
   {
     simplify with monad laws.
-    refine pick val (heap', {| psBuffer := 0
+    refine pick val (heap', {| psBuffer := nullPtr
                              ; psBufLen := 0
                              ; psOffset := 0
                              ; psLength := 0 |}).

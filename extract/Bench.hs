@@ -24,8 +24,8 @@ import           Test.QuickCheck.Gen
 import           Test.QuickCheck.Random
 
 import System.IO.Unsafe
-import Foreign.Ptr (Ptr, plusPtr)
-import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
+import Foreign.Ptr (Ptr, plusPtr, nullPtr)
+import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, newForeignPtr_)
 import Foreign.Storable (poke)
 import Foreign.Marshal.Array
 import Foreign.Marshal.Alloc
@@ -113,7 +113,7 @@ pack'' l = unsafePerformIO $
         (do cod <- mallocBytes len
             pokeArray cod l
             return $ Internal.MakePS0 (unsafeCoerce cod) len 0 len)
-        (return $ Internal.MakePS0 0 0 0 0)
+        (return $ Internal.MakePS0 (unsafePerformIO (newForeignPtr_ nullPtr)) 0 0 0)
   where
     len = length l
 
@@ -146,7 +146,7 @@ main = defaultMain
          [ bench "(++) . show" (nf showStr inp)
          -- , bench "(++)' . show" (nf showStr' inp)
          --, bench "(<>) . show" (nf showByteString (if i < 6 then inp else []))
-         -- , bench "Fiat (++) . show" (nf showFiatStr inp)
+         , bench "Fiat (++) . show" (nf showFiatStr inp)
          , bench "Fiat' (++) . show" (nf showFiatStr' inp)
          -- , bench "Fiat'' (++) . show" (nf showFiatStr'' inp)
          -- -- , bench "putM" (nf showPutM inp)

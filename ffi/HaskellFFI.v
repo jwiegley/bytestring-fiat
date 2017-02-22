@@ -1,25 +1,16 @@
 Require Import
   ByteString.Lib.Tactics
-  (* ByteString.Lib.Nomega *)
   ByteString.Lib.Fiat
-  (* ByteString.Lib.TupleEnsembles *)
-  (* ByteString.Lib.FunMaps *)
-  (* ByteString.Lib.FromADT *)
   ByteString.Lib.HList
   ByteString.Memory
   ByteString.Heap
-  (* ByteString.FFI.HeapFFI *)
   ByteString.FFI.CompileFFI
   ByteString.FFI.ByteStringFFI
-  (* ByteString.ByteString *)
-  (* ByteString.ByteStringHeap *)
   Coq.FSets.FMapFacts
   Coq.Structures.DecidableTypeEx
   Hask.Data.Functor
   Hask.Control.Monad
-  Hask.Control.Monad.Free
-  Hask.Control.Monad.Trans.FiatState
-  .
+  Hask.Control.Monad.Free.
 
 Module HaskellFFI (M : WSfun N_as_DT).
 
@@ -42,6 +33,8 @@ Axiom returnIO : forall {a : Type}, a -> IO a.
 Axiom failIO   : forall {a : Type}, IO a.
 Axiom joinIO   : forall {a : Type}, IO (IO a) -> IO a.
 
+Axiom bindIO_inj : forall {a b : Type} x y f g,
+  x = y -> (forall z, f z = g z) -> @bindIO a b x f = @bindIO a b y g.
 Axiom bindIO_returnIO : forall {a b : Type} (f : a -> b) (x : IO a),
   bindIO x (fun a => returnIO (f a)) = fmapIO f x.
 
@@ -55,15 +48,17 @@ Axiom unsafeDupablePerformIO_inj : forall {a : Type} x y,
 Axiom unsafeDupablePerformIO_returnIO : forall {a : Type} (x : a),
   unsafeDupablePerformIO (returnIO x) = x.
 
+Definition Offset := Size.
+
 Axiom malloc  : Size -> IO (Ptr Word).
 Axiom free    : Ptr Word -> IO ().
 Axiom realloc : Ptr Word -> Size -> IO (Ptr Word).
-Axiom peek    : Ptr Word -> IO Word.
-Axiom poke    : Ptr Word -> Word -> IO ().
-Axiom memcpy  : Ptr Word -> Ptr Word -> Size -> IO ().
-Axiom memset  : Ptr Word -> Size -> Word -> IO ().
-Axiom read    : Ptr Word -> Size -> IO (list Word).
-Axiom write   : Ptr Word -> list Word -> IO ().
+Axiom peek    : Ptr Word -> Offset -> IO Word.
+Axiom poke    : Ptr Word -> Offset -> Word -> IO ().
+Axiom memcpy  : Ptr Word -> Offset -> Ptr Word -> Offset -> Size -> IO ().
+Axiom memset  : Ptr Word -> Offset -> Size -> Word -> IO ().
+Axiom read    : Ptr Word -> Offset -> Size -> IO (list Word).
+Axiom write   : Ptr Word -> Offset -> list Word -> IO ().
 
 Definition ghcDenote {A : Type} : ClientDSL (getADTSig HeapSpec) (Rep HeapSpec) (IO A) -> IO A.
 Proof.
@@ -86,24 +81,31 @@ Proof.
   exact (bindIO (realloc (hlist_head (hlist_tail h))
                          (` (hlist_head (hlist_tail (hlist_tail h)))))
                 (y (hlist_head h))).
-  exact (bindIO (peek (hlist_head (hlist_tail h)))
+  exact (bindIO (peek (hlist_head (hlist_tail h))
+                      (hlist_head (hlist_tail (hlist_tail h))))
                 (y (hlist_head h))).
   exact (bindIO (poke (hlist_head (hlist_tail h))
-                      (hlist_head (hlist_tail (hlist_tail h))))
+                      (hlist_head (hlist_tail (hlist_tail h)))
+                      (hlist_head (hlist_tail (hlist_tail (hlist_tail h)))))
                 (fun _ => y (hlist_head h))).
   exact (bindIO (memcpy (hlist_head (hlist_tail h))
-                          (hlist_head (hlist_tail (hlist_tail h)))
-                          (hlist_head (hlist_tail (hlist_tail (hlist_tail h)))))
+                        (hlist_head (hlist_tail (hlist_tail h)))
+                        (hlist_head (hlist_tail (hlist_tail (hlist_tail h))))
+                        (hlist_head (hlist_tail (hlist_tail (hlist_tail (hlist_tail h)))))
+                        (hlist_head (hlist_tail (hlist_tail (hlist_tail (hlist_tail (hlist_tail h)))))))
                 (fun _ => y (hlist_head h))).
   exact (bindIO (memset (hlist_head (hlist_tail h))
                         (hlist_head (hlist_tail (hlist_tail h)))
-                        (hlist_head (hlist_tail (hlist_tail (hlist_tail h)))))
+                        (hlist_head (hlist_tail (hlist_tail (hlist_tail h))))
+                        (hlist_head (hlist_tail (hlist_tail (hlist_tail (hlist_tail h))))))
                 (fun _ => y (hlist_head h))).
   exact (bindIO (read (hlist_head (hlist_tail h))
-                      (hlist_head (hlist_tail (hlist_tail h))))
+                      (hlist_head (hlist_tail (hlist_tail h)))
+                      (hlist_head (hlist_tail (hlist_tail (hlist_tail h)))))
                 (y (hlist_head h))).
   exact (bindIO (write (hlist_head (hlist_tail h))
-                      (hlist_head (hlist_tail (hlist_tail h))))
+                       (hlist_head (hlist_tail (hlist_tail h)))
+                       (hlist_head (hlist_tail (hlist_tail (hlist_tail h)))))
                 (fun _ => y (hlist_head h))).
 Defined.
 
@@ -160,6 +162,15 @@ Defined.
 Definition ghcEmptyDSL' := Eval simpl in projT1 ghcEmptyDSL.
 Print ghcEmptyDSL'.
 
+Definition Let_ {A} (x : A) {B} (f : A -> B) := f x.
+
+Lemma If_Then_Else_Proper :
+  forall (A : Type) (c : bool), Proper (@eq A ==> eq ==> eq) (If_Then_Else c).
+Proof.
+  intros ????????.
+  destruct c; auto.
+Qed.
+
 Check "ghcPackDSL".
 Lemma ghcPackDSL :
   { f : list Word -> PS
@@ -179,7 +190,50 @@ Proof.
   repeat (unfold compose, comp; simpl).
   unfold ghcDenote; simpl.
   rewrite strip_IfDep_Then_Else.
-  higher_order_reflexivity.
+  etransitivity.
+    apply unsafeDupablePerformIO_inj.
+    apply If_Then_Else_Proper.
+      apply bindIO_inj; intros.
+        reflexivity.
+      apply bindIO_inj; intros.
+        reflexivity.
+      reflexivity.
+    reflexivity.
+  replace
+    (If BinNat.N.ltb 0 (BinNat.N.of_nat (length xs))
+     Then bindIO (malloc (BinNat.N.of_nat (length xs)))
+            (fun z : Ptr Word =>
+             bindIO (write z 0 xs)
+               (fun _ : () =>
+                returnIO
+                  {|
+                  psBuffer := z;
+                  psBufLen := BinNat.N.of_nat (length xs);
+                  psOffset := 0;
+                  psLength := BinNat.N.of_nat (length xs) |}))
+     Else returnIO {| psBuffer := nullPtr
+                    ; psBufLen := 0
+                    ; psOffset := 0
+                    ; psLength := 0 |})
+    with
+    (Let_ (BinNat.N.of_nat (length xs))
+          (fun len =>
+             If BinNat.N.ltb 0 len
+             Then bindIO (malloc len)
+                         (fun z : Ptr Word =>
+                            bindIO (write z 0 xs)
+                                   (fun _ : () =>
+                                      returnIO
+                                        {| psBuffer := z
+                                         ; psBufLen := len
+                                         ; psOffset := 0
+                                         ; psLength := len |}))
+             Else returnIO {| psBuffer := 0
+                            ; psBufLen := 0
+                            ; psOffset := 0
+                            ; psLength := 0 |}))
+    by auto.
+  reflexivity.
 Defined.
 
 Definition ghcPackDSL' := Eval simpl in projT1 ghcPackDSL.

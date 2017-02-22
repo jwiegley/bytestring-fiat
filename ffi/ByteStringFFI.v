@@ -33,7 +33,7 @@ Import HeapCanonical.
 Import Heap.
 
 Definition buffer_empty :=
-  ret {| psBuffer := 0
+  ret {| psBuffer := nullPtr
        ; psBufLen := 0
        ; psOffset := 0
        ; psLength := 0 |}.

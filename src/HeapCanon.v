@@ -226,7 +226,7 @@ Proof.
 
   (* refine method peekS. *)
   {
-    refine pick val (Ifopt M.find d (bytes (snd r_n)) as v
+    refine pick val (Ifopt M.find (plusPtr d d0) (bytes (snd r_n)) as v
                      Then v
                      Else Zero).
       simplify with monad laws.
@@ -237,7 +237,7 @@ Proof.
 
     clear H.
     simpl in *; intuition.
-    destruct (M.find d _) as [sz|] eqn:Heqe;
+    destruct (M.find (plusPtr d d0) _) as [sz|] eqn:Heqe;
     simpl; normalize.
       left.
       rewrite H0.
@@ -254,7 +254,7 @@ Proof.
   {
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
-                      ; bytes := M.add d d0 (bytes (snd r_n)) |}).
+                      ; bytes := M.add (plusPtr d d0) d1 (bytes (snd r_n)) |}).
     simpl.
     finish honing.
 
@@ -267,7 +267,8 @@ Proof.
   {
     refine pick val (fst r_n,
                      {| resvs := resvs (snd r_n)
-                      ; bytes := copy_bytes d d0 d1 (bytes (snd r_n)) |}).
+                      ; bytes := copy_bytes (plusPtr d d0) (plusPtr d1 d2)
+                                            d3 (bytes (snd r_n)) |}).
       finish honing.
 
     simpl in *; intuition;
@@ -280,16 +281,17 @@ Proof.
        (fst r_n,
         {| resvs := resvs (snd r_n)
          ; bytes :=
-             P.update (bytes (snd r_n))
-                      (N.peano_rect
-                         (fun _ => M.t Word)
-                         (bytes (snd r_n))
-                         (fun i => M.add (plusPtr(A:=Word) d i)%N d1) d0) |}).
-      simpl. finish honing.
+             P.update
+               (bytes (snd r_n))
+               (N.peano_rect
+                  (fun _ => M.t Word)
+                  (bytes (snd r_n))
+                  (fun i => M.add (plusPtr(A:=Word) d (d0 + i))%N d2) d1) |}).
+      simpl; finish honing.
 
     simpl in *; intuition.
     apply P.update_m; trivial.
-    induction d0 using N.peano_ind; simpl; trivial.
+    induction d1 using N.peano_ind; simpl; trivial.
     rewrite !N.peano_rect_succ.
     apply F.add_m; auto.
   }
@@ -303,10 +305,10 @@ Proof.
       destruct H0, H2.
       rewrite Npeano_rect_eq
         with (g := fun (i : N) (xs : list Word) =>
-                     match M.find (plusPtr d i) (bytes (snd r_n)) with
-                     | Some w => w
-                     | None => Zero
-                     end :: xs).
+          match M.find (plusPtr d (d0 + i)) (bytes (snd r_n)) with
+          | Some w => w
+          | None => Zero
+          end :: xs).
         finish honing.
       intros.
       f_equal.
@@ -321,7 +323,7 @@ Proof.
     refine pick val
        (fst r_n,
         {| resvs := resvs (snd r_n)
-         ; bytes := load_into_map d d0 (bytes (snd r_n)) |}).
+         ; bytes := load_into_map (plusPtr d d0) d1 (bytes (snd r_n)) |}).
       finish honing.
 
     simpl in *; intuition.

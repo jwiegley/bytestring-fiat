@@ -63,7 +63,7 @@ Example buffer_to_list_ex1 :
                       (M.add 1 (Ascii.ascii_of_nat 2)
                              (M.add 2 (Ascii.ascii_of_nat 3)
                                     (M.empty _))) |}
-    {| psBuffer := 0
+    {| psBuffer := nullPtr
      ; psBufLen := 3
      ; psOffset := 0
      ; psLength := 3 |}
@@ -120,7 +120,7 @@ Definition make_room_by_shifting_up
   (* We could maybe be smarter by shifting the block so it sits mid-way within
      the buffer. *)
   Comp (Rep HeapSpec * PS) :=
-  res <- memcpy h (psBuffer r) (plusPtr (psBuffer r) (` n)) (psLength r);
+  res <- memcpy h (psBuffer r) 0 (psBuffer r) (` n) (psLength r);
   ret (res,
        {| psBuffer := psBuffer r
         ; psBufLen := psBufLen r
@@ -133,7 +133,7 @@ Program Definition make_room_by_growing_buffer
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
   `(h, a) <- alloc h (psLength r + n);
-  h <- memcpy h (psBuffer r) (plusPtr a n) (psLength r);
+  h <- memcpy h (psBuffer r) 0 a n (psLength r);
   (* h <- free h (psBuffer r); *)
   ret (h, {| psBuffer := a
            ; psBufLen := psLength r + n
@@ -151,7 +151,7 @@ Program Definition allocate_buffer (h : Rep HeapSpec) (len : N | 0 < len) :
 
 Definition poke_at_offset (h : Rep HeapSpec) (r : PS) (d : Word) :
   Comp (Rep HeapSpec * PS) :=
-  res <- poke h (plusPtr (psBuffer r) (psOffset r)) d;
+  res <- poke h (psBuffer r) (psOffset r) d;
   ret (res,
        {| psBuffer := psBuffer r
         ; psBufLen := psBufLen r
@@ -170,10 +170,10 @@ Program Definition buffer_pack (d : list Word) (h : Rep HeapSpec) :
   IfDep 0 <? N.of_nat (length d)
   Then fun _ =>
     `(h, ps) <- allocate_buffer h (N.of_nat (length d));
-    h <- write h (psBuffer ps + psOffset ps) d;
+    h <- write h (psBuffer ps) (psOffset ps) d;
     ret (h, ps)
   Else fun _ =>
-    ret (h, {| psBuffer := 0
+    ret (h, {| psBuffer := nullPtr
              ; psBufLen := 0
              ; psOffset := 0
              ; psLength := 0 |}).
@@ -183,7 +183,7 @@ Definition buffer_unpack (r : bsrep) (h : Rep HeapSpec) :
   Comp (list Word) :=
   let h  := fst r in
   let ps := snd r in
-  `(h, xs) <- read h (psBuffer ps + psOffset ps) (psLength ps);
+  `(h, xs) <- read h (psBuffer ps) (psOffset ps) (psLength ps);
   ret xs.
 
 Program Definition buffer_cons (r : bsrep) (d : Word) :
@@ -258,7 +258,7 @@ Proof.
       destruct_computations.
       clear H Heqe; simpl.
       unfold buffer_to_list; simpl.
-      rewrite !plusPtr_zero, !N.add_0_r.
+      rewrite !plusPtr_zero.
       induction xs; auto.
       rewrite IHxs at 1; clear IHxs.
       simpl length.
@@ -368,7 +368,7 @@ Proof.
   if_computes_to_inv; subst.
     destruct_computations; simpl in *.
     destruct_AbsR AbsR; construct_AbsR.
-      rewrite N.add_0_r, <- buffer_cons_eq_alloc_new; trivial.
+      rewrite !plusPtr_zero, <- buffer_cons_eq_alloc_new; trivial.
         nomega.
       apply_for_all; nomega.
     right; intuition; nomega.
@@ -387,7 +387,7 @@ Definition buffer_uncons (r : bsrep) :
   let ps := snd r in
   If 0 <? psLength ps
   Then
-    `(h, w) <- peek h (plusPtr (psBuffer ps) (psOffset ps));
+    `(h, w) <- peek h (psBuffer ps) (psOffset ps);
     ret ((h, {| psBuffer := psBuffer ps
               ; psBufLen := psBufLen ps
               ; psOffset := if psLength ps =? 1
@@ -487,10 +487,10 @@ Program Definition buffer_append (r1 r2 : bsrep) : Comp (Rep HeapSpec * PS) :=
     IfDep 0 <? psLength ps2
     Then fun _ =>
       `(h1, a) <- alloc h1 (psLength ps1 + psLength ps2);
-      h1 <- memcpy h1 (plusPtr (psBuffer ps1) (psOffset ps1))
-                   a (psLength ps1);
-      h1 <- memcpy h1 (plusPtr (psBuffer ps2) (psOffset ps2))
-                   (a + psLength ps1) (psLength ps2);
+      h1 <- memcpy h1 (psBuffer ps1) (psOffset ps1)
+                   a 0 (psLength ps1);
+      h1 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
+                   a (psLength ps1) (psLength ps2);
       ret (h1, {| psBuffer := a
                 ; psBufLen := psLength ps1 + psLength ps2
                 ; psOffset := 0
@@ -515,10 +515,10 @@ Lemma refineEquiv_buffer_append (r1 r2 : bsrep) :
                            M.add a (psLength (snd r1) + psLength (snd r2))
                                  (resvs h1)
                        ; bytes := bytes h1 |}
-                      (plusPtr (psBuffer ps1) (psOffset ps1))
-                      a (psLength ps1);
-         h1 <- memcpy h1 (plusPtr (psBuffer ps2) (psOffset ps2))
-                      (a + psLength ps1) (psLength ps2);
+                      (psBuffer ps1) (psOffset ps1)
+                      a 0 (psLength ps1);
+         h1 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
+                      a (psLength ps1) (psLength ps2);
          ret (h1,
               {| psBuffer := a
                ; psBufLen := psLength ps1 + psLength ps2
@@ -687,7 +687,7 @@ Proof.
   {
     simplify with monad laws.
     refine pick val (heap,
-                     {| psBuffer := 0
+                     {| psBuffer := nullPtr
                       ; psBufLen := 0
                       ; psOffset := 0
                       ; psLength := 0 |}).
