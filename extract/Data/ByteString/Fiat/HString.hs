@@ -1,7 +1,14 @@
+{-# LANGUAGE MagicHash #-}
+
 module Data.ByteString.Fiat.HString where
 
 import Data.Char
 import Data.Bits
+import Data.Word (Word8)
+import Foreign.Ptr (Ptr)
+import Foreign.Storable (pokeElemOff)
+import GHC.Prim
+import GHC.Exts
 
 default (Int)
 
@@ -28,3 +35,9 @@ foldChar f c =
 
 nsucc :: Int -> Int
 nsucc = succ
+
+pokeArray' :: Ptr Word8 -> [Word8] -> IO ()
+pokeArray' ptr vals0 = go vals0 0#
+    where
+      go [] _          = return ()
+      go (val:vals) n# = do pokeElemOff ptr (I# n#) val; go vals (n# +# 1#)

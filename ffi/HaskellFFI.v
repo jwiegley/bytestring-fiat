@@ -228,7 +228,7 @@ Proof.
                                          ; psBufLen := len
                                          ; psOffset := 0
                                          ; psLength := len |}))
-             Else returnIO {| psBuffer := 0
+             Else returnIO {| psBuffer := nullPtr
                             ; psBufLen := 0
                             ; psOffset := 0
                             ; psLength := 0 |}))

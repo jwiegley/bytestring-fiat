@@ -511,27 +511,6 @@ eqb0 n m =
       m)
     n
 
-leb :: Prelude.Int -> Prelude.Int -> Prelude.Bool
-leb x y =
-  case compare0 x y of {
-   Prelude.GT -> Prelude.False;
-   _ -> Prelude.True}
-
-ltb :: Prelude.Int -> Prelude.Int -> Prelude.Bool
-ltb x y =
-  case compare0 x y of {
-   Prelude.LT -> Prelude.True;
-   _ -> Prelude.False}
-
-of_nat :: Prelude.Int -> Prelude.Int
-of_nat n =
-  (\fO fS n -> if n Prelude.<= 0 then fO () else fS (Prelude.pred n))
-    (\_ ->
-    0)
-    (\n' -> (\x -> x)
-    (of_succ_nat n'))
-    n
-
 eq_dec0 :: Prelude.Int -> Prelude.Int -> Prelude.Bool
 eq_dec0 n m =
   n_rec (\m0 ->
@@ -627,12 +606,6 @@ map f _ v =
   case v of {
    HString.Nil -> HString.Nil;
    HString.Cons a n v' -> HString.Cons (f a) n (map f n v')}
-
-if_Then_Else :: Prelude.Bool -> a1 -> a1 -> a1
-if_Then_Else = \c t e -> if c then t else e
-
-if_Opt_Then_Else :: (Prelude.Maybe a1) -> (a1 -> a2) -> a2 -> a2
-if_Opt_Then_Else = \c t e -> Data.Maybe.maybe e t c
 
 type ReflexiveT a r = a -> r
 
@@ -1297,7 +1270,9 @@ reflect_ADT_DSL_computation_If_Then_Else :: ADTSig -> ADT -> Prelude.Bool ->
                                             Reflect_ADT_DSL_computation 
                                             a1
 reflect_ADT_DSL_computation_If_Then_Else _ _ c c_DSL k_DSL =
-  (,) (if_Then_Else c (Prelude.fst c_DSL) (Prelude.fst k_DSL)) __
+  (,)
+    ((\c t e -> if c then t else e) c (Prelude.fst c_DSL)
+      (Prelude.fst k_DSL)) __
 
 reflect_ADT_DSL_computation_IfDep_Then_Else :: ADTSig -> ADT -> Prelude.Bool
                                                -> (() ->
@@ -3319,27 +3294,20 @@ ghcEmptyDSL' =
     (System.IO.Unsafe.unsafePerformIO (Foreign.ForeignPtr.newForeignPtr_ Foreign.Ptr.nullPtr))
     0 0 0
 
-let_ :: a1 -> (a1 -> a2) -> a2
-let_ x f =
-  f x
-
 ghcPackDSL' :: ([] Word) -> PS0
 ghcPackDSL' xs =
   System.IO.Unsafe.unsafeDupablePerformIO
-    (if_Then_Else
-      (ltb 0 (of_nat ((Data.List.length :: [a] -> Prelude.Int) xs)))
-      ((GHC.Base.>>=)
-        (GHC.ForeignPtr.mallocPlainForeignPtrBytes
-          (of_nat ((Data.List.length :: [a] -> Prelude.Int) xs))) (\z ->
-        (GHC.Base.>>=)
-          ((\p off xs -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Marshal.Array.pokeArray (Foreign.Ptr.plusPtr ptr off) xs))
-            z 0 xs) (\_ ->
-          Prelude.return (MakePS0 z
-            (of_nat ((Data.List.length :: [a] -> Prelude.Int) xs)) 0
-            (of_nat ((Data.List.length :: [a] -> Prelude.Int) xs))))))
-      (Prelude.return (MakePS0
-        (System.IO.Unsafe.unsafePerformIO (Foreign.ForeignPtr.newForeignPtr_ Foreign.Ptr.nullPtr))
-        0 0 0)))
+    ((Data.Function.&) ( ((Data.List.length :: [a] -> Prelude.Int) xs))
+      (\len ->
+      (\c t e -> if c then t else e) ((Prelude.<) 0 len)
+        ((GHC.Base.>>=) (GHC.ForeignPtr.mallocPlainForeignPtrBytes len)
+          (\z ->
+          (GHC.Base.>>=)
+            ((\p off xs -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> HString.pokeArray' (Foreign.Ptr.plusPtr ptr off) xs))
+              z 0 xs) (\_ -> Prelude.return (MakePS0 z len 0 len))))
+        (Prelude.return (MakePS0
+          (System.IO.Unsafe.unsafePerformIO (Foreign.ForeignPtr.newForeignPtr_ Foreign.Ptr.nullPtr))
+          0 0 0))))
 
 ghcUnpackDSL' :: PS0 -> [] Word
 ghcUnpackDSL' p =
@@ -3350,7 +3318,7 @@ ghcUnpackDSL' p =
 ghcConsDSL' :: PS0 -> Word -> PS0
 ghcConsDSL' p w =
   System.IO.Unsafe.unsafeDupablePerformIO
-    (case ltb 0 (psOffset0 p) of {
+    (case (Prelude.<) 0 (psOffset0 p) of {
       Prelude.True ->
        Prelude.fmap (\_ -> MakePS0 (psBuffer0 p) (psBufLen0 p)
          ((Prelude.-) (psOffset0 p) ((\x -> x) 1))
@@ -3358,7 +3326,8 @@ ghcConsDSL' p w =
          ((\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))
            (psBuffer0 p) ((Prelude.-) (psOffset0 p) ((\x -> x) 1)) w);
       Prelude.False ->
-       case leb ((Prelude.+) (psLength0 p) ((\x -> x) 1)) (psBufLen0 p) of {
+       case (Prelude.<=) ((Prelude.+) (psLength0 p) ((\x -> x) 1))
+              (psBufLen0 p) of {
         Prelude.True ->
          (GHC.Base.>>=)
            ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
@@ -3369,7 +3338,7 @@ ghcConsDSL' p w =
              ((\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))
                (psBuffer0 p) 0 w));
         Prelude.False ->
-         case ltb 0 (psBufLen0 p) of {
+         case (Prelude.<) 0 (psBufLen0 p) of {
           Prelude.True ->
            (GHC.Base.>>=)
              (GHC.ForeignPtr.mallocPlainForeignPtrBytes
@@ -3395,7 +3364,7 @@ ghcConsDSL' p w =
 ghcUnconsDSL' :: PS0 -> (,) PS0 (Prelude.Maybe Word)
 ghcUnconsDSL' p =
   System.IO.Unsafe.unsafeDupablePerformIO
-    (case ltb 0 (psLength0 p) of {
+    (case (Prelude.<) 0 (psLength0 p) of {
       Prelude.True ->
        Prelude.fmap (\a -> (,) (MakePS0 (psBuffer0 p) (psBufLen0 p)
          (case eqb0 (psLength0 p) ((\x -> x) 1) of {
@@ -3409,9 +3378,9 @@ ghcUnconsDSL' p =
 ghcAppendDSL' :: PS0 -> PS0 -> PS0
 ghcAppendDSL' p p0 =
   System.IO.Unsafe.unsafeDupablePerformIO
-    (case ltb 0 (psLength0 p) of {
+    (case (Prelude.<) 0 (psLength0 p) of {
       Prelude.True ->
-       case ltb 0 (psLength0 p0) of {
+       case (Prelude.<) 0 (psLength0 p0) of {
         Prelude.True ->
          (GHC.Base.>>=)
            (GHC.ForeignPtr.mallocPlainForeignPtrBytes

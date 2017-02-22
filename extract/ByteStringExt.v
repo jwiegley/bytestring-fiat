@@ -160,6 +160,9 @@ Extract Inlined Constant N.sub       => "(Prelude.-)".
 Extract Inlined Constant N.mul       => "(Prelude.*)".
 Extract Inlined Constant N.max       => "Prelude.max".
 Extract Inlined Constant N.min       => "Prelude.min".
+Extract Inlined Constant N.ltb       => "(Prelude.<)".
+Extract Inlined Constant N.leb       => "(Prelude.<=)".
+Extract Inlined Constant N.of_nat    => "".
 
 Extract Inductive Q => "(GHC.Real.Ratio Prelude.Int)" [ "(GHC.Real.:%)" ].
 
@@ -297,15 +300,16 @@ Extract Inlined Constant nat_of_ascii => "Data.Char.ord".
 Extract Inlined Constant ascii_of_N   => "Data.Char.chr".
 Extract Inlined Constant ascii_of_pos => "Data.Char.chr".
 
-(** Fiat *)
-
-Extract Constant Common.If_Then_Else     => "\c t e -> if c then t else e".
-Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
-
 (** Haskell IO *)
 
 Module Import BS  := ByteStringFFI M.
 Module Import FFI := HaskellFFI M.
+
+(** Fiat *)
+
+Extract Inlined Constant FFI.Let_                => "(Data.Function.&)".
+Extract Inlined Constant Common.If_Then_Else     => "(\c t e -> if c then t else e)".
+Extract Inlined Constant Common.If_Opt_Then_Else => "(\c t e -> Data.Maybe.maybe e t c)".
 
 Extract Constant Word => "Data.Word.Word8".
 
@@ -335,7 +339,7 @@ Extract Inlined Constant memset   =>
 Extract Inlined Constant read     =>
   "(\p off len -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Marshal.Array.peekArray len (Foreign.Ptr.plusPtr ptr off)))".
 Extract Inlined Constant write    =>
-  "(\p off xs -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Marshal.Array.pokeArray (Foreign.Ptr.plusPtr ptr off) xs))".
+  "(\p off xs -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> HString.pokeArray' (Foreign.Ptr.plusPtr ptr off) xs))".
 
 Extract Inlined Constant nullPtr  =>
   "(System.IO.Unsafe.unsafePerformIO (Foreign.ForeignPtr.newForeignPtr_ Foreign.Ptr.nullPtr))".
