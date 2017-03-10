@@ -840,7 +840,7 @@ type DecoratedcADT = CADT
 buildcADT :: Prelude.Int -> (HString.Vector MethSig) -> (Ilist MethSig
              (CMethDef a1)) -> DecoratedcADT
 buildcADT n' methSigs methDefs =
-  (,) __ (\idx -> getcMethDef n' methSigs (unsafeCoerce methDefs) (unsafeCoerce idx))
+  (,) __ (\idx -> getcMethDef n' methSigs methDefs (unsafeCoerce idx))
 
 type Iterate_Dep_Type_BoundedIndex' p = Any
 
@@ -1105,77 +1105,6 @@ appendS :: Prelude.String
 appendS =
   (:) 'a' ((:) 'p' ((:) 'p' ((:) 'e' ((:) 'n' ((:) 'd' [])))))
 
-byteStringSpec :: DecoratedADT
-byteStringSpec =
-  buildADT (HString.nsucc (HString.nsucc (HString.nsucc (HString.nsucc
-    (HString.nsucc (HString.nsucc (0 :: Prelude.Int))))))) (HString.Cons
-    (Build_methSig emptyS (0 :: Prelude.Int) [] Prelude.Nothing)
-    (HString.nsucc (HString.nsucc (HString.nsucc (HString.nsucc
-    (HString.nsucc (0 :: Prelude.Int)))))) (HString.Cons (Build_methSig packS
-    (0 :: Prelude.Int) ((:) __ []) Prelude.Nothing) (HString.nsucc
-    (HString.nsucc (HString.nsucc (HString.nsucc (0 :: Prelude.Int)))))
-    (HString.Cons (Build_methSig unpackS (HString.nsucc (0 :: Prelude.Int))
-    [] (Prelude.Just __)) (HString.nsucc (HString.nsucc (HString.nsucc
-    (0 :: Prelude.Int)))) (HString.Cons (Build_methSig consS (HString.nsucc
-    (0 :: Prelude.Int)) ((:) __ []) Prelude.Nothing) (HString.nsucc
-    (HString.nsucc (0 :: Prelude.Int))) (HString.Cons (Build_methSig unconsS
-    (HString.nsucc (0 :: Prelude.Int)) [] (Prelude.Just __)) (HString.nsucc
-    (0 :: Prelude.Int)) (HString.Cons (Build_methSig appendS (HString.nsucc
-    (HString.nsucc (0 :: Prelude.Int))) [] Prelude.Nothing)
-    (0 :: Prelude.Int) HString.Nil))))))
-    (unsafeCoerce icons (Build_methSig emptyS (0 :: Prelude.Int) []
-      Prelude.Nothing) (HString.nsucc (HString.nsucc (HString.nsucc
-      (HString.nsucc (HString.nsucc (0 :: Prelude.Int)))))) (HString.Cons
-      (Build_methSig packS (0 :: Prelude.Int) ((:) __ []) Prelude.Nothing)
-      (HString.nsucc (HString.nsucc (HString.nsucc (HString.nsucc
-      (0 :: Prelude.Int))))) (HString.Cons (Build_methSig unpackS
-      (HString.nsucc (0 :: Prelude.Int)) [] (Prelude.Just __)) (HString.nsucc
-      (HString.nsucc (HString.nsucc (0 :: Prelude.Int)))) (HString.Cons
-      (Build_methSig consS (HString.nsucc (0 :: Prelude.Int)) ((:) __ [])
-      Prelude.Nothing) (HString.nsucc (HString.nsucc (0 :: Prelude.Int)))
-      (HString.Cons (Build_methSig unconsS (HString.nsucc (0 :: Prelude.Int))
-      [] (Prelude.Just __)) (HString.nsucc (0 :: Prelude.Int)) (HString.Cons
-      (Build_methSig appendS (HString.nsucc (HString.nsucc
-      (0 :: Prelude.Int))) [] Prelude.Nothing) (0 :: Prelude.Int)
-      HString.Nil))))) __
-      (icons (Build_methSig packS (0 :: Prelude.Int) ((:) __ [])
-        Prelude.Nothing) (HString.nsucc (HString.nsucc (HString.nsucc
-        (HString.nsucc (0 :: Prelude.Int))))) (HString.Cons (Build_methSig
-        unpackS (HString.nsucc (0 :: Prelude.Int)) [] (Prelude.Just __))
-        (HString.nsucc (HString.nsucc (HString.nsucc (0 :: Prelude.Int))))
-        (HString.Cons (Build_methSig consS (HString.nsucc (0 :: Prelude.Int))
-        ((:) __ []) Prelude.Nothing) (HString.nsucc (HString.nsucc
-        (0 :: Prelude.Int))) (HString.Cons (Build_methSig unconsS
-        (HString.nsucc (0 :: Prelude.Int)) [] (Prelude.Just __))
-        (HString.nsucc (0 :: Prelude.Int)) (HString.Cons (Build_methSig
-        appendS (HString.nsucc (HString.nsucc (0 :: Prelude.Int))) []
-        Prelude.Nothing) (0 :: Prelude.Int) HString.Nil)))) __
-        (unsafeCoerce icons (Build_methSig unpackS (HString.nsucc
-          (0 :: Prelude.Int)) [] (Prelude.Just __)) (HString.nsucc
-          (HString.nsucc (HString.nsucc (0 :: Prelude.Int)))) (HString.Cons
-          (Build_methSig consS (HString.nsucc (0 :: Prelude.Int)) ((:) __ [])
-          Prelude.Nothing) (HString.nsucc (HString.nsucc (0 :: Prelude.Int)))
-          (HString.Cons (Build_methSig unconsS (HString.nsucc
-          (0 :: Prelude.Int)) [] (Prelude.Just __)) (HString.nsucc
-          (0 :: Prelude.Int)) (HString.Cons (Build_methSig appendS
-          (HString.nsucc (HString.nsucc (0 :: Prelude.Int))) []
-          Prelude.Nothing) (0 :: Prelude.Int) HString.Nil))) __
-          (icons (Build_methSig consS (HString.nsucc (0 :: Prelude.Int)) ((:)
-            __ []) Prelude.Nothing) (HString.nsucc (HString.nsucc
-            (0 :: Prelude.Int))) (HString.Cons (Build_methSig unconsS
-            (HString.nsucc (0 :: Prelude.Int)) [] (Prelude.Just __))
-            (HString.nsucc (0 :: Prelude.Int)) (HString.Cons (Build_methSig
-            appendS (HString.nsucc (HString.nsucc (0 :: Prelude.Int))) []
-            Prelude.Nothing) (0 :: Prelude.Int) HString.Nil)) __
-            (unsafeCoerce icons (Build_methSig unconsS (HString.nsucc
-              (0 :: Prelude.Int)) [] (Prelude.Just __)) (HString.nsucc
-              (0 :: Prelude.Int)) (HString.Cons (Build_methSig appendS
-              (HString.nsucc (HString.nsucc (0 :: Prelude.Int))) []
-              Prelude.Nothing) (0 :: Prelude.Int) HString.Nil) __
-              (icons (Build_methSig appendS (HString.nsucc (HString.nsucc
-                (0 :: Prelude.Int))) [] Prelude.Nothing) (0 :: Prelude.Int)
-                HString.Nil __ (unsafeCoerce inil)))))))
-
 annotate_ADT :: Prelude.Int -> (HString.Vector MethSig) -> (Ilist MethSig
                 (MethDef a1)) -> (Ilist MethSig (MethDef a2)) ->
                 (Iterate_Dep_Type_BoundedIndex ()) -> RefineADT
@@ -1235,7 +1164,7 @@ iter h phi fr =
    Pure x -> x;
    Join g h0 -> phi (fmap h (comp (iter h phi) g) h0)}
 
-data MethodCall rep rec_ =
+data MethodCall rep rec =
    Call MethodIndex Hlist (rep -> Any)
 
 methodCall_fmap :: ADTSig -> (a2 -> a3) -> (MethodCall a1 a2) -> MethodCall
@@ -3376,25 +3305,49 @@ ghcUnconsDSL' p =
       Prelude.False -> Prelude.return ((,) p Prelude.Nothing)})
 
 ghcAppendDSL' :: PS0 -> PS0 -> PS0
-ghcAppendDSL' p p0 =
+ghcAppendDSL' bs1 bs2 =
   System.IO.Unsafe.unsafeDupablePerformIO
-    (case (Prelude.<) 0 (psLength0 p) of {
+    (case (Prelude.<) 0 (psLength0 bs1) of {
       Prelude.True ->
-       case (Prelude.<) 0 (psLength0 p0) of {
+       case (Prelude.<) 0 (psLength0 bs2) of {
         Prelude.True ->
-         (GHC.Base.>>=)
-           (GHC.ForeignPtr.mallocPlainForeignPtrBytes
-             ((Prelude.+) (psLength0 p) (psLength0 p0))) (\cod ->
-           (GHC.Base.>>=)
+         case (Prelude.<=) (psLength0 bs2)
+                ((Prelude.-) ((Prelude.-) (psBufLen0 bs1) (psLength0 bs1))
+                  (psOffset0 bs1)) of {
+          Prelude.True ->
+           Prelude.fmap (\_ -> MakePS0 (psBuffer0 bs1) (psBufLen0 bs1)
+             (psOffset0 bs1) ((Prelude.+) (psLength0 bs1) (psLength0 bs2)))
              ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-               (psBuffer0 p) (psOffset0 p) cod 0 (psLength0 p)) (\_ ->
+               (psBuffer0 bs2) (psOffset0 bs2) (psBuffer0 bs1)
+               ((Prelude.+) (psOffset0 bs1) (psLength0 bs1)) (psLength0 bs2));
+          Prelude.False ->
+           case (Prelude.<=) (psLength0 bs2)
+                  ((Prelude.-) (psBufLen0 bs1) (psLength0 bs1)) of {
+            Prelude.True ->
              (GHC.Base.>>=)
                ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-                 (psBuffer0 p0) (psOffset0 p0) cod (psLength0 p)
-                 (psLength0 p0)) (\_ ->
-               Prelude.return (MakePS0 cod
-                 ((Prelude.+) (psLength0 p) (psLength0 p0)) 0
-                 ((Prelude.+) (psLength0 p) (psLength0 p0))))));
-        Prelude.False -> Prelude.return p};
-      Prelude.False -> Prelude.return p0})
+                 (psBuffer0 bs1) (psOffset0 bs1) (psBuffer0 bs1) 0
+                 (psLength0 bs1)) (\_ ->
+               Prelude.fmap (\_ -> MakePS0 (psBuffer0 bs1) (psBufLen0 bs1) 0
+                 ((Prelude.+) (psLength0 bs1) (psLength0 bs2)))
+                 ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
+                   (psBuffer0 bs2) (psOffset0 bs2) (psBuffer0 bs1)
+                   (psLength0 bs1) (psLength0 bs2)));
+            Prelude.False ->
+             (GHC.Base.>>=)
+               (GHC.ForeignPtr.mallocPlainForeignPtrBytes
+                 ((Prelude.+) (psLength0 bs1) (psLength0 bs2))) (\cod ->
+               (GHC.Base.>>=)
+                 ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
+                   (psBuffer0 bs1) (psOffset0 bs1) cod 0 (psLength0 bs1))
+                 (\_ ->
+                 (GHC.Base.>>=)
+                   ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
+                     (psBuffer0 bs2) (psOffset0 bs2) cod (psLength0 bs1)
+                     (psLength0 bs2)) (\_ ->
+                   Prelude.return (MakePS0 cod
+                     ((Prelude.+) (psLength0 bs1) (psLength0 bs2)) 0
+                     ((Prelude.+) (psLength0 bs1) (psLength0 bs2))))))}};
+        Prelude.False -> Prelude.return bs1};
+      Prelude.False -> Prelude.return bs2})
 
