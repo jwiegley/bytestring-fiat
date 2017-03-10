@@ -189,31 +189,29 @@ Ltac complete IHfromADT :=
               eapply IHfromADT; try eassumption; inspect
             | discriminate ].
 
-Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
-  forall addr sz, M.MapsTo addr sz (resvs r) -> 0 < sz.
-Proof.
-  intros r from_r.
-  pattern r.
-  apply ADT_ind; [|eassumption].
-  intro midx.
+Ltac attack_ADT r :=
+  pattern r; apply ADT_ind; try eassumption;
+  intro midx;
   match goal with
   | [ midx : MethodIndex _ |- _ ] => pattern midx
-  end.
-  apply IterateBoundedIndex.Iterate_Ensemble_equiv'.
+  end;
+  apply IterateBoundedIndex.Iterate_Ensemble_equiv';
   repeat apply IterateBoundedIndex.Build_prim_and;
   try solve [constructor];
   simpl in *; intros;
   simpl in *; destruct_ex; split_and;
-  repeat inspect; injections;
-  simpl in *; inspect; eauto.
-Qed.
+  repeat inspect; injections; simpl in *;
+  inspect; eauto; try nomega; intros.
+
+Theorem allocations_have_size : forall r : Rep HeapSpec, fromADT _ r ->
+  forall addr sz, M.MapsTo addr sz (resvs r) -> 0 < sz.
+Proof. intros r from_r; attack_ADT r. Qed.
 
 Lemma overlaps_bool_complete_true
   : forall (addr2 : Ptr Word) sz2 x1 x0,
     overlaps_bool addr2 sz2 x1 x0 = true <-> overlaps addr2 sz2 x1 x0.
 Proof.
-  unfold overlaps, overlaps_bool; intros; setoid_rewrite andb_true_iff.
-  nomega.
+  unfold overlaps, overlaps_bool; intros; setoid_rewrite andb_true_iff; nomega.
 Qed.
 
 Lemma overlaps_bool_complete_false
@@ -236,17 +234,7 @@ Proof.
   generalize dependent addr2.
   generalize dependent sz1.
   generalize dependent addr1.
-  pattern r; apply ADT_ind; try eassumption.
-  intro midx.
-  match goal with
-  | [ midx : MethodIndex _ |- _ ] => pattern midx
-  end.
-  apply IterateBoundedIndex.Iterate_Ensemble_equiv'.
-  repeat apply IterateBoundedIndex.Build_prim_and;
-  try solve [constructor];
-  simpl in *; intros;
-  destruct_ex; split_and; repeat inspect;
-  injections; inspect; eauto; try nomega.
+  attack_ADT r.
   - apply_for_all; nomega.
   - apply_for_all; nomega.
   - eapply M.remove_2 in H4; eauto.
@@ -263,18 +251,7 @@ Theorem allocations_no_overlap_r : forall r : Rep HeapSpec, fromADT _ r ->
       -> 0 < sz1
       -> ~ M.In addr1 (resvs r).
 Proof.
-  intros r from_r; pattern r; apply ADT_ind; try eassumption.
-  intro midx;
-  match goal with
-  | [ midx : MethodIndex _ |- _ ] => pattern midx
-  end;
-  apply IterateBoundedIndex.Iterate_Ensemble_equiv';
-  repeat apply IterateBoundedIndex.Build_prim_and;
-  try solve [constructor];
-  simpl in *; intros;
-  simpl in *; destruct_ex; split_and;
-  repeat inspect; injections; simpl in *;
-  inspect; eauto; intro.
+  intros r from_r; attack_ADT r; unfold not; intros.
   - apply F.empty_in_iff in H; eauto.
   - apply (proj1 (in_mapsto_iff _ _ _)) in H3.
     destruct_ex.
@@ -303,7 +280,7 @@ Proof.
     nomega.
 Qed.
 
-Corollary allocations_no_overlap_for_all :
+Theorem allocations_no_overlap_for_all :
   forall r : Rep HeapSpec, fromADT _ r ->
     forall (addr : Ptr Word) sz,
       M.MapsTo addr sz (resvs r) ->
@@ -386,6 +363,6 @@ Proof.
     right.
     intuition.
   rewrite N.min_l, !plusPtr_zero; trivial.
-Qed.
+Abort.
 
 End Heap.

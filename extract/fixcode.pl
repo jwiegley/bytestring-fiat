@@ -22,6 +22,10 @@ import qualified System.IO.Unsafe
 END_IMPORTS
 
 while (<>) {
+    s/import qualified Prelude/$imports/;
+    s/unsafeCoerce :: a -> b/--unsafeCoerce :: a -> b/;
+    s/'\\000'/0/g;
+
     next if /^ghcDenote ::/ .. /^$/;
     next if /^heapCanonical0 ::/ .. /^$/;
     next if /^byteStringHeap0 ::/ .. /^$/;
@@ -43,6 +47,7 @@ while (<>) {
     next if /^heapSpec ::/ .. /^$/;
     next if /^heapSpec0 ::/ .. /^$/;
     next if /^heapCanonical ::/ .. /^$/;
+    next if /^byteStringSpec ::/ .. /^$/;
     next if /^byteStringHeap ::/ .. /^$/;
     next if /^byteStringCanonical ::/ .. /^$/;
     next if /^buffer_to_list ::/ .. /^$/;
@@ -68,17 +73,5 @@ while (<>) {
     next if /^appendDSL ::/ .. /^$/;
     next if /^ghcAppendDSL ::/ .. /^$/;
 
-    s/'\\000'/0/g;
-    s/import qualified Prelude/$imports/;
-    s/unsafeCoerce :: a -> b/--unsafeCoerce :: a -> b/;
-    s/\bfun /\\/;
-    s/\brec\b/rec_/;
-    s/\(=\)/(Prelude.==)/;
-    s/\(<=\)/(Prelude.<=)/;
-    s/\(<\)/(Prelude.<)/;
-    s/\(>\)/(Prelude.>)/;
-    s/\(\+\)/(Prelude.+)/;
-    s/\(==\)/(Prelude.==)/;
-    s/getcMethDef n' methSigs methDefs \(unsafeCoerce idx\)/getcMethDef n' methSigs (unsafeCoerce methDefs) (unsafeCoerce idx)/;
     print;
 }
