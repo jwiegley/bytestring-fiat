@@ -7,6 +7,7 @@ module Main where
 
 import           Control.DeepSeq
 import           Criterion.Main
+import           Criterion.Types
 import qualified Data.ByteString as BS
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Fiat as Fiat
@@ -37,10 +38,10 @@ unpackFiatBench :: Fiat.ByteString -> [Int]
 unpackFiatBench = map (read . (:[]) . w82c) . Fiat.unpack
 
 consBench :: [Int] -> ByteString
-consBench = foldr BS.cons BS.empty . concatMap (map c2w8 . show)
+consBench = F.foldr' BS.cons BS.empty . map c2w8 . concatMap show
 
 consFiatBench :: [Int] -> Fiat.ByteString
-consFiatBench = foldr Fiat.cons Fiat.empty . concatMap (map c2w8 . show)
+consFiatBench = F.foldr' Fiat.cons Fiat.empty . map c2w8 . concatMap show
 
 unconsBench :: ByteString -> [Int]
 unconsBench xs = case BS.uncons xs of
@@ -63,10 +64,13 @@ appendFiatBench :: [Int] -> Fiat.ByteString
 appendFiatBench = F.foldl' (<>) Fiat.empty . map (Fiat.pack . map c2w8 . show)
 
 main :: IO ()
-main = defaultMain
-    [
-    bgroup "[Int]" $ flip map [3 :: Int] $ \i ->
-        let sz = 10^i; inp = take sz [1..] in
+main = defaultMainWith defaultConfig { csvFile = Just "bench.csv" }
+    $ replicate 2
+    (
+    bgroup "[Int]" $ flip map [6 :: Int] $ \i ->
+        let sz = 10^i
+            inp = take sz [1..]
+            inp' = take (sz `div` 10) [1..] in
         bgroup (show sz)
         [ bench "ByteString.pack"        (nf packBench inp)
         , bench "ByteString.Fiat.pack"   (nf packFiatBench inp)
@@ -74,16 +78,24 @@ main = defaultMain
         , bench "ByteString.unpack"      (nf unpackBench (packBench inp))
         , bench "ByteString.Fiat.unpack" (nf unpackFiatBench (packFiatBench inp))
 
-        , bench "ByteString.cons"        (nf consBench inp)
-        , bench "ByteString.Fiat.cons"   (nf consFiatBench inp)
+        , bench "ByteString.cons"        (nf consBench inp')
+        , bench "ByteString.Fiat.cons"   (nf consFiatBench inp')
 
         , bench "ByteString.uncons"      (nf unconsBench (packBench inp))
         , bench "ByteString.Fiat.uncons" (nf unconsFiatBench (packFiatBench inp))
 
-        , bench "ByteString.append"      (nf packBench inp)
-        , bench "ByteString.Fiat.append" (nf packFiatBench inp)
+        , bench "ByteString.append"      (nf appendBench inp')
+        , bench "ByteString.Fiat.append" (nf appendFiatBench inp')
         ]
-    ]
+    )
+
+compute :: (Double, Double)
+compute =
+    let x  = 92.18; dx = 1.567
+        y  = 93.44; dy = 1.507
+        z  = 100.0 - (100.0 * y) / x
+        dz = z * (dy / y + dx / x)
+    in (z, abs dz)
 
 -- packOpt :: [Word8] -> Internal.PS0
 -- packOpt xs = unsafeDupablePerformIO $
