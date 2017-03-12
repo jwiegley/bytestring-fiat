@@ -853,9 +853,11 @@ Defined.
 
 Theorem all_bytes_allocated {heap} :
   forall r : Rep (projT1 (ByteStringHeap heap)), fromADT _ r
-    -> psBuffer (snd r) = nullPtr
-         \/ (M.MapsTo (psBuffer (snd r)) (psBufLen (snd r)) (resvs (fst r))
-               /\ psOffset (snd r) + psLength (snd r) < psBufLen (snd r)).
+    -> IF psBuffer (snd r) = nullPtr
+       then psBufLen (snd r) = 0
+       else M.MapsTo (psBuffer (snd r)) (psBufLen (snd r)) (resvs (fst r)) /\
+            0 < psBufLen (snd r) /\
+            psOffset (snd r) + psLength (snd r) <= psBufLen (snd r).
 Proof.
   intros r from_r; pattern r; apply ADT_ind; try eassumption.
   intro midx;
@@ -869,7 +871,6 @@ Proof.
   simpl in *; destruct_ex; split_and;
   repeat inspect; injections;
   simpl in *; eauto; right; eauto.
-  unfold buffer_pack in H.
 Admitted.
 
 End ByteStringHeap.
