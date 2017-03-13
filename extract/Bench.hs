@@ -11,13 +11,22 @@ import           Criterion.Types
 import qualified Data.ByteString as BS
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Fiat as Fiat
+import           Data.ByteString.Fiat.Internal hiding (IO, map, fmap)
 import qualified Data.ByteString.Fiat.Internal as Internal
 import qualified Data.Foldable as F
 import           Data.Monoid
 import           Data.Word (Word8)
 
-instance NFData Internal.PS0 where
-    rnf (Internal.MakePS0 !_ !_ !_ !_) = ()
+import           System.IO.Unsafe
+import           Foreign.Ptr (plusPtr, nullPtr)
+import           Foreign.ForeignPtr
+import           Foreign.Storable
+import           Foreign.Marshal.Array
+import           Foreign.Marshal.Utils
+import           GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+
+instance NFData PS0 where
+    rnf (MakePS0 !_ !_ !_ !_) = ()
 
 c2w8 :: Char -> Word8
 c2w8 = fromIntegral . fromEnum
@@ -97,15 +106,51 @@ compute =
         dz = z * (dy / y + dx / x)
     in (z, abs dz)
 
--- packOpt :: [Word8] -> Internal.PS0
--- packOpt xs = unsafeDupablePerformIO $
---     let len = length xs in
---     if 0 < len
---     then do
---         cod <- mallocPlainForeignPtrBytes len
---         withForeignPtr cod $ \ptr ->
---             pokeArray ptr xs
---         return $ Internal.MakePS0 cod len 0 len
---     else do
---         ptr <- newForeignPtr_ nullPtr
---         return $ Internal.MakePS0 ptr 0 0 0
+extractedPack :: [Internal.Word] -> PS0
+extractedPack xs = unsafeDupablePerformIO $
+    let len = length xs in
+    if 0 < len
+    then do
+        cod <- mallocPlainForeignPtrBytes len
+        withForeignPtr cod $ \ptr ->
+            pokeArray ptr xs
+        return $ MakePS0 cod len 0 len
+    else do
+        ptr <- newForeignPtr_ nullPtr
+        return $ MakePS0 ptr 0 0 0
+
+extractedCons :: PS0 -> Internal.Word -> PS0
+extractedCons p w = unsafeDupablePerformIO $
+  if 0 < psOffset0 p
+  then do
+    withForeignPtr (psBuffer0 p) $ \ptr ->
+      pokeByteOff ptr (psOffset0 p - 1) w
+    return $ MakePS0
+      (psBuffer0 p) (psBufLen0 p)
+      (psOffset0 p - 1) (psLength0 p + 1)
+  else
+    if psLength0 p + 1 <= psBufLen0 p
+    then do
+      withForeignPtr (psBuffer0 p) $ \ptr1 ->
+        withForeignPtr (psBuffer0 p) $ \ptr2 ->
+          copyBytes ptr1 (plusPtr ptr2 1) (psLength0 p)
+      withForeignPtr (psBuffer0 p) $ \ptr ->
+        pokeByteOff ptr 0 w
+      return $ MakePS0
+        (psBuffer0 p) (psBufLen0 p) 0
+        (psLength0 p + 1)
+    else
+      if 0 < psBufLen0 p
+      then do
+        np <- mallocPlainForeignPtrBytes (psLength0 p + 1)
+        withForeignPtr (psBuffer0 p) $ \ptr1 ->
+          withForeignPtr np $ \ptr2 ->
+            copyBytes ptr1 (plusPtr ptr2 1) (psLength0 p)
+        withForeignPtr np $ \ptr -> pokeByteOff ptr 0 w
+        return $ MakePS0
+          np (psLength0 p + 1)
+          0 (psLength0 p + 1)
+      else do
+        np <- mallocPlainForeignPtrBytes 1
+        withForeignPtr np $ \ptr -> pokeByteOff ptr 0 w
+        return $ MakePS0 np 1 0 1
