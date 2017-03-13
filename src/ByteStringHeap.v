@@ -871,6 +871,6 @@ Proof.
   simpl in *; destruct_ex; split_and;
   repeat inspect; injections;
   simpl in *; eauto; right; eauto.
-Admitted.
+Abort.
 
 End ByteStringHeap.
