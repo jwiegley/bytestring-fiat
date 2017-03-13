@@ -20,10 +20,10 @@ Import FMapExt.
 Open Scope N_scope.
 
 Record PS := makePS {
-  psBuffer : Ptr Word;
-  psBufLen : Size;
-  psOffset : Size;
-  psLength : Size
+  psBuffer : Ptr Word;   (* address of allocation *)
+  psBufLen : Size;       (* total space allocated *)
+  psOffset : Size;       (* offset of byte data *)
+  psLength : Size        (* length of byte data *)
 }.
 
 Definition buffer_to_list (h : Rep HeapSpec) (ps : PS) : list Word :=
