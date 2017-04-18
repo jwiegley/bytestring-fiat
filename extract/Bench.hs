@@ -5,6 +5,7 @@
 
 module Main where
 
+import           Control.Arrow
 import           Control.DeepSeq
 import           Criterion.Main
 import           Criterion.Types
