@@ -535,7 +535,7 @@ Program Definition buffer_append (r1 r2 : bsrep) : Comp (Rep HeapSpec * PS) :=
       )
     Else fun _ => ret (h1, ps1)
   Else fun _ => ret (h2, ps2).
-Obligation 1. nomega. Defined.
+Obligation 1. nomega_. Defined.
 
 Lemma refineEquiv_buffer_append (r1 r2 : bsrep) :
   refineEquiv
@@ -592,7 +592,13 @@ Lemma refineEquiv_buffer_append (r1 r2 : bsrep) :
      Else ret r2).
 Proof.
   unfold buffer_append.
-  f_equiv; intros ?.
+  unfold buffer_append_obligation_1.
+  assert (forall A (a : Comp A) B (b c : Comp B),
+            refineEquiv b c -> refineEquiv (a >> b) (a >> c)) as H.
+    intros.
+    setoid_rewrite H.
+    reflexivity.
+  apply H.
   etransitivity.
     apply refineEquiv_IfDep_Then_Else.
       intros.

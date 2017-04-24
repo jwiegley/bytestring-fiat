@@ -321,14 +321,11 @@ Lemma denote_Join :
               (denote (liftF h) >>= fun p => denote (k p)).
 Proof.
   intros.
-  destruct h.
+  destruct h; simpl.
   autorewrite with monad laws.
-  f_equiv; simpl; unfold pointwise_relation; intros.
-  destruct ( snd (MethodDomCod sig midx)).
-  autorewrite with monad laws.
-  reflexivity.
-  autorewrite with monad laws.
-  reflexivity.
+  apply refineEquiv_bind_Proper; [reflexivity|]; intro.
+  destruct (snd (MethodDomCod sig midx));
+  autorewrite with monad laws; reflexivity.
 Qed.
 
 Lemma denote_Free_bind :
@@ -338,14 +335,13 @@ Lemma denote_Free_bind :
 Proof.
   intros.
   induction x; simpl; intros.
-  - autorewrite with monad laws; simpl.
+    autorewrite with monad laws; simpl.
     reflexivity.
-  - destruct f0; simpl.
-    autorewrite with monad laws.
-    f_equiv; simpl; unfold pointwise_relation; intros.
-    destruct ( snd (MethodDomCod sig midx)).
-    + rewrite H; reflexivity.
-    + rewrite H; reflexivity.
+  destruct f0; simpl.
+  autorewrite with monad laws.
+  apply refineEquiv_bind_Proper; [reflexivity|]; intro.
+  destruct (snd (MethodDomCod sig midx));
+  rewrite H; reflexivity.
 Qed.
 
 Corollary denote_If :

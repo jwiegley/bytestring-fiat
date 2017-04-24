@@ -310,6 +310,15 @@ Proof.
 
   (* refine method ByteString.consS. *)
   {
+    unfold buffer_cons, Bind2,
+           make_room_by_shifting_up,
+           simply_widen_region,
+           make_room_by_growing_buffer,
+           allocate_buffer,
+           poke_at_offset,
+           memcpy, poke, alloc, Bind2; simpl.
+    simplify with monad laws.
+
     apply_ByteString_Heap_AbsR.
     fracture H; unfold find_free_block;
     refine using ByteString_Heap_AbsR;
@@ -354,7 +363,7 @@ Proof.
 
   (* refine method ByteString.unconsS. *)
   {
-    unfold buffer_uncons;
+    unfold Bind2, peek; simplify with monad laws.
     apply_ByteString_Heap_AbsR;
     fracture H;
     refine using ByteString_Heap_AbsR.
