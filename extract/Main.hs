@@ -1,5 +1,6 @@
 module Main where
 
+import qualified Data.ByteString as BSH
 import qualified Data.ByteString.Fiat as BS
 import           Data.ByteString.Fiat.Internal hiding (IO, putStrLn)
 import           Data.Word (Word8)
@@ -8,6 +9,8 @@ import           Foreign.Marshal.Utils (copyBytes)
 import           Foreign.Ptr (Ptr, plusPtr)
 import           GHC.Prim
 import           System.IO.Unsafe (unsafePerformIO)
+import           Test.Hspec
+import           Test.QuickCheck
 
 c2w8 :: Char -> Word8
 c2w8 = fromIntegral . fromEnum
@@ -30,6 +33,12 @@ w82s = Prelude.map w82c
 --         Nothing -> return []
 --         Just c  -> (w82c c:) <$> printPS h h' bs'
 
+printPSH :: BSH.ByteString -> IO String
+printPSH bs =
+    case BSH.uncons bs of
+        Nothing -> return []
+        Just (c, bs')  -> (w82c c:) <$> printPSH bs'
+
 printPS0 :: PS0 -> IO String
 printPS0 bs =
     let (bs', mres) = ghcUnconsDSL' bs in
@@ -44,83 +53,81 @@ printPS1 bs =
         Just (c, bs') -> (w82c c:) <$> printPS1 bs'
 
 main :: IO ()
-main = do
-    -- putStrLn "ByteString list..."
-
-    -- let h0 = emptyHeap
-    -- let b0 = emptyBS any' h0
-    -- putStrLn . ("b0 = " ++) =<< printPS any' h0 b0
-    -- let b1 = consBS any' h0 b0 (c2w8 'a')
-    -- putStrLn . ("b1 = " ++) =<< printPS any' h0 b1
-    -- let b2 = consBS any' h0 b1 (c2w8 'b')
-    -- putStrLn . ("b2 = " ++) =<< printPS any' h0 b2
-    -- let b3 = consBS any' h0 b2 (c2w8 'c')
-    -- putStrLn . ("b3 = " ++) =<< printPS any' h0 b3
-    -- let (b4, mres1) = unconsBS any' h0 b3
-    -- putStrLn . ("b4 = " ++) =<< printPS any' h0 b4
-    -- print mres1
-    -- let (b5, mres2) = unconsBS any' h0 b4
-    -- putStrLn . ("b5 = " ++) =<< printPS any' h0 b5
-    -- print mres2
-
-    -- -- b3 has the final heap state
-    -- let b6 = appendBS any' h0 b3 b2
-    -- putStrLn . ("bs6 = " ++) =<< printPS any' h0 b6
-
-    putStrLn "ByteString heap..."
-
-    let bs0 = ghcEmptyDSL'
-    putStrLn . ("bs0 = " ++) =<< printPS0 bs0
-    let bs1 = ghcConsDSL' bs0 (c2w8 'a')
-    putStrLn . ("bs1 = " ++) =<< printPS0 bs1
-    let bs2 = ghcConsDSL' bs1 (c2w8 'b')
-    putStrLn . ("bs2 = " ++) =<< printPS0 bs2
-    let bs3 = ghcConsDSL' bs2 (c2w8 'c')
-    putStrLn . ("bs3 = " ++) =<< printPS0 bs3
-    let (bs4, mres1') = ghcUnconsDSL' bs3
-    putStrLn . ("bs4 = " ++) =<< printPS0 bs4
-    print mres1'
-    let (bs5, mres2') = ghcUnconsDSL' bs4
-    putStrLn . ("bs5 = " ++) =<< printPS0 bs5
-    print mres2'
-
-    let bs6 = ghcAppendDSL' bs3 bs2
-    putStrLn . ("bs6 = " ++) =<< printPS0 bs6
-
-    putStrLn "ByteString test..."
-
-    let s0 = BS.empty
-    putStrLn . ("s0 = " ++) =<< printPS1 s0
-    let s1 = BS.cons (c2w8 'a') (BS.cons (c2w8 'a') s0)
-    putStrLn . ("s1 = " ++) =<< printPS1 s1
-    let Just (_, s2) = BS.uncons s1
-    putStrLn . ("s2 = " ++) =<< printPS1 s2
-    let s3 = BS.cons (c2w8 'b') s2
-    putStrLn . ("s3 = " ++) =<< printPS1 s3
-    putStrLn . ("s1 = " ++) =<< printPS1 s1
-
-    putStrLn "ByteString via Internal..."
-
-    let s0 = BS.empty
-    putStrLn . ("s0 = " ++) =<< printPS1 s0
-    let s1 = BS.cons (c2w8 'a') s0
-    putStrLn . ("s1 = " ++) =<< printPS1 s1
-    let s2 = BS.cons (c2w8 'b') s1
-    putStrLn . ("s2 = " ++) =<< printPS1 s2
-    let s3 = BS.cons (c2w8 'c') s2
-    putStrLn . ("s3 = " ++) =<< printPS1 s3
-    case BS.uncons s3 of
-        Nothing -> return ()
-        Just (mres1', s4) -> do
-            putStrLn . ("s4 = " ++) =<< printPS1 s4
-            print mres1'
-            case BS.uncons s4 of
+main = hspec $ do
+    describe "Basic tests" $ do
+        it "Haskell ByteString baseline" $ do
+            let s0 = BSH.empty
+            printPSH s0 `shouldReturn` ""
+            let s1 = BSH.cons (c2w8 'a') s0
+            printPSH s1 `shouldReturn` "a"
+            let s2 = BSH.cons (c2w8 'b') s1
+            printPSH s2 `shouldReturn` "ba"
+            let s3 = BSH.cons (c2w8 'c') s2
+            printPSH s3 `shouldReturn` "cba"
+            case BSH.uncons s3 of
                 Nothing -> return ()
-                Just (mres2', s5) -> do
-                    putStrLn . ("s5 = " ++) =<< printPS1 s5
-                    print mres2'
+                Just (mres1', s4) -> do
+                    mres1' `shouldBe` c2w8 'c'
+                    printPSH s4 `shouldReturn` "ba"
+                    case BSH.uncons s4 of
+                        Nothing -> return ()
+                        Just (mres2', s5) -> do
+                            mres2' `shouldBe` c2w8 'b'
+                            printPSH s5 `shouldReturn` "a"
 
-            let s6 = BS.append s3 s2
-            putStrLn . ("s6 = " ++) =<< printPS1 s6
-  where
-    any' = unsafeCoerce ()
+                    let s6 = BSH.append s3 s2
+                    printPSH s6 `shouldReturn` "cbaba"
+
+        it "Constructs ByteStrings (directly)" $ do
+            let bs0 = ghcEmptyDSL'
+            printPS0 bs0 `shouldReturn` ""
+            let bs1 = ghcConsDSL' bs0 (c2w8 'a')
+            printPS0 bs1 `shouldReturn` "a"
+            let bs2 = ghcConsDSL' bs1 (c2w8 'b')
+            printPS0 bs2 `shouldReturn` "ba"
+            let bs3 = ghcConsDSL' bs2 (c2w8 'c')
+            printPS0 bs3 `shouldReturn` "cba"
+            let (bs4, mres1') = ghcUnconsDSL' bs3
+            mres1' `shouldBe` Just (c2w8 'c')
+            printPS0 bs4 `shouldReturn` "ba"
+            let (bs5, mres2') = ghcUnconsDSL' bs4
+            mres2' `shouldBe` Just (c2w8 'b')
+            printPS0 bs5 `shouldReturn` "a"
+
+            let bs6 = ghcAppendDSL' bs3 bs2
+            printPS0 bs6 `shouldReturn` "cbaba"
+
+        it "Constructs ByteStrings (using the BS interface)" $ do
+            let s0 = BS.empty
+            printPS1 s0 `shouldReturn` ""
+            let s1 = BS.cons (c2w8 'a') s0
+            printPS1 s1 `shouldReturn` "a"
+            let s2 = BS.cons (c2w8 'b') s1
+            printPS1 s2 `shouldReturn` "ba"
+            let s3 = BS.cons (c2w8 'c') s2
+            printPS1 s3 `shouldReturn` "cba"
+            case BS.uncons s3 of
+                Nothing -> return ()
+                Just (mres1', s4) -> do
+                    printPS1 s4 `shouldReturn` "ba"
+                    mres1' `shouldBe` c2w8 'c'
+                    case BS.uncons s4 of
+                        Nothing -> return ()
+                        Just (mres2', s5) -> do
+                            printPS1 s5 `shouldReturn` "a"
+                            mres2' `shouldBe` c2w8 'b'
+
+                    let s6 = BS.append s3 s2
+                    printPS1 s6 `shouldReturn` "cbaba"
+
+        it "Handles cons followed by uncons" $ do
+            let s0 = BS.empty
+            printPS1 s0 `shouldReturn` ""
+            let s1 = BS.cons (c2w8 'a') (BS.cons (c2w8 'a') s0)
+            printPS1 s1 `shouldReturn` "aa"
+            let Just (res, s2) = BS.uncons s1
+            printPS1 s2 `shouldReturn` "a"
+            res `shouldBe` c2w8 'a'
+            let s3 = BS.cons (c2w8 'b') s2
+            printPS1 s3 `shouldReturn` "ba"
+            printPS1 s1 `shouldReturn` "aa"
