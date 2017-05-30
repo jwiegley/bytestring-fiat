@@ -133,7 +133,7 @@ Program Definition make_room_by_growing_buffer
   (* We can make a trade-off here by allocating extra bytes in anticipation of
      future calls to [buffer_cons]. *)
   `(h, a) <- alloc h (psLength r + n);
-  h <- memcpy h (psBuffer r) 0 a n (psLength r);
+  h <- memcpy h (psBuffer r) (psOffset r) a n (psLength r);
   (* h <- free h (psBuffer r); *)
   ret (h, {| psBuffer := a
            ; psBufLen := psLength r + n
@@ -191,19 +191,12 @@ Program Definition buffer_cons (r : bsrep) (d : Word) :
   let h  := fst r in
   let ps := snd r in
   `(h, ps) <-
-    If 0 <? psOffset ps
-    Then ret (h, simply_widen_region ps 1)
-    Else
-    If psLength ps + alloc_quantum <=? psBufLen ps
-    Then make_room_by_shifting_up h ps alloc_quantum
-    Else
-    If 0 <? psBufLen ps
+    If 0 <? psLength ps
     Then make_room_by_growing_buffer h ps alloc_quantum
     Else allocate_buffer h alloc_quantum;
   poke_at_offset h ps d.
 Obligation 1. nomega_. Defined.
 Obligation 2. nomega_. Defined.
-Obligation 3. nomega_. Defined.
 
 Ltac reduce_find :=
   match goal with
@@ -331,15 +324,14 @@ Lemma buffer_cons_eq_grow_1 : forall x h ps buflen,
 Proof. intros; destruct_ps ps. Qed.
 
 Lemma buffer_cons_eq_alloc_new : forall x y h ps,
-  0 = psOffset ps
-    -> y <> psBuffer ps
+  y <> psBuffer ps
     -> x :: buffer_to_list h ps
          = buffer_to_list
              {| resvs :=
                   M.add y (psLength ps + 1) (resvs h)
               ; bytes :=
-                  M.add y x (copy_bytes (psBuffer ps) (plusPtr y 1)
-                                        (psLength ps)
+                  M.add y x (copy_bytes (A:=Word) (psBuffer ps + psOffset ps)
+                                        (plusPtr y 1) (psLength ps)
                                         (bytes h)) |}
              {| psBuffer := y
               ; psBufLen := psLength ps + 1
@@ -356,27 +348,20 @@ Proof.
   destruct_computations.
   intro H.
   destruct_computations; tsubst; simpl in *.
-  if_computes_to_inv; subst; simpl.
-    destruct_AbsR AbsR; construct_AbsR.
-      rewrite <- buffer_cons_eq_shift_1; nomega.
-    right; intuition; nomega.
-  if_computes_to_inv; subst.
-    destruct_computations; simpl.
-    destruct_AbsR AbsR; construct_AbsR.
-      rewrite N.add_0_r, <- buffer_cons_eq_grow_1; nomega.
-    right; intuition; nomega.
   if_computes_to_inv; subst.
     destruct_computations; simpl in *.
     destruct_AbsR AbsR; construct_AbsR.
       rewrite !plusPtr_zero, <- buffer_cons_eq_alloc_new; trivial.
-        nomega.
       apply_for_all; nomega.
     right; intuition; nomega.
   destruct_computations; simpl in *.
   destruct_AbsR AbsR; construct_AbsR.
-    destruct_ps (snd r_n); nomega.
-  right; intuition.
-  discriminate.
+  - destruct_ps (snd r_n); nomega.
+  - right; intuition.
+    discriminate.
+  - destruct_ps (snd r_n); nomega.
+  - right; intuition.
+    discriminate.
 Qed.
 
 (**************************************************************************)
@@ -474,21 +459,6 @@ Qed.
 
 (**************************************************************************)
 
-(* This version of append optimizes for the following scenarios:
-
-   1. If either string is empty, just return the other string.
-
-   2. If the first string has enough room at the end of its buffer, just copy
-      in the second string.
-
-   3. If the first string has enough room, but not at the end of its buffer,
-      then rather than reallocating, move the first string down to the
-      beginning of its buffer, and then copy in the second string after it.
-
-   4. If none of the above applies, allocate a new buffer large enough to hold
-      both strings, and copy them into it.
- *)
-
 Program Definition buffer_append (r1 r2 : bsrep) : Comp (Rep HeapSpec * PS) :=
   let h1  := fst r1 in
   let ps1 := snd r1 in
@@ -499,43 +469,18 @@ Program Definition buffer_append (r1 r2 : bsrep) : Comp (Rep HeapSpec * PS) :=
   Then fun _ =>
     IfDep 0 <? psLength ps2
     Then fun _ =>
-      If psLength ps2 <=? psBufLen ps1 - psLength ps1 - psOffset ps1
-      Then (
-          h1 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
-                       (psBuffer ps1) (psOffset ps1 + psLength ps1)
-                       (psLength ps2);
-          ret (h1, {| psBuffer := psBuffer ps1
-                    ; psBufLen := psBufLen ps1
-                    ; psOffset := psOffset ps1
-                    ; psLength := psLength ps1 + psLength ps2 |})
-      )
-      Else (
-        If psLength ps2 <=? psBufLen ps1 - psLength ps1
-        Then (
-          h1 <- memcpy h1 (psBuffer ps1) (psOffset ps1)
-                       (psBuffer ps1) 0 (psLength ps1);
-          h1 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
-                       (psBuffer ps1) (psLength ps1) (psLength ps2);
-          ret (h1, {| psBuffer := psBuffer ps1
-                    ; psBufLen := psBufLen ps1
-                    ; psOffset := 0
-                    ; psLength := psLength ps1 + psLength ps2 |})
-        )
-        Else (
-          `(h1, a) <- alloc h1 (psLength ps1 + psLength ps2);
-          h1 <- memcpy h1 (psBuffer ps1) (psOffset ps1)
-                       a 0 (psLength ps1);
-          h1 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
-                       a (psLength ps1) (psLength ps2);
-          ret (h1, {| psBuffer := a
-                    ; psBufLen := psLength ps1 + psLength ps2
-                    ; psOffset := 0
-                    ; psLength := psLength ps1 + psLength ps2 |})
-        )
-      )
+      `(h1, a) <- alloc h1 (psLength ps1 + psLength ps2);
+      h1 <- memcpy h1 (psBuffer ps1) (psOffset ps1)
+                   a 0 (psLength ps1);
+      h1 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
+                   a (psLength ps1) (psLength ps2);
+      ret (h1, {| psBuffer := a
+                ; psBufLen := psLength ps1 + psLength ps2
+                ; psOffset := 0
+                ; psLength := psLength ps1 + psLength ps2 |})
     Else fun _ => ret (h1, ps1)
   Else fun _ => ret (h2, ps2).
-Obligation 1. nomega_. Defined.
+Obligation 1. nomega. Defined.
 
 Lemma refineEquiv_buffer_append (r1 r2 : bsrep) :
   refineEquiv
@@ -546,68 +491,32 @@ Lemma refineEquiv_buffer_append (r1 r2 : bsrep) :
      let ps2 := snd r2 in
      _ <- { _ : () | HeapState_Equal h1 h2 };
      If 0 <? psLength ps1
-     Then
-       If 0 <? psLength ps2
-       Then If psLength ps2 <=? psBufLen ps1 - psLength ps1 - psOffset ps1
-            Then h1 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
-                         (psBuffer ps1) (psOffset ps1 + psLength ps1)
-                         (psLength ps2);
-                 ret
-                   (h1,
-                   {|
-                   psBuffer := psBuffer ps1;
-                   psBufLen := psBufLen ps1;
-                   psOffset := psOffset ps1;
-                   psLength := psLength ps1 + psLength ps2 |})
-            Else (If psLength ps2 <=? psBufLen ps1 - psLength ps1
-                  Then h1 <- memcpy h1 (psBuffer ps1) (psOffset ps1)
-                               (psBuffer ps1) 0 (psLength ps1);
-                       h0 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
-                               (psBuffer ps1) (psLength ps1) (psLength ps2);
-                       ret
-                         (h0,
-                         {|
-                         psBuffer := psBuffer ps1;
-                         psBufLen := psBufLen ps1;
-                         psOffset := 0;
-                         psLength := psLength ps1 + psLength ps2 |})
-                  Else (x0 <- find_free_block (psLength ps1 + psLength ps2)
-                                (resvs h1);
-                        h1 <- memcpy
-                                {|
-                                resvs := M.add x0 (psLength ps1 + psLength ps2)
-                                           (resvs h1);
-                                bytes := bytes h1 |} (psBuffer ps1)
-                                (psOffset ps1) x0 0 (psLength ps1);
-                        h0 <- memcpy h1 (psBuffer ps2) (psOffset ps2) x0
-                                (psLength ps1) (psLength ps2);
-                        ret
-                          (h0,
-                          {|
-                          psBuffer := x0;
-                          psBufLen := psLength ps1 + psLength ps2;
-                          psOffset := 0;
-                          psLength := psLength ps1 + psLength ps2 |})))
-       Else ret r1
-     Else ret r2).
+     Then If 0 <? psLength ps2
+       Then
+         a  <- find_free_block (psLength ps1 + psLength ps2) (resvs h1);
+         h1 <- memcpy {| resvs :=
+                           M.add a (psLength (snd r1) + psLength (snd r2))
+                                 (resvs h1)
+                       ; bytes := bytes h1 |}
+                      (psBuffer ps1) (psOffset ps1)
+                      a 0 (psLength ps1);
+         h1 <- memcpy h1 (psBuffer ps2) (psOffset ps2)
+                      a (psLength ps1) (psLength ps2);
+         ret (h1,
+              {| psBuffer := a
+               ; psBufLen := psLength ps1 + psLength ps2
+               ; psOffset := 0
+               ; psLength := psLength ps1 + psLength ps2 |})
+       Else ret (h1, ps1)
+     Else ret (h2, ps2)).
 Proof.
   unfold buffer_append.
-  unfold buffer_append_obligation_1.
-  assert (forall A (a : Comp A) B (b c : Comp B),
-            refineEquiv b c -> refineEquiv (a >> b) (a >> c)) as H.
-    intros.
-    setoid_rewrite H.
-    reflexivity.
-  apply H.
+  apply refineEquiv_bind_Proper; [reflexivity|]; intro.
   etransitivity.
     apply refineEquiv_IfDep_Then_Else.
       intros.
       apply refineEquiv_IfDep_Then_Else.
         intros.
-        apply refineEquiv_If_Then_Else.
-          finish honing.
-        apply refineEquiv_If_Then_Else.
-          finish honing.
         unfold allocate_buffer, Bind2,
                make_room_by_growing_buffer, Bind2.
         rewrite refineEquiv_unfold_alloc; simpl.
@@ -615,6 +524,7 @@ Proof.
         split.
           simplify with monad laws; simpl.
           finish honing.
+        simpl.
         autorewrite with monad laws; simpl.
         Transparent memcpy.
         reflexivity.
@@ -625,9 +535,7 @@ Proof.
   rewrite refineEquiv_strip_IfDep_Then_Else.
   apply refineEquiv_If_Then_Else.
     rewrite refineEquiv_strip_IfDep_Then_Else.
-    rewrite <- surjective_pairing.
     reflexivity.
-  rewrite <- surjective_pairing.
   reflexivity.
 Qed.
 
@@ -695,42 +603,26 @@ Proof.
   apply computes_to_refine in H1.
   destruct_computations.
   destruct H1; subst.
-  assert (HeapState_Equal (fst r_n1) (fst r_n2)).
-    constructor; auto.
-  assert (buffer_to_list (fst r_n2) (snd r_n2) =
-          buffer_to_list (fst r_n1) (snd r_n2)).
-    apply buffer_to_list_Proper; trivial.
-    symmetry; assumption.
   if_computes_to_inv.
     if_computes_to_inv.
-      if_computes_to_inv; tsubst.
-        destruct_computations.
-        destruct_AbsR H.
-          destruct_AbsR H0; construct_AbsR.
-        construct_AbsR.
-          destruct_AbsR H0; tsubst; simpl;
-          rewrite H5.
-            admit.
-          admit.
-        right.
-        split.
-          nomega.
-        split; simpl.
-          assumption.
-        nomega.
-      if_computes_to_inv; tsubst.
-        admit.
+      tsubst.
       destruct_computations; simpl in *.
       destruct_AbsR H.
         destruct_AbsR H0; construct_AbsR.
       construct_AbsR.
+        assert (HeapState_Equal (fst r_n1) (fst r_n2)).
+          constructor; auto.
+        assert (buffer_to_list (fst r_n2) (snd r_n2) =
+                buffer_to_list (fst r_n1) (snd r_n2)).
+          apply buffer_to_list_Proper; trivial.
+          symmetry; assumption.
         destruct_AbsR H0; tsubst; simpl;
-        rewrite H5;
+        rewrite H4;
         erewrite buffer_to_list_app;
         repeat f_equal; try nomega.
-          clear H10.
+          clear H9.
           apply_for_all; nomega.
-        clear H7.
+        clear H6.
         rewrite H1 in H2.
         apply_for_all; nomega.
       right.
@@ -762,8 +654,9 @@ Proof.
     rewrite H; simpl.
     reflexivity.
   subst; simpl; tsubst.
+  rewrite <- surjective_pairing.
   assumption.
-Admitted.
+Qed.
 
 (**************************************************************************)
 

@@ -273,12 +273,11 @@ Proof.
   unfold comp.
   rewrite !fmap_If.
   etransitivity.
-    do 3 setoid_rewrite ghcDenote_If.
+    do 1 setoid_rewrite ghcDenote_If.
     reflexivity.
   simpl.
   do 4 (unfold compose, comp; simpl).
   unfold ghcDenote; simpl.
-  rewrite !bindIO_returnIO.
   unfold If_Then_Else.
   higher_order_reflexivity.
 Defined.
@@ -324,38 +323,23 @@ Lemma ghcAppendDSL :
 Proof.
   eexists; intros.
   symmetry.
-  unfold appendDSL, comp.
+  simpl projT1.
+  unfold comp.
+  unfold appendDSL.
   simpl projT1.
   rewrite fmap_IfDep.
-  setoid_rewrite ghcDenote_IfDep.
-  unfold comp.
-  apply unsafeDupablePerformIO_inj.
   etransitivity.
+    setoid_rewrite ghcDenote_IfDep.
+    unfold comp.
+    apply unsafeDupablePerformIO_inj.
     apply IfDep_Then_Else_fun_Proper; intro H.
       rewrite fmap_IfDep.
       apply ghcDenote_IfDep.
-    unfold ghcDenote; simpl.
     reflexivity.
-  etransitivity.
-    unfold comp.
-    apply IfDep_Then_Else_fun_Proper; intro H.
-      apply IfDep_Then_Else_fun_Proper; intro H0.
-        rewrite fmap_If, ghcDenote_If.
-        apply If_Then_Else_Proper.
-          unfold ghcDenote; simpl.
-          rewrite bindIO_returnIO.
-          reflexivity.
-        rewrite fmap_If, ghcDenote_If.
-        apply If_Then_Else_Proper.
-          unfold ghcDenote; simpl.
-          rewrite bindIO_returnIO.
-          reflexivity.
-        unfold ghcDenote; simpl.
-        reflexivity.
-      unfold ghcDenote; simpl.
-      reflexivity.
-    reflexivity.
-  rewrite !strip_IfDep_Then_Else.
+  simpl.
+  do 4 (unfold compose, comp; simpl).
+  unfold ghcDenote; simpl.
+  do 2 rewrite strip_IfDep_Then_Else.
   unfold If_Then_Else.
   higher_order_reflexivity.
 Defined.

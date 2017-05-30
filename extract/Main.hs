@@ -87,6 +87,18 @@ main = do
     let bs6 = ghcAppendDSL' bs3 bs2
     putStrLn . ("bs6 = " ++) =<< printPS0 bs6
 
+    putStrLn "ByteString test..."
+
+    let s0 = BS.empty
+    putStrLn . ("s0 = " ++) =<< printPS1 s0
+    let s1 = BS.cons (c2w8 'a') (BS.cons (c2w8 'a') s0)
+    putStrLn . ("s1 = " ++) =<< printPS1 s1
+    let Just (_, s2) = BS.uncons s1
+    putStrLn . ("s2 = " ++) =<< printPS1 s2
+    let s3 = BS.cons (c2w8 'b') s2
+    putStrLn . ("s3 = " ++) =<< printPS1 s3
+    putStrLn . ("s1 = " ++) =<< printPS1 s1
+
     putStrLn "ByteString via Internal..."
 
     let s0 = BS.empty

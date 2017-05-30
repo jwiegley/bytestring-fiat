@@ -332,17 +332,18 @@ Proof.
         simplify with monad laws.
         finish honing.
 
-      rewrite <- remove_add.
+      rewrite <- remove_add; subst.
       apply for_all_add_true; relational; try nomega.
-        simplify_maps.
-      split; [|nomega].
-      apply for_all_remove; relational; try nomega.
-      eapply for_all_impl; auto;
-      relational; eauto; nomega.
+      + rewrite H0; reflexivity.
+      + apply M.remove_1; reflexivity.
+      + split; [|apply N.leb_refl].
+        apply for_all_remove; relational; try nomega_.
+        apply (for_all_impl _ _ _ _ _ for_all_matches);
+        auto; relational; nomega_.
 
     - rewrite resvs_match.
-      eapply for_all_impl; eauto;
-      relational; nomega.
+      apply (for_all_impl _ _ _ _ _ for_all_matches);
+      auto; relational; nomega_.
 
     - refine pick val (plusPtr (A:=Word) (fst (fst r_n)) alloc_quantum); eauto.
         simplify with monad laws.
@@ -353,12 +354,12 @@ Proof.
         simplify_maps.
       split; [|nomega].
       apply for_all_remove; relational; try nomega.
-      eapply for_all_impl; auto;
-      relational; eauto; nomega.
+      apply (for_all_impl _ _ _ _ _ for_all_matches);
+      auto; relational; nomega_.
 
     - rewrite resvs_match.
-      eapply for_all_impl; eauto;
-      relational; nomega.
+      apply (for_all_impl _ _ _ _ _ for_all_matches);
+      auto; relational; nomega_.
   }
 
   (* refine method ByteString.unconsS. *)
@@ -415,13 +416,6 @@ Proof.
         apply refine_If_Then_Else; intros.
           rewrite refine_If_Then_Else_Bind.
           apply refine_If_Then_Else; intros.
-            rewrite refine_If_Then_Else_Bind.
-            apply refine_If_Then_Else; intros.
-              simplify with monad laws; simpl.
-              admit.
-            rewrite refine_If_Then_Else_Bind.
-            apply refine_If_Then_Else; intros.
-              admit.
             simplify with monad laws; simpl.
             destruct H0, H1.
             rewrite e, e0; clear e e0.
@@ -546,7 +540,7 @@ Proof.
 
   Unshelve.
   constructor.
-Admitted.
+Defined.
 
 End Refined.
 

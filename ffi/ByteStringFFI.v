@@ -93,7 +93,6 @@ Proof. intros; apply denote_refineEquiv. Qed.
 Hint Unfold make_room_by_growing_buffer.
 Hint Unfold make_room_by_shifting_up.
 Hint Unfold ByteStringHeap.buffer_cons_obligation_2.
-Hint Unfold ByteStringHeap.buffer_cons_obligation_3.
 Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
