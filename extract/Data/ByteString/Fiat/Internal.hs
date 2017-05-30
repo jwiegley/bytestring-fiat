@@ -3247,48 +3247,28 @@ ghcUnpackDSL' p =
 ghcConsDSL' :: PS0 -> Word -> PS0
 ghcConsDSL' p w =
   System.IO.Unsafe.unsafeDupablePerformIO
-    (case (Prelude.<) 0 (psOffset0 p) of {
+    (case (Prelude.<) 0 (psLength0 p) of {
       Prelude.True ->
-       Prelude.fmap (\_ -> MakePS0 (psBuffer0 p) (psBufLen0 p)
-         ((Prelude.-) (psOffset0 p) ((\x -> x) 1))
-         ((Prelude.+) (psLength0 p) ((\x -> x) 1)))
-         ((\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))
-           (psBuffer0 p) ((Prelude.-) (psOffset0 p) ((\x -> x) 1)) w);
-      Prelude.False ->
-       case (Prelude.<=) ((Prelude.+) (psLength0 p) ((\x -> x) 1))
-              (psBufLen0 p) of {
-        Prelude.True ->
+       (GHC.Base.>>=)
+         (GHC.ForeignPtr.mallocPlainForeignPtrBytes
+           ((Prelude.+) (psLength0 p) ((\x -> x) 1))) (\cod ->
          (GHC.Base.>>=)
            ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-             (psBuffer0 p) 0 (psBuffer0 p) ((\x -> x) 1) (psLength0 p))
+             (psBuffer0 p) (psOffset0 p) cod ((\x -> x) 1) (psLength0 p))
            (\_ ->
-           Prelude.fmap (\_ -> MakePS0 (psBuffer0 p) (psBufLen0 p) 0
-             ((Prelude.+) (psLength0 p) ((\x -> x) 1)))
+           (GHC.Base.>>=)
              ((\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))
-               (psBuffer0 p) 0 w));
-        Prelude.False ->
-         case (Prelude.<) 0 (psBufLen0 p) of {
-          Prelude.True ->
-           (GHC.Base.>>=)
-             (GHC.ForeignPtr.mallocPlainForeignPtrBytes
-               ((Prelude.+) (psLength0 p) ((\x -> x) 1))) (\cod ->
-             (GHC.Base.>>=)
-               ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-                 (psBuffer0 p) 0 cod ((\x -> x) 1) (psLength0 p)) (\_ ->
-               (GHC.Base.>>=)
-                 ((\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))
-                   cod 0 w) (\_ ->
-                 Prelude.return (MakePS0 cod
-                   ((Prelude.+) (psLength0 p) ((\x -> x) 1)) 0
-                   ((Prelude.+) (psLength0 p) ((\x -> x) 1))))));
-          Prelude.False ->
-           (GHC.Base.>>=)
-             (GHC.ForeignPtr.mallocPlainForeignPtrBytes ((\x -> x) 1))
-             (\cod ->
-             (GHC.Base.>>=)
-               ((\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))
-                 cod 0 w) (\_ ->
-               Prelude.return (MakePS0 cod ((\x -> x) 1) 0 ((\x -> x) 1))))}}})
+               cod 0 w) (\_ ->
+             Prelude.return (MakePS0 cod
+               ((Prelude.+) (psLength0 p) ((\x -> x) 1)) 0
+               ((Prelude.+) (psLength0 p) ((\x -> x) 1))))));
+      Prelude.False ->
+       (GHC.Base.>>=)
+         (GHC.ForeignPtr.mallocPlainForeignPtrBytes ((\x -> x) 1)) (\cod ->
+         (GHC.Base.>>=)
+           ((\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))
+             cod 0 w) (\_ ->
+           Prelude.return (MakePS0 cod ((\x -> x) 1) 0 ((\x -> x) 1))))})
 
 ghcUnconsDSL' :: PS0 -> (,) PS0 (Prelude.Maybe Word)
 ghcUnconsDSL' p =
@@ -3305,49 +3285,25 @@ ghcUnconsDSL' p =
       Prelude.False -> Prelude.return ((,) p Prelude.Nothing)})
 
 ghcAppendDSL' :: PS0 -> PS0 -> PS0
-ghcAppendDSL' bs1 bs2 =
+ghcAppendDSL' p p0 =
   System.IO.Unsafe.unsafeDupablePerformIO
-    (case (Prelude.<) 0 (psLength0 bs1) of {
+    (case (Prelude.<) 0 (psLength0 p) of {
       Prelude.True ->
-       case (Prelude.<) 0 (psLength0 bs2) of {
+       case (Prelude.<) 0 (psLength0 p0) of {
         Prelude.True ->
-         case (Prelude.<=) (psLength0 bs2)
-                ((Prelude.-) ((Prelude.-) (psBufLen0 bs1) (psLength0 bs1))
-                  (psOffset0 bs1)) of {
-          Prelude.True ->
-           Prelude.fmap (\_ -> MakePS0 (psBuffer0 bs1) (psBufLen0 bs1)
-             (psOffset0 bs1) ((Prelude.+) (psLength0 bs1) (psLength0 bs2)))
+         (GHC.Base.>>=)
+           (GHC.ForeignPtr.mallocPlainForeignPtrBytes
+             ((Prelude.+) (psLength0 p) (psLength0 p0))) (\cod ->
+           (GHC.Base.>>=)
              ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-               (psBuffer0 bs2) (psOffset0 bs2) (psBuffer0 bs1)
-               ((Prelude.+) (psOffset0 bs1) (psLength0 bs1)) (psLength0 bs2));
-          Prelude.False ->
-           case (Prelude.<=) (psLength0 bs2)
-                  ((Prelude.-) (psBufLen0 bs1) (psLength0 bs1)) of {
-            Prelude.True ->
+               (psBuffer0 p) (psOffset0 p) cod 0 (psLength0 p)) (\_ ->
              (GHC.Base.>>=)
                ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-                 (psBuffer0 bs1) (psOffset0 bs1) (psBuffer0 bs1) 0
-                 (psLength0 bs1)) (\_ ->
-               Prelude.fmap (\_ -> MakePS0 (psBuffer0 bs1) (psBufLen0 bs1) 0
-                 ((Prelude.+) (psLength0 bs1) (psLength0 bs2)))
-                 ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-                   (psBuffer0 bs2) (psOffset0 bs2) (psBuffer0 bs1)
-                   (psLength0 bs1) (psLength0 bs2)));
-            Prelude.False ->
-             (GHC.Base.>>=)
-               (GHC.ForeignPtr.mallocPlainForeignPtrBytes
-                 ((Prelude.+) (psLength0 bs1) (psLength0 bs2))) (\cod ->
-               (GHC.Base.>>=)
-                 ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-                   (psBuffer0 bs1) (psOffset0 bs1) cod 0 (psLength0 bs1))
-                 (\_ ->
-                 (GHC.Base.>>=)
-                   ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
-                     (psBuffer0 bs2) (psOffset0 bs2) cod (psLength0 bs1)
-                     (psLength0 bs2)) (\_ ->
-                   Prelude.return (MakePS0 cod
-                     ((Prelude.+) (psLength0 bs1) (psLength0 bs2)) 0
-                     ((Prelude.+) (psLength0 bs1) (psLength0 bs2))))))}};
-        Prelude.False -> Prelude.return bs1};
-      Prelude.False -> Prelude.return bs2})
+                 (psBuffer0 p0) (psOffset0 p0) cod (psLength0 p)
+                 (psLength0 p0)) (\_ ->
+               Prelude.return (MakePS0 cod
+                 ((Prelude.+) (psLength0 p) (psLength0 p0)) 0
+                 ((Prelude.+) (psLength0 p) (psLength0 p0))))));
+        Prelude.False -> Prelude.return p};
+      Prelude.False -> Prelude.return p0})
 
