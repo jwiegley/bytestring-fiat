@@ -34,6 +34,7 @@ library
   build-depends:       
       base >=4.8 && <4.10
     , ghc-prim
+    , bytestring
   if impl(ghc >= 6.11)
     if !flag(integer-simple)
       cpp-options: -DINTEGER_GMP
