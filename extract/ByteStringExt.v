@@ -333,7 +333,7 @@ Extract Inlined Constant peek     =>
 Extract Inlined Constant poke     =>
   "(\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))".
 Extract Inlined Constant memcpy   =>
-  "(\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))".
+  "(\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr2 o2) (Foreign.Ptr.plusPtr ptr1 o1) sz)))".
 Extract Inlined Constant memset   =>
   "(\p off len w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Marshal.Utils.fillBytes (Foreign.Ptr.plusPtr ptr off) len w))".
 Extract Inlined Constant read     =>

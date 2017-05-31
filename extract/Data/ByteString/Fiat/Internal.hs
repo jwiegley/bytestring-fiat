@@ -3253,7 +3253,7 @@ ghcConsDSL' p w =
          (GHC.ForeignPtr.mallocPlainForeignPtrBytes
            ((Prelude.+) (psLength0 p) ((\x -> x) 1))) (\cod ->
          (GHC.Base.>>=)
-           ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
+           ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr2 o2) (Foreign.Ptr.plusPtr ptr1 o1) sz)))
              (psBuffer0 p) (psOffset0 p) cod ((\x -> x) 1) (psLength0 p))
            (\_ ->
            (GHC.Base.>>=)
@@ -3295,10 +3295,10 @@ ghcAppendDSL' p p0 =
            (GHC.ForeignPtr.mallocPlainForeignPtrBytes
              ((Prelude.+) (psLength0 p) (psLength0 p0))) (\cod ->
            (GHC.Base.>>=)
-             ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
+             ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr2 o2) (Foreign.Ptr.plusPtr ptr1 o1) sz)))
                (psBuffer0 p) (psOffset0 p) cod 0 (psLength0 p)) (\_ ->
              (GHC.Base.>>=)
-               ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr1 o1) (Foreign.Ptr.plusPtr ptr2 o2) sz)))
+               ((\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr2 o2) (Foreign.Ptr.plusPtr ptr1 o1) sz)))
                  (psBuffer0 p0) (psOffset0 p0) cod (psLength0 p)
                  (psLength0 p0)) (\_ ->
                Prelude.return (MakePS0 cod
