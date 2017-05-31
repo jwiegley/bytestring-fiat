@@ -3,6 +3,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PackageImports #-}
 
 module Data.ByteString.Fiat (
 
@@ -192,7 +193,7 @@ import qualified Data.ByteString.Fiat.Internal as Internal
 
 import qualified Data.List as List
 
-import qualified Data.ByteString as BS
+import qualified "bytestring" Data.ByteString as BS
 import Debug.Trace
 
 import Data.Word                (Word8)
@@ -234,8 +235,28 @@ import GHC.Prim                 (Word#)
 import GHC.Base                 (build)
 import GHC.Word hiding (Word8)
 
+import Data.Data
+import Data.Semigroup (Semigroup(..))
+import Data.String (IsString(..))
+
 
 type ByteString = Internal.PS0
+
+instance Eq Internal.PS0 where
+    x == y = trace "== not translated" $ unwrap x == unwrap y
+-- instance Data Internal.PS0 where
+instance Ord Internal.PS0 where
+    x `compare` y = trace "compare not translated" $ unwrap x `Prelude.compare` unwrap y
+-- instance Read Internal.PS0 where
+instance Show Internal.PS0 where
+    show x = trace "show not translated" $ show (unwrap x)
+instance IsString Internal.PS0 where
+    fromString s = trace "fromString not translated" $ wrap (fromString s)
+instance Semigroup Internal.PS0 where
+    x <> y = trace "<> not translated" $ wrap (unwrap x <> unwrap y)
+instance Monoid Internal.PS0 where
+    mempty = trace "mempty not translated" $ wrap mempty
+    x `mappend` y = trace "mappend not translated" $ wrap (unwrap x `mappend` unwrap y)
 
 pattern PS a b c <- Internal.MakePS0 a _ b c
 

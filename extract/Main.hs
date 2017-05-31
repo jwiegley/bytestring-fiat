@@ -1,6 +1,8 @@
+{-# LANGUAGE PackageImports #-}
+
 module Main where
 
-import qualified Data.ByteString as BSH
+import qualified "bytestring" Data.ByteString as BSH
 import qualified Data.ByteString.Fiat as BS
 import           Data.ByteString.Fiat.Internal hiding (IO, putStrLn)
 import           Data.Word (Word8)

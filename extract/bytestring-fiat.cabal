@@ -23,8 +23,9 @@ flag integer-simple
 library
   default-language: Haskell2010
   exposed-modules:
-    Data.ByteString.Fiat
+    Data.ByteString
   other-modules:
+    Data.ByteString.Fiat
     Data.ByteString.Fiat.Internal
     Data.ByteString.Fiat.HString
   ghc-options: -O2
