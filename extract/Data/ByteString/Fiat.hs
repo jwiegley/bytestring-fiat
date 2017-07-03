@@ -256,8 +256,8 @@ instance IsString Internal.PS0 where
 instance Semigroup Internal.PS0 where
     x <> y = trace "<> not translated" $ wrap (unwrap x <> unwrap y)
 instance Monoid Internal.PS0 where
-    mempty = trace "mempty not translated" $ wrap mempty
-    x `mappend` y = trace "mappend not translated" $ wrap (unwrap x `mappend` unwrap y)
+    mempty  = empty
+    mappend = append
 
 instance Hashable Internal.PS0 where
     hashWithSalt salt bs =

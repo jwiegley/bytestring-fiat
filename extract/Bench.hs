@@ -66,10 +66,6 @@ unconsFiatBench xs = case Fiat.uncons xs of
 appendBench :: [Int] -> ByteString
 appendBench =  F.foldl' (<>) BS.empty . map (BS.pack . map c2w8 . show)
 
-instance Monoid Fiat.ByteString where
-    mempty  = Fiat.empty
-    mappend = Fiat.append
-
 appendFiatBench :: [Int] -> Fiat.ByteString
 appendFiatBench = F.foldl' (<>) Fiat.empty . map (Fiat.pack . map c2w8 . show)
 
