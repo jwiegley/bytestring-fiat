@@ -236,6 +236,7 @@ import GHC.Base                 (build)
 import GHC.Word hiding (Word8)
 
 import Data.Data
+import Data.Hashable
 import Data.Semigroup (Semigroup(..))
 import Data.String (IsString(..))
 
@@ -257,6 +258,10 @@ instance Semigroup Internal.PS0 where
 instance Monoid Internal.PS0 where
     mempty = trace "mempty not translated" $ wrap mempty
     x `mappend` y = trace "mappend not translated" $ wrap (unwrap x `mappend` unwrap y)
+
+instance Hashable Internal.PS0 where
+    hashWithSalt salt bs =
+        trace "hashWithSalt not translated" $ hashWithSalt salt (unwrap bs)
 
 pattern PS a b c <- Internal.MakePS0 a _ b c
 
