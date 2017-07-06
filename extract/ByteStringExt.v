@@ -35,15 +35,17 @@ Definition freeHeap (r : crep) (addr : Ptr Word) : crep :=
 Definition reallocHeap (r : crep) (addr : Ptr Word) (len : Size | 0 < len) :
   crep * Ptr Word :=
   Eval compute in CallMethod impl reallocS r addr len.
-Definition peekHeap (r : crep) (addr : Ptr Word) : crep * Word :=
-  Eval compute in CallMethod impl peekS r addr.
-Definition pokeHeap (r : crep) (addr : Ptr Word) (w : Word) : crep :=
-  Eval compute in CallMethod impl pokeS r addr w.
-Definition memcpyHeap (r : crep) (addr : Ptr Word) (addr2 : Ptr Word) (len : Size) :
+Definition peekHeap (r : crep) (addr : Ptr Word) (off : Size) : crep * Word :=
+  Eval compute in CallMethod impl peekS r addr off.
+Definition pokeHeap (r : crep) (addr : Ptr Word) (off : Size) (w : Word) : crep :=
+  Eval compute in CallMethod impl pokeS r addr off w.
+Definition memcpyHeap (r : crep) (addr1 : Ptr Word) (off1 : Size)
+           (addr2 : Ptr Word) (off2 : Size) (len : Size) :
   crep :=
-  Eval compute in CallMethod impl memcpyS r addr addr2 len.
-Definition memsetHeap (r : crep) (addr : Ptr Word) (len : Size) (w : Word) : crep :=
-  Eval compute in CallMethod impl memsetS r addr len w.
+  Eval compute in CallMethod impl memcpyS r addr1 off1 addr2 off2 len.
+Definition memsetHeap (r : crep) (addr : Ptr Word) (off : Size) (len : Size)
+           (w : Word) : crep :=
+  Eval compute in CallMethod impl memsetS r addr off len w.
 
 Section ByteStringExt.
 
@@ -158,6 +160,9 @@ Extract Inlined Constant N.sub       => "(Prelude.-)".
 Extract Inlined Constant N.mul       => "(Prelude.*)".
 Extract Inlined Constant N.max       => "Prelude.max".
 Extract Inlined Constant N.min       => "Prelude.min".
+Extract Inlined Constant N.ltb       => "(Prelude.<)".
+Extract Inlined Constant N.leb       => "(Prelude.<=)".
+Extract Inlined Constant N.of_nat    => "".
 
 Extract Inductive Q => "(GHC.Real.Ratio Prelude.Int)" [ "(GHC.Real.:%)" ].
 
@@ -295,57 +300,56 @@ Extract Inlined Constant nat_of_ascii => "Data.Char.ord".
 Extract Inlined Constant ascii_of_N   => "Data.Char.chr".
 Extract Inlined Constant ascii_of_pos => "Data.Char.chr".
 
-(** Fiat *)
-
-Extract Constant Common.If_Then_Else     => "\c t e -> if c then t else e".
-Extract Constant Common.If_Opt_Then_Else => "\c t e -> Data.Maybe.maybe e t c".
-
 (** Haskell IO *)
 
 Module Import BS  := ByteStringFFI M.
 Module Import FFI := HaskellFFI M.
+
+(** Fiat *)
+
+Extract Inlined Constant FFI.Let_                => "(Data.Function.&)".
+Extract Inlined Constant Common.If_Then_Else     => "(\c t e -> if c then t else e)".
+Extract Inlined Constant Common.If_Opt_Then_Else => "(\c t e -> Data.Maybe.maybe e t c)".
 
 Extract Constant Word => "Data.Word.Word8".
 
 Extract Inlined Constant Zero => "0".
 
 Extract Constant IO  "a" => "Prelude.IO a".
-(* Extract Constant Ptr "a" => "Foreign.Ptr.Ptr a". *)
-Extract Constant Ptr "a" => "Prelude.Int".
+Extract Constant Ptr "a" => "Foreign.ForeignPtr.ForeignPtr a".
 
-(* Extract Inlined Constant unsafeDupablePerformIO => "System.IO.Unsafe.unsafeDupablePerformIO". *)
-Extract Inlined Constant unsafeDupablePerformIO => "System.IO.Unsafe.unsafePerformIO".
+Extract Inlined Constant unsafeDupablePerformIO =>
+  "System.IO.Unsafe.unsafeDupablePerformIO".
 
 Extract Inlined Constant fmapIO   => "Prelude.fmap".
 Extract Inlined Constant bindIO   => "(GHC.Base.>>=)".
 Extract Inlined Constant returnIO => "Prelude.return".
 Extract Inlined Constant joinIO   => "Prelude.join".
-Extract Inlined Constant malloc   =>
-  "(\x -> (unsafeCoerce :: Prelude.IO (Foreign.Ptr.Ptr Data.Word.Word8) -> Prelude.IO (Ptr Word)) (Foreign.Marshal.Alloc.mallocBytes x))".
-Extract Inlined Constant free     =>
-  "(\x -> Foreign.Marshal.Alloc.free ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
-Extract Inlined Constant realloc  =>
-  "(\x y -> (unsafeCoerce :: Prelude.IO (Foreign.Ptr.Ptr Data.Word.Word8) -> Prelude.IO (Ptr Word)) (Foreign.Marshal.Alloc.reallocBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))".
+Extract Inlined Constant malloc   => "GHC.ForeignPtr.mallocPlainForeignPtrBytes".
+(* Extract Inlined Constant free     => "Prelude.undefined". *)
+(* Extract Inlined Constant realloc  => "Prelude.undefined". *)
 Extract Inlined Constant peek     =>
-  "(\x -> Foreign.Storable.peek ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
+  "(\p off -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.peekByteOff ptr off))".
 Extract Inlined Constant poke     =>
-  "(\x y -> Foreign.Storable.poke ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y)".
+  "(\p off w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Storable.pokeByteOff ptr off w))".
 Extract Inlined Constant memcpy   =>
-  "(\x y -> Foreign.Marshal.Utils.copyBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y) ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
+  "(\p1 o1 p2 o2 sz -> Foreign.ForeignPtr.withForeignPtr p1 (\ptr1 -> Foreign.ForeignPtr.withForeignPtr p2 (\ptr2 -> Foreign.Marshal.Utils.copyBytes (Foreign.Ptr.plusPtr ptr2 o2) (Foreign.Ptr.plusPtr ptr1 o1) sz)))".
 Extract Inlined Constant memset   =>
-  "(\x -> Foreign.Marshal.Utils.fillBytes ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
+  "(\p off len w -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Marshal.Utils.fillBytes (Foreign.Ptr.plusPtr ptr off) len w))".
 Extract Inlined Constant read     =>
-  "(\x y -> Foreign.Marshal.Array.peekArray x ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y))".
+  "(\p off len -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> Foreign.Marshal.Array.peekArray len (Foreign.Ptr.plusPtr ptr off)))".
 Extract Inlined Constant write    =>
-  "(\x -> Foreign.Marshal.Array.pokeArray ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x))".
-Extract Inlined Constant plusPtr  =>
-  "(\x y -> (unsafeCoerce :: (Foreign.Ptr.Ptr Data.Word.Word8) -> (Ptr Word)) (Foreign.Ptr.plusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) y))".
-Extract Inlined Constant minusPtr =>
-  "(\x y -> Foreign.Ptr.minusPtr ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) x) ((unsafeCoerce :: (Ptr Word) -> (Foreign.Ptr.Ptr Data.Word.Word8)) y))".
-(* Extract Inlined Constant eqbPtr   => "(Prelude.==)". *)
-(* Extract Inlined Constant eqdecPtr => "(Prelude.==)". *)
-(* Extract Inlined Constant ltbPtr   => "(Prelude.<)". *)
-(* Extract Inlined Constant lebPtr   => "(Prelude.<=)". *)
+  "(\p off xs -> Foreign.ForeignPtr.withForeignPtr p (\ptr -> HString.pokeArray' (Foreign.Ptr.plusPtr ptr off) xs))".
+
+Extract Inlined Constant nullPtr  =>
+  "(System.IO.Unsafe.unsafePerformIO (Foreign.ForeignPtr.newForeignPtr_ Foreign.Ptr.nullPtr))".
+Extract Inlined Constant plusPtr  => "Foreign.Ptr.plusPtr".
+Extract Inlined Constant minusPtr => "Foreign.Ptr.minusPtr".
+
+Extract Inlined Constant eqbPtr   => "(Prelude.==)".
+Extract Inlined Constant eqdecPtr => "(Prelude.==)".
+Extract Inlined Constant ltbPtr   => "(Prelude.<)".
+Extract Inlined Constant lebPtr   => "(Prelude.<=)".
 
 (** Final extraction *)
 
@@ -359,12 +363,12 @@ Set Extraction AccessOpaque.
 Extraction "Internal.hs"
   emptyHeap
 
-  emptyBS
-  packBS
-  unpackBS
-  consBS
-  unconsBS
-  appendBS
+  (* emptyBS *)
+  (* packBS *)
+  (* unpackBS *)
+  (* consBS *)
+  (* unconsBS *)
+  (* appendBS *)
 
   ghcEmptyDSL'
   ghcPackDSL'

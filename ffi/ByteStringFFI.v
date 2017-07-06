@@ -33,7 +33,7 @@ Import HeapCanonical.
 Import Heap.
 
 Definition buffer_empty :=
-  ret {| psBuffer := 0
+  ret {| psBuffer := nullPtr
        ; psBufLen := 0
        ; psOffset := 0
        ; psLength := 0 |}.
@@ -93,7 +93,6 @@ Proof. intros; apply denote_refineEquiv. Qed.
 Hint Unfold make_room_by_growing_buffer.
 Hint Unfold make_room_by_shifting_up.
 Hint Unfold ByteStringHeap.buffer_cons_obligation_2.
-Hint Unfold ByteStringHeap.buffer_cons_obligation_3.
 Hint Unfold poke_at_offset.
 Hint Unfold buffer_cons.
 
@@ -168,9 +167,6 @@ Proof.
   Local Opaque alloc.
   Local Opaque peek.
   Local Opaque memcpy.
-  repeat (autounfold; simpl).
-  apply reflect_ADT_DSL_computation_Pick; intros.
-    reflexivity.
   Time compile_term.
   Local Transparent poke.
   Local Transparent alloc.

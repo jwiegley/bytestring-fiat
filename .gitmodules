@@ -4,3 +4,6 @@
 [submodule "coq-haskell"]
 	path = coq-haskell
 	url = https://github.com/jwiegley/coq-haskell.git
+[submodule "extract/bytestring"]
+	path = extract/bytestring
+	url = git://github.com/haskell/bytestring.git

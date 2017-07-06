@@ -17,7 +17,9 @@ bstring: Makefile.coq $(wildcard *.v)
 	perl -i extract/fixcode.pl Internal.hs
 	perl -i -pe 's/module Internal where/module Data.ByteString.Fiat.Internal where/' Internal.hs
 	mv Internal.hs extract/Data/ByteString/Fiat/Internal.hs
-	(cd extract; nix-cabal-build)
+	(cd extract; cabal configure --enable-tests && cabal build && cabal test)
+
+# (cd extract; nix-shell --command "cabal configure --enable-tests" && cabal build && cabal test)
 
 Makefile.coq: _CoqProject
 	coq_makefile -f $< -o $@

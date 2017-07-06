@@ -3,11 +3,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PackageImports #-}
 
 module Data.ByteString.Fiat (
 
         -- * The @ByteString@ type
-        ByteString,             -- abstract, instances: Eq, Ord, Show, Read, Data, Typeable, Monoid
+        ByteString(..),         -- abstract, instances: Eq, Ord, Show, Read, Data, Typeable, Monoid
 
         -- * Introducing and eliminating 'ByteString's
         empty,                  -- :: ByteString
@@ -186,11 +187,14 @@ import Prelude hiding           (reverse,head,tail,last,init,null
 import Data.Bits                (finiteBitSize, shiftL, (.|.), (.&.))
 
 import Data.ByteString.Fiat.Internal
-    hiding (IO, Ptr, Word, PS(..), singleton,
+    hiding (IO, Ptr, Word, PS(..), singleton, id,
             empty, fmap, find, filter, partition, map)
 import qualified Data.ByteString.Fiat.Internal as Internal
 
 import qualified Data.List as List
+
+import qualified "bytestring" Data.ByteString as BS
+import Debug.Trace
 
 import Data.Word                (Word8)
 import Data.Maybe               (isJust)
@@ -200,9 +204,10 @@ import Control.Monad            (when)
 
 import Foreign.C.String         (CString, CStringLen)
 import Foreign.C.Types          (CSize)
-import Foreign.ForeignPtr       (ForeignPtr, withForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr       (ForeignPtr, withForeignPtr, touchForeignPtr,
+                                 newForeignPtr)
 import Foreign.ForeignPtr.Unsafe(unsafeForeignPtrToPtr)
-import Foreign.Marshal.Alloc    (allocaBytes)
+import Foreign.Marshal.Alloc    (allocaBytes, finalizerFree)
 import Foreign.Marshal.Array    (allocaArray)
 import Foreign.Ptr
 import Foreign.Storable         (Storable(..))
@@ -230,10 +235,35 @@ import GHC.Prim                 (Word#)
 import GHC.Base                 (build)
 import GHC.Word hiding (Word8)
 
+import Data.Data
+import Data.Hashable
+import Data.Semigroup (Semigroup(..))
+import Data.String (IsString(..))
+
 
 type ByteString = Internal.PS0
 
-pattern PS a b c <- Internal.MakePS0 a l b c
+instance Eq Internal.PS0 where
+    x == y = trace "== not translated" $ unwrap x == unwrap y
+-- instance Data Internal.PS0 where
+instance Ord Internal.PS0 where
+    x `compare` y = trace "compare not translated" $ unwrap x `Prelude.compare` unwrap y
+-- instance Read Internal.PS0 where
+instance Show Internal.PS0 where
+    show x = trace "show not translated" $ show (unwrap x)
+instance IsString Internal.PS0 where
+    fromString s = trace "fromString not translated" $ wrap (fromString s)
+instance Semigroup Internal.PS0 where
+    x <> y = trace "<> not translated" $ wrap (unwrap x <> unwrap y)
+instance Monoid Internal.PS0 where
+    mempty  = empty
+    mappend = append
+
+instance Hashable Internal.PS0 where
+    hashWithSalt salt bs =
+        trace "hashWithSalt not translated" $ hashWithSalt salt (unwrap bs)
+
+pattern PS a b c <- Internal.MakePS0 a _ b c
 
 empty :: ByteString
 empty = Internal.ghcEmptyDSL'
@@ -249,10 +279,18 @@ pack = Internal.ghcPackDSL'
 unpack :: ByteString -> [Word8]
 unpack = Internal.ghcUnpackDSL'
 
+unwrap :: ByteString -> BS.ByteString
+unwrap bs =
+    let (bs', mres) = Internal.ghcUnconsDSL' bs in
+    case mres of
+        Nothing -> BS.empty
+        Just c  -> BS.cons c (unwrap bs')
+
+wrap :: BS.ByteString -> ByteString
+wrap = BS.foldr' (flip Internal.ghcConsDSL') Internal.ghcEmptyDSL'
+
 unpackFoldr :: ByteString -> (Word8 -> a -> a) -> a -> a
-unpackFoldr bs k z = error "NYI"
-
-
+unpackFoldr bs k z = undefined
 
 null :: ByteString -> Bool
 null (PS _ _ l) = l == 0
@@ -268,357 +306,359 @@ cons :: Word8 -> ByteString -> ByteString
 cons = flip Internal.ghcConsDSL'
 
 snoc :: ByteString -> Word8 -> ByteString
-snoc (PS x s l) c = error "NYI"
-
+snoc bs@(PS x s l) c = trace "snoc not translated" $ wrap (BS.snoc (unwrap bs) c)
 
 head :: ByteString -> Word8
-head (PS x s l) = error "NYI"
+head bs@(PS x s l) = trace "head not translated" $ BS.head (unwrap bs)
 
 tail :: ByteString -> ByteString
-tail (PS p s l) = error "NYI"
+tail bs@(PS p s l) = trace "tail not translated" $ wrap (BS.tail (unwrap bs))
 
 uncons :: ByteString -> Maybe (Word8, ByteString)
 uncons bs = let (bs', mres) = Internal.ghcUnconsDSL' bs in fmap (, bs') mres
 
 last :: ByteString -> Word8
-last ps@(PS x s l) = error "NYI"
+last bs@(PS x s l) = trace "last not translated" $ BS.last (unwrap bs)
 
 init :: ByteString -> ByteString
-init ps@(PS p s l) = error "NYI"
+init bs@(PS p s l) = trace "init not translated" $ wrap (BS.init (unwrap bs))
 
 unsnoc :: ByteString -> Maybe (ByteString, Word8)
-unsnoc (PS x s l) = error "NYI"
+unsnoc bs@(PS x s l) = trace "unsnoc not translated" $ fmap (bimap wrap id) (BS.unsnoc (unwrap bs))
 
 append :: ByteString -> ByteString -> ByteString
 append = Internal.ghcAppendDSL'
 
 
 map :: (Word8 -> Word8) -> ByteString -> ByteString
-map f (PS fp s len) = error "NYI"
+map f bs@(PS fp s len) = trace "map not translated" $ wrap (BS.map f (unwrap bs))
 
 reverse :: ByteString -> ByteString
-reverse (PS x s l) = error "NYI"
+reverse bs@(PS x s l) = trace "reverse not translated" $ wrap (BS.reverse (unwrap bs))
 
 intersperse :: Word8 -> ByteString -> ByteString
-intersperse c ps@(PS x s l) = error "NYI"
+intersperse c bs@(PS x s l) = trace "intersperse not translated" $ wrap (BS.intersperse c (unwrap bs))
 
 transpose :: [ByteString] -> [ByteString]
-transpose ps = error "NYI"
+transpose bs = trace "transpose not translated" $ fmap wrap (BS.transpose (fmap unwrap bs))
 
 foldl :: (a -> Word8 -> a) -> a -> ByteString -> a
-foldl f z (PS fp off len) = error "NYI"
+foldl f z bs@(PS fp off len) = trace "foldl not translated" $ BS.foldl f z (unwrap bs)
 
 foldl' :: (a -> Word8 -> a) -> a -> ByteString -> a
-foldl' f v (PS fp off len) = error "NYI"
+foldl' f v bs@(PS fp off len) = trace "foldl' not translated" $ BS.foldl' f v (unwrap bs)
 
 foldr :: (Word8 -> a -> a) -> a -> ByteString -> a
-foldr k z (PS fp off len) = error "NYI"
+foldr k z bs@(PS fp off len) = trace "foldr not translated" $ BS.foldr k z (unwrap bs)
 
 foldr' :: (Word8 -> a -> a) -> a -> ByteString -> a
-foldr' k v (PS fp off len) = error "NYI"
+foldr' k v bs@(PS fp off len) = trace "foldr' not translated" $ BS.foldr' k v (unwrap bs)
 
 foldl1 :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
-foldl1 f ps = error "NYI"
+foldl1 f bs = trace "foldl1 not translated" $ BS.foldl1 f (unwrap bs)
 
 foldl1' :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
-foldl1' f ps = error "NYI"
+foldl1' f bs = trace "foldl1' not translated" $ BS.foldl1' f (unwrap bs)
 
 foldr1 :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
-foldr1 f ps = error "NYI"
+foldr1 f bs = trace "foldr1 not translated" $ BS.foldr1 f (unwrap bs)
 
 foldr1' :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
-foldr1' f ps = error "NYI"
+foldr1' f bs = trace "foldr1' not translated" $ BS.foldr1' f (unwrap bs)
 
 concat :: [ByteString] -> ByteString
-concat = error "NYI"
+concat bss = trace "concat not translated" $ wrap (BS.concat (fmap unwrap bss))
 
 concatMap :: (Word8 -> ByteString) -> ByteString -> ByteString
-concatMap f = error "NYI"
+concatMap f bs = trace "concatMap not translated" $ wrap (BS.concatMap (unwrap . f) (unwrap bs))
 
 
 any :: (Word8 -> Bool) -> ByteString -> Bool
-any f (PS x s l) = error "NYI"
+any f bs@(PS x s l) = trace "any not translated" $ BS.any f (unwrap bs)
 
 all :: (Word8 -> Bool) -> ByteString -> Bool
-all f (PS x s l) = error "NYI"
+all f bs@(PS x s l) = trace "all not translated" $ BS.all f (unwrap bs)
 
 maximum :: ByteString -> Word8
-maximum xs@(PS x s l) = error "NYI"
+maximum bs@(PS x s l) = trace "maximum not translated" $ BS.maximum (unwrap bs)
 
 minimum :: ByteString -> Word8
-minimum xs@(PS x s l) = error "NYI"
+minimum bs@(PS x s l) = trace "minimum not translated" $ BS.minimum (unwrap bs)
 
 mapAccumL :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
-mapAccumL f acc (PS fp o len) = error "NYI"
+mapAccumL f acc bs@(PS fp o len) = trace "mapAccumL not translated" $ fmap wrap (BS.mapAccumL f acc (unwrap bs))
 
 mapAccumR :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
-mapAccumR f acc (PS fp o len) = error "NYI"
+mapAccumR f acc bs@(PS fp o len) = trace "mapAccumR not translated" $ fmap wrap (BS.mapAccumR f acc (unwrap bs))
 
 
 scanl :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
-scanl f v (PS fp s len) = error "NYI"
+scanl f v bs@(PS fp s len) = trace "scanl not translated" $ wrap (BS.scanl f v (unwrap bs))
 
 scanl1 :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString
-scanl1 f ps = error "NYI"
+scanl1 f bs = trace "scanl1 not translated" $ wrap (BS.scanl1 f (unwrap bs))
 
 scanr :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
-scanr f v (PS fp s len) = error "NYI"
+scanr f v bs@(PS fp s len) = trace "scanr not translated" $ wrap (BS.scanr f v (unwrap bs))
 
 scanr1 :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString
-scanr1 f ps = error "NYI"
+scanr1 f bs = trace "scanr1 not translated" $ wrap (BS.scanr1 f (unwrap bs))
 
 replicate :: Int -> Word8 -> ByteString
-replicate w c = error "NYI"
+replicate w c = trace "replicate not translated" $ wrap (BS.replicate w c)
 
 unfoldr :: (a -> Maybe (Word8, a)) -> a -> ByteString
-unfoldr f = error "NYI"
+unfoldr f x = trace "unfoldr not translated" $ wrap (BS.unfoldr f x)
+
+bimap :: (a -> c) -> (b -> d) -> (a, b) -> (c, d)
+bimap f g (x, y) = (f x, g y)
 
 unfoldrN :: Int -> (a -> Maybe (Word8, a)) -> a -> (ByteString, Maybe a)
-unfoldrN i f x0 = error "NYI"
+unfoldrN i f x0 = trace "unfoldrN not translated" $ bimap wrap id (BS.unfoldrN i f x0)
 
 take :: Int -> ByteString -> ByteString
-take n ps@(PS x s l) = error "NYI"
+take n bs@(PS x s l) = trace "take not translated" $ wrap (BS.take n (unwrap bs))
 
 drop  :: Int -> ByteString -> ByteString
-drop n ps@(PS x s l) = error "NYI"
+drop n bs@(PS x s l) = trace "drop not translated" $ wrap (BS.drop n (unwrap bs))
 
 splitAt :: Int -> ByteString -> (ByteString, ByteString)
-splitAt n ps@(PS x s l) = error "NYI"
+splitAt n bs@(PS x s l) = trace "splitAt not translated" $ bimap wrap wrap (BS.splitAt n (unwrap bs))
 
 takeWhile :: (Word8 -> Bool) -> ByteString -> ByteString
-takeWhile f ps = error "NYI"
+takeWhile f bs = trace "takeWhile not translated" $ wrap (BS.takeWhile f (unwrap bs))
 
 dropWhile :: (Word8 -> Bool) -> ByteString -> ByteString
-dropWhile f ps = error "NYI"
+dropWhile f bs = trace "dropWhile not translated" $ wrap (BS.dropWhile f (unwrap bs))
 
 
 break :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-break p ps = error "NYI"
+break p bs = trace "break not translated" $ bimap wrap wrap (BS.break p (unwrap bs))
 
 
 breakByte :: Word8 -> ByteString -> (ByteString, ByteString)
-breakByte c p = error "NYI"
+breakByte c bs = trace "breakByte not translated" $ bimap wrap wrap (BS.breakByte c (unwrap bs))
 
 breakEnd :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-breakEnd  p ps = error "NYI"
+breakEnd  p bs = trace "breakEnd not translated" $ bimap wrap wrap (BS.breakEnd p (unwrap bs))
 
 span :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-span p ps = error "NYI"
+span p bs = trace "span not translated" $ bimap wrap wrap (BS.span p (unwrap bs))
 
-spanByte :: Word8 -> ByteString -> (ByteString, ByteString)
-spanByte c ps@(PS x s l) = error "NYI"
+-- spanByte :: Word8 -> ByteString -> (ByteString, ByteString)
+-- spanByte c bs@(PS x s l) = trace "spanByte not translated" $ bimap wrap wrap (BS.spanByte c (unwrap bs))
 
 spanEnd :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-spanEnd  p ps = error "NYI"
+spanEnd  p bs = trace "spanEnd not translated" $ bimap wrap wrap (BS.spanEnd p (unwrap bs))
 
 splitWith :: (Word8 -> Bool) -> ByteString -> [ByteString]
-splitWith pred_ (PS fp off len) = error "NYI"
+splitWith pred_ bs@(PS fp off len) = trace "splitWith not translated" $ fmap wrap (BS.splitWith pred_ (unwrap bs))
 
 split :: Word8 -> ByteString -> [ByteString]
-split w (PS x s l) = error "NYI"
+split w bs@(PS x s l) = trace "split not translated" $ fmap wrap (BS.split w (unwrap bs))
 
 group :: ByteString -> [ByteString]
-group xs = error "NYI"
+group bs = trace "group not translated" $ fmap wrap (BS.group (unwrap bs))
 
 groupBy :: (Word8 -> Word8 -> Bool) -> ByteString -> [ByteString]
-groupBy k xs = error "NYI"
+groupBy k bs = trace "groupBy not translated" $ fmap wrap (BS.groupBy k (unwrap bs))
 
 intercalate :: ByteString -> [ByteString] -> ByteString
-intercalate s = error "NYI"
+intercalate bs bss = trace "intercalate not translated" $ wrap (BS.intercalate (unwrap bs) (fmap unwrap bss))
 
 
-intercalateWithByte :: Word8 -> ByteString -> ByteString -> ByteString
-intercalateWithByte c f@(PS ffp s l) g@(PS fgp t m) = error "NYI"
+-- intercalateWithByte :: Word8 -> ByteString -> ByteString -> ByteString
+-- intercalateWithByte c bs1@(PS ffp s l) bs2@(PS fgp t m) = trace "intercalateWithByte not translated" $ wrap (BS.intercalateWithByte c (unwrap bs1) (unwrap bs2))
 
 index :: ByteString -> Int -> Word8
-index ps n = error "NYI"
+index bs n = trace "index not translated" $ BS.index (unwrap bs) n
 
 elemIndex :: Word8 -> ByteString -> Maybe Int
-elemIndex c (PS x s l) = error "NYI"
+elemIndex c bs@(PS x s l) = trace "elemIndex not translated" $ BS.elemIndex c (unwrap bs)
 
 elemIndexEnd :: Word8 -> ByteString -> Maybe Int
-elemIndexEnd ch (PS x s l) = error "NYI"
+elemIndexEnd ch bs@(PS x s l) = trace "elemIndexEnd not translated" $ BS.elemIndexEnd ch (unwrap bs)
 
 elemIndices :: Word8 -> ByteString -> [Int]
-elemIndices w (PS x s l) = error "NYI"
+elemIndices w bs@(PS x s l) = trace "elemIndices not translated" $ BS.elemIndices w (unwrap bs)
 
 count :: Word8 -> ByteString -> Int
-count w (PS x s m) = error "NYI"
+count w bs@(PS x s m) = trace "count not translated" $ BS.count w (unwrap bs)
 
 findIndex :: (Word8 -> Bool) -> ByteString -> Maybe Int
-findIndex k (PS x s l) = error "NYI"
+findIndex k bs@(PS x s l) = trace "findIndex not translated" $ BS.findIndex k (unwrap bs)
 
 findIndices :: (Word8 -> Bool) -> ByteString -> [Int]
-findIndices p ps = error "NYI"
+findIndices p bs = trace "findIndices not translated" $ BS.findIndices p (unwrap bs)
 
 elem :: Word8 -> ByteString -> Bool
-elem c ps = error "NYI"
+elem c bs = trace "elem not translated" $ BS.elem c (unwrap bs)
 
 notElem :: Word8 -> ByteString -> Bool
-notElem c ps = error "NYI"
+notElem c bs = trace "notElem not translated" $ BS.notElem c (unwrap bs)
 
 filter :: (Word8 -> Bool) -> ByteString -> ByteString
-filter k ps@(PS x s l) = error "NYI"
+filter k bs@(PS x s l) = trace "filter not translated" $ wrap (BS.filter k (unwrap bs))
 
 find :: (Word8 -> Bool) -> ByteString -> Maybe Word8
-find f p = error "NYI"
+find f bs = trace "find not translated" $ BS.find f (unwrap bs)
 
 partition :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-partition f s = error "NYI"
+partition f bs = trace "partition not translated" $ bimap wrap wrap (BS.partition f (unwrap bs))
 
 isPrefixOf :: ByteString -> ByteString -> Bool
-isPrefixOf (PS x1 s1 l1) (PS x2 s2 l2) = error "NYI"
+isPrefixOf bs1@(PS x1 s1 l1) bs2@(PS x2 s2 l2) = trace "isPrefixOf not translated" $ BS.isPrefixOf (unwrap bs1) (unwrap bs2)
 
 stripPrefix :: ByteString -> ByteString -> Maybe ByteString
-stripPrefix bs1@(PS _ _ l1) bs2 = error "NYI"
+stripPrefix bs1@(PS _ _ l1) bs2 = trace "stripPrefix not translated" $ fmap wrap (BS.stripPrefix (unwrap bs1) (unwrap bs2))
 
 isSuffixOf :: ByteString -> ByteString -> Bool
-isSuffixOf (PS x1 s1 l1) (PS x2 s2 l2) = error "NYI"
+isSuffixOf bs1@(PS x1 s1 l1) bs2@(PS x2 s2 l2) = trace "isSuffixOf not translated" $ BS.isSuffixOf (unwrap bs1) (unwrap bs2)
 
 stripSuffix :: ByteString -> ByteString -> Maybe ByteString
-stripSuffix bs1@(PS _ _ l1) bs2@(PS _ _ l2) = error "NYI"
+stripSuffix bs1@(PS _ _ l1) bs2@(PS _ _ l2) = trace "stripSuffix not translated" $ fmap wrap (BS.stripSuffix (unwrap bs1) (unwrap bs2))
 
 isInfixOf :: ByteString -> ByteString -> Bool
-isInfixOf p s = error "NYI"
+isInfixOf p s = trace "isInfixOf not translated" $ BS.isInfixOf (unwrap p) (unwrap s)
 
 breakSubstring :: ByteString -- ^ String to search for
                -> ByteString -- ^ String to search in
                -> (ByteString,ByteString) -- ^ Head and tail of string broken at substring
-breakSubstring pat = error "NYI"
+breakSubstring pat bs = trace "breakSubstring not translated" $ bimap wrap wrap (BS.breakSubstring (unwrap pat) (unwrap bs))
 
 findSubstring :: ByteString -- ^ String to search for.
               -> ByteString -- ^ String to seach in.
               -> Maybe Int
-findSubstring pat src = error "NYI"
+findSubstring pat src = trace "findSubstring not translated" $ BS.findSubstring (unwrap pat) (unwrap src)
 
 findSubstrings :: ByteString -- ^ String to search for.
                -> ByteString -- ^ String to seach in.
                -> [Int]
-findSubstrings pat src = error "NYI"
+findSubstrings pat src = trace "findSubstrings not translated" $ BS.findSubstrings (unwrap pat) (unwrap src)
 
 
 zip :: ByteString -> ByteString -> [(Word8,Word8)]
-zip ps qs = error "NYI"
+zip ps qs = trace "zip not translated" $ BS.zip (unwrap ps) (unwrap qs)
 
 zipWith :: (Word8 -> Word8 -> a) -> ByteString -> ByteString -> [a]
-zipWith f ps qs = error "NYI"
+zipWith f ps qs = trace "zipWith not translated" $ BS.zipWith f (unwrap ps) (unwrap qs)
 
-zipWith' :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString -> ByteString
-zipWith' f (PS fp s l) (PS fq t m) = error "NYI"
+-- zipWith' :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString -> ByteString
+-- zipWith' f (PS fp s l) (PS fq t m) = trace "zipWith' not translated" $ wrap (BS.zipWith' (unwrap bs))
 
 unzip :: [(Word8,Word8)] -> (ByteString,ByteString)
-unzip ls = error "NYI"
+unzip ls = trace "unzip not translated" $ bimap wrap wrap (BS.unzip ls)
 
 
 inits :: ByteString -> [ByteString]
-inits (PS x s l) = error "NYI"
+inits bs@(PS x s l) = trace "inits not translated" $ fmap wrap (BS.inits (unwrap bs))
 
 tails :: ByteString -> [ByteString]
-tails p = error "NYI"
+tails p = trace "tails not translated" $ fmap wrap (BS.tails (unwrap p))
 
 
 sort :: ByteString -> ByteString
-sort (PS input s l) = error "NYI"
+sort bs@(PS input s l) = trace "sort not translated" $ wrap (BS.sort (unwrap bs))
 
 useAsCString :: ByteString -> (CString -> IO a) -> IO a
-useAsCString (PS fp o l) action = error "NYI"
+useAsCString bs@(PS fp o l) action = trace "useAsCString not translated" $ BS.useAsCString (unwrap bs) action
 
 useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
-useAsCStringLen p@(PS _ _ l) f = error "NYI"
+useAsCStringLen p@(PS _ _ l) f = trace "useAsCStringLen not translated" $ BS.useAsCStringLen (unwrap p) f
 
 
 packCString :: CString -> IO ByteString
-packCString cstr = error "NYI"
+packCString cstr = trace "packCString not translated" $ fmap wrap (BS.packCString cstr)
 
 packCStringLen :: CStringLen -> IO ByteString
-packCStringLen (cstr, len) = error "NYI"
+packCStringLen (cstr, len) = trace "packCStringLen not translated" $ fmap wrap (BS.packCStringLen (cstr, len))
 
 
 copy :: ByteString -> ByteString
-copy (PS x s l) = error "NYI"
+copy bs@(PS x s l) = trace "copy not translated" $ wrap (BS.copy (unwrap bs))
 
 getLine :: IO ByteString
-getLine = error "NYI"
+getLine = trace "getLine not translated" $ fmap wrap BS.getLine
 
 
 hGetLine :: Handle -> IO ByteString
-hGetLine h = error "NYI"
+hGetLine h = trace "hGetLine not translated" $ fmap wrap (BS.hGetLine h)
 
-mkPS :: RawBuffer Word8 -> Int -> Int -> IO ByteString
-mkPS buf start end = error "NYI"
+-- mkPS :: RawBuffer Word8 -> Int -> Int -> IO ByteString
+-- mkPS buf start end = trace "mkPS not translated" $ wrap (BS.mkPS (unwrap bs))
 
-mkBigPS :: Int -> [ByteString] -> IO ByteString
-mkBigPS _ pss = error "NYI"
+-- mkBigPS :: Int -> [ByteString] -> IO ByteString
+-- mkBigPS _ pss = trace "mkBigPS not translated" $ wrap (BS.mkBigPS (unwrap bs))
 
 
 hPut :: Handle -> ByteString -> IO ()
-hPut h (PS ps s l) = error "NYI"
+hPut h bs@(PS ps s l) = trace "hPut not translated" $ BS.hPut h (unwrap bs)
 
 hPutNonBlocking :: Handle -> ByteString -> IO ByteString
-hPutNonBlocking h bs@(PS ps s l) = error "NYI"
+hPutNonBlocking h bs@(PS ps s l) = trace "hPutNonBlocking not translated" $ fmap wrap (BS.hPutNonBlocking h (unwrap bs))
 
 hPutStr :: Handle -> ByteString -> IO ()
-hPutStr = error "NYI"
+hPutStr h bs = trace "hPutStr not translated" $ BS.hPutStr h (unwrap bs)
 
 hPutStrLn :: Handle -> ByteString -> IO ()
-hPutStrLn h ps = error "NYI"
+hPutStrLn h bs = trace "hPutStrLn not translated" $ BS.hPutStrLn h (unwrap bs)
 
 putStr :: ByteString -> IO ()
-putStr = error "NYI"
+putStr bs = trace "putStr not translated" $ BS.putStr (unwrap bs)
 
 putStrLn :: ByteString -> IO ()
-putStrLn = error "NYI"
+putStrLn bs = trace "putStrLn not translated" $ BS.putStrLn (unwrap bs)
 
 hGet :: Handle -> Int -> IO ByteString
-hGet h i = error "NYI"
+hGet h i = trace "hGet not translated" $ fmap wrap (BS.hGet h i)
 
 hGetNonBlocking :: Handle -> Int -> IO ByteString
-hGetNonBlocking h i = error "NYI"
+hGetNonBlocking h i = trace "hGetNonBlocking not translated" $ fmap wrap (BS.hGetNonBlocking h i)
 
 hGetSome :: Handle -> Int -> IO ByteString
-hGetSome hh i = error "NYI"
+hGetSome hh i = trace "hGetSome not translated" $ fmap wrap (BS.hGetSome hh i)
 
-illegalBufferSize :: Handle -> String -> Int -> IO a
-illegalBufferSize handle fn sz = error "NYI"
+-- illegalBufferSize :: Handle -> String -> Int -> IO a
+-- illegalBufferSize handle fn sz = trace "illegalBufferSize not translated" $ BS.illegalBufferSize (unwrap bs)
 
 hGetContents :: Handle -> IO ByteString
-hGetContents hnd = error "NYI"
+hGetContents hnd = trace "hGetContents not translated" $ fmap wrap (BS.hGetContents hnd)
 
-hGetContentsSizeHint :: Handle
-                     -> Int -- ^ first read size
-                     -> Int -- ^ initial buffer size increment
-                     -> IO ByteString
-hGetContentsSizeHint hnd = error "NYI"
+-- hGetContentsSizeHint :: Handle
+--                      -> Int -- ^ first read size
+--                      -> Int -- ^ initial buffer size increment
+--                      -> IO ByteString
+-- hGetContentsSizeHint hnd = trace "hGetContentsSizeHint not translated" $ fmap wrap (BS.hGetContentsSizeHint (unwrap bs))
 
 getContents :: IO ByteString
-getContents = error "NYI"
+getContents = trace "getContents not translated" $ fmap wrap BS.getContents
 
 interact :: (ByteString -> ByteString) -> IO ()
-interact transformer = error "NYI"
+interact transformer = trace "interact not translated" $ BS.interact (unwrap . transformer . wrap)
 
 readFile :: FilePath -> IO ByteString
-readFile f = error "NYI"
+readFile f = trace "readFile not translated" $ fmap wrap (BS.readFile f)
 
 writeFile :: FilePath -> ByteString -> IO ()
-writeFile f txt = error "NYI"
+writeFile f txt = trace "writeFile not translated" $ BS.writeFile f (unwrap txt)
 
 appendFile :: FilePath -> ByteString -> IO ()
-appendFile f txt = error "NYI"
+appendFile f txt = trace "appendFile not translated" $ BS.appendFile f (unwrap txt)
 
-findIndexOrEnd :: (Word8 -> Bool) -> ByteString -> Int
-findIndexOrEnd k (PS x s l) = error "NYI"
+-- findIndexOrEnd :: (Word8 -> Bool) -> ByteString -> Int
+-- findIndexOrEnd k (PS x s l) = trace "findIndexOrEnd not translated" $ BS.findIndexOrEnd (unwrap bs)
 
-errorEmptyList :: String -> a
-errorEmptyList fun = error "NYI"
+-- errorEmptyList :: String -> a
+-- errorEmptyList fun = trace "errorEmptyList not translated" $ BS.errorEmptyList (unwrap bs)
 
-moduleError :: String -> String -> a
-moduleError fun msg = error "NYI"
+-- moduleError :: String -> String -> a
+-- moduleError fun msg = trace "moduleError not translated" $ BS.moduleError (unwrap bs)
 
-moduleErrorIO :: String -> String -> IO a
-moduleErrorIO fun msg = error "NYI"
+-- moduleErrorIO :: String -> String -> IO a
+-- moduleErrorIO fun msg = trace "moduleErrorIO not translated" $ BS.moduleErrorIO (unwrap bs)
 
-moduleErrorMsg :: String -> String -> String
-moduleErrorMsg fun msg = error "NYI"
+-- moduleErrorMsg :: String -> String -> String
+-- moduleErrorMsg fun msg = trace "moduleErrorMsg not translated" $ BS.moduleErrorMsg (unwrap bs)
 
-findFromEndUntil :: (Word8 -> Bool) -> ByteString -> Int
-findFromEndUntil f ps@(PS x s l) = error "NYI"
+-- findFromEndUntil :: (Word8 -> Bool) -> ByteString -> Int
+-- findFromEndUntil f bs@(PS x s l) = trace "findFromEndUntil not translated" $ BS.findFromEndUntil (unwrap bs)

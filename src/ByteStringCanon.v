@@ -211,8 +211,8 @@ Tactic Notation "refine" "using" "ByteString_Heap_AbsR" :=
     end
   end.
 
-Variable only_one_heap : forall h1 h2 : Rep HeapSpec, h1 = h2.
 
+(*
 Theorem ByteStringCanonical : FullySharpened (projT1 ByteStringHeap).
 Proof.
   start sharpening ADT.
@@ -223,7 +223,7 @@ Proof.
   (* refine method ByteString.emptyS. *)
   {
     simplify with monad laws.
-    refine pick val (heap', {| psBuffer := 0
+    refine pick val (heap', {| psBuffer := nullPtr
                              ; psBufLen := 0
                              ; psOffset := 0
                              ; psLength := 0 |}).
@@ -310,6 +310,15 @@ Proof.
 
   (* refine method ByteString.consS. *)
   {
+    unfold buffer_cons, Bind2,
+           make_room_by_shifting_up,
+           simply_widen_region,
+           make_room_by_growing_buffer,
+           allocate_buffer,
+           poke_at_offset,
+           memcpy, poke, alloc, Bind2; simpl.
+    simplify with monad laws.
+
     apply_ByteString_Heap_AbsR.
     fracture H; unfold find_free_block;
     refine using ByteString_Heap_AbsR;
@@ -323,17 +332,18 @@ Proof.
         simplify with monad laws.
         finish honing.
 
-      rewrite <- remove_add.
+      rewrite <- remove_add; subst.
       apply for_all_add_true; relational; try nomega.
-        simplify_maps.
-      split; [|nomega].
-      apply for_all_remove; relational; try nomega.
-      eapply for_all_impl; auto;
-      relational; eauto; nomega.
+      + rewrite H0; reflexivity.
+      + apply M.remove_1; reflexivity.
+      + split; [|apply N.leb_refl].
+        apply for_all_remove; relational; try nomega_.
+        apply (for_all_impl _ _ _ _ _ for_all_matches);
+        auto; relational; nomega_.
 
     - rewrite resvs_match.
-      eapply for_all_impl; eauto;
-      relational; nomega.
+      apply (for_all_impl _ _ _ _ _ for_all_matches);
+      auto; relational; nomega_.
 
     - refine pick val (plusPtr (A:=Word) (fst (fst r_n)) alloc_quantum); eauto.
         simplify with monad laws.
@@ -344,17 +354,17 @@ Proof.
         simplify_maps.
       split; [|nomega].
       apply for_all_remove; relational; try nomega.
-      eapply for_all_impl; auto;
-      relational; eauto; nomega.
+      apply (for_all_impl _ _ _ _ _ for_all_matches);
+      auto; relational; nomega_.
 
     - rewrite resvs_match.
-      eapply for_all_impl; eauto;
-      relational; nomega.
+      apply (for_all_impl _ _ _ _ _ for_all_matches);
+      auto; relational; nomega_.
   }
 
   (* refine method ByteString.unconsS. *)
   {
-    unfold buffer_uncons;
+    unfold Bind2, peek; simplify with monad laws.
     apply_ByteString_Heap_AbsR;
     fracture H;
     refine using ByteString_Heap_AbsR.
@@ -531,6 +541,7 @@ Proof.
   Unshelve.
   constructor.
 Defined.
+*)
 
 End Refined.
 

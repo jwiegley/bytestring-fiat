@@ -13,6 +13,8 @@ Definition Size := N.
 Definition Word := Ascii.ascii.
 Definition Zero := Ascii.zero.
 
+Definition nullPtr {A} : Ptr A := 0%N.
+
 Definition eqPtr {A} (x y : Ptr A) := x = y.
 Hint Unfold eqPtr.
 Definition neqPtr {A} (x y : Ptr A) := x <> y.
