@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -9,7 +10,7 @@ import           Control.Arrow
 import           Control.DeepSeq
 import           Criterion.Main
 import           Criterion.Types
-import qualified Data.ByteString as BS
+import qualified "bytestring" Data.ByteString as BS
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Fiat as Fiat
 import           Data.ByteString.Fiat.Internal hiding (IO, map, fmap)
