@@ -3217,6 +3217,14 @@ failIO =
 
 type Offset = Size
 
+free :: (Ptr Word) -> IO ()
+free =
+  Prelude.error "AXIOM TO BE REALIZED"
+
+realloc :: (Ptr Word) -> Size -> IO (Ptr Word)
+realloc =
+  Prelude.error "AXIOM TO BE REALIZED"
+
 ghcEmptyDSL' :: PS0
 ghcEmptyDSL' =
   MakePS0
