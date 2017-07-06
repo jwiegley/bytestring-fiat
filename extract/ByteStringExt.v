@@ -56,26 +56,26 @@ Variable heap_AbsR : Heap_AbsR heap heap'.
 
 Axiom one_Haskell_heap : forall h1 h2 : Rep HeapSpec, h1 = h2.
 
-Definition BSimpl' :=
-  projT1 (@ByteStringCanonical heap heap' heap_AbsR one_Haskell_heap).
-Definition BSimpl := Eval simpl in BSimpl'.
+(* Definition BSimpl' := *)
+(*   projT1 (@ByteStringCanonical heap heap' heap_AbsR one_Haskell_heap). *)
+(* Definition BSimpl := Eval simpl in BSimpl'. *)
 
-Definition BScrep := ComputationalADT.cRep BSimpl.
+(* Definition BScrep := ComputationalADT.cRep BSimpl. *)
 
 Open Scope N_scope.
 
-Definition emptyBS   : BScrep :=
-  Eval compute in CallMethod BSimpl emptyS.
-Definition packBS (xs : list Word) : BScrep :=
-  Eval compute in CallMethod BSimpl packS xs.
-Definition unpackBS (r : BScrep) : BScrep * list Word :=
-  Eval compute in CallMethod BSimpl unpackS r.
-Definition consBS (r : BScrep) (w : Word) : BScrep :=
-  Eval compute in CallMethod BSimpl consS r w.
-Definition unconsBS (r : BScrep) : BScrep * option Word :=
-  Eval compute in CallMethod BSimpl unconsS r.
-Definition appendBS (r1 r2 : BScrep) : BScrep :=
-  Eval compute in CallMethod BSimpl appendS r1 r2.
+(* Definition emptyBS   : BScrep := *)
+(*   Eval compute in CallMethod BSimpl emptyS. *)
+(* Definition packBS (xs : list Word) : BScrep := *)
+(*   Eval compute in CallMethod BSimpl packS xs. *)
+(* Definition unpackBS (r : BScrep) : BScrep * list Word := *)
+(*   Eval compute in CallMethod BSimpl unpackS r. *)
+(* Definition consBS (r : BScrep) (w : Word) : BScrep := *)
+(*   Eval compute in CallMethod BSimpl consS r w. *)
+(* Definition unconsBS (r : BScrep) : BScrep * option Word := *)
+(*   Eval compute in CallMethod BSimpl unconsS r. *)
+(* Definition appendBS (r1 r2 : BScrep) : BScrep := *)
+(*   Eval compute in CallMethod BSimpl appendS r1 r2. *)
 
 End ByteStringExt.
 

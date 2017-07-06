@@ -176,7 +176,7 @@ Lemma ghcPackDSL :
   { f : list Word -> PS
   & forall r xs,
       f xs = unsafeDupablePerformIO
-               (ghcDenote ((returnIO \o snd) <$> projT1 (packDSL r xs))) }.
+               (ghcDenote ((returnIO \o fst) <$> projT1 (packDSL r xs))) }.
 Proof.
   eexists; intros.
   symmetry.
@@ -244,7 +244,7 @@ Lemma ghcUnpackDSL :
   { f : PS -> list Word
   & forall r bs,
       f bs = unsafeDupablePerformIO
-               (ghcDenote (returnIO <$> projT1 (unpackDSL r (r, bs)))) }.
+               (ghcDenote (returnIO <$> projT1 (unpackDSL r bs))) }.
 Proof.
   eexists; intros.
   symmetry.
