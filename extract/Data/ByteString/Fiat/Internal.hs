@@ -899,12 +899,6 @@ fullySharpened_Finish sig spec adt cadt x delegateImpls validImpls x0 =
     (liftcADT sig (sharpened_Implementation sig adt delegateImpls))
     (liftcADT sig cadt) (unsafeCoerce x __ delegateImpls validImpls) x0
 
-sharpenStep :: ADTSig -> ADT -> ADT -> ADT -> RefineADT -> RefineADT ->
-               RefineADT
-sharpenStep sig adt adt' adt'' refine_adt' x =
-  transitivityT (preOrderT_TransitiveT (refineADT_PreOrder sig)) adt adt'
-    adt'' refine_adt' x
-
 type UnCurry_Dom = Any
 
 type UnCurried_methodType rep = (HString.Vector rep) -> UnCurry_Dom -> Any
@@ -1007,15 +1001,6 @@ notation_Friendly_SharpenFully m n methSigs methDefs delegateSigs' delegateReps'
   notation_Friendly_FullySharpened_BuildMostlySharpenedcADT n methSigs
     methDefs m delegateSigs cMethods0 delegateSpecs cMethodsRefinesSpec
     delegateImpls validImpls
-
-refineADT_BuildADT_Rep_refine_All :: Prelude.Int -> (HString.Vector MethSig)
-                                     -> (Ilist MethSig (MethDef a1)) ->
-                                     (Ilist MethSig (MethDef a2)) ->
-                                     RefineADT
-refineADT_BuildADT_Rep_refine_All n methSigs methDefs refined_methDefs =
-  refineADT_Build_ADT_Rep (decADTSig (buildADTSig n methSigs))
-    (unsafeCoerce getMethDef n methSigs methDefs)
-    (unsafeCoerce getMethDef n methSigs refined_methDefs)
 
 getADTSig :: DecoratedADTSig -> ADT -> DecoratedADTSig
 getADTSig sig _ =
@@ -1125,6 +1110,44 @@ annotate_ADT n' methSigs methDefs methDefs' _ =
     (buildADT n' methSigs methDefs')
     (refineADT_Build_ADT_Rep_default (decADTSig (buildADTSig n' methSigs))
       (unsafeCoerce getMethDef n' methSigs methDefs)) RefinesADT
+
+type SADT sT = ADT
+
+data Refine_sADT sT =
+   Refines_sADT
+
+sMethSig :: MethSig -> MethSig
+sMethSig mSig =
+  Build_methSig (methID mSig) (methArity mSig) ((:) __ (methDom mSig))
+    (Prelude.Just __)
+
+ith_map :: Prelude.Int -> (HString.Vector a1) -> (a1 -> a2) -> (Ilist 
+           a2 a3) -> T -> a3
+ith_map _ as0 f il n =
+  case n of {
+   F1 k ->
+    caseS (\n0 as1 t ->
+      unsafeCoerce ilist_hd (HString.nsucc as1)
+        (map f (HString.nsucc as1) (HString.Cons n0 as1 t))) k as0 il;
+   FS k n' ->
+    vector_caseS' (\h n0 t m il0 ->
+      ith_map n0 t f
+        (ilist_tl (HString.nsucc n0)
+          (map f (HString.nsucc n0) (HString.Cons h n0 t)) il0) m) k as0 n'
+      il}
+
+buildsADT :: Prelude.Int -> (HString.Vector MethSig) -> (Ilist MethSig
+             (MethDef a2)) -> SADT a1
+buildsADT n' methSigs methDefs idx =
+  methBody (sMethSig (nth n' methSigs (unsafeCoerce idx)))
+    (ith_map n' methSigs sMethSig methDefs (unsafeCoerce idx))
+
+refinesADT_BuildADT_Rep_refine_All :: Prelude.Int -> (HString.Vector 
+                                      MethSig) -> (Ilist MethSig
+                                      (MethDef a1)) -> (Ilist MethSig
+                                      (MethDef a2)) -> Refine_sADT a3
+refinesADT_BuildADT_Rep_refine_All _ _ _ _ =
+  Refines_sADT
 
 data Hlist =
    HNil
@@ -2500,7 +2523,7 @@ alloc_quantum :: Prelude.Int
 alloc_quantum =
   (\x -> x) 1
 
-type Bsrep = (,) Rep PS
+type Bsrep = PS
 
 type CHeapRep = CRep
 
@@ -2987,7 +3010,7 @@ alloc_quantum0 :: Prelude.Int
 alloc_quantum0 =
   (\x -> x) 1
 
-type Bsrep0 = (,) Rep PS0
+type Bsrep0 = PS0
 
 eqb11 :: Prelude.Int -> Prelude.Int -> Prelude.Bool
 eqb11 x y =
