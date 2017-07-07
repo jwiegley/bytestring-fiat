@@ -352,14 +352,13 @@ Proof.
     right; intuition; nomega.
   destruct_computations; simpl in *.
   destruct_AbsR AbsR; construct_AbsR.
-(*   - destruct_ps (snd r_n); nomega. *)
-(*   - right; intuition. *)
-(*     discriminate. *)
-(*   - destruct_ps (snd r_n); nomega. *)
-(*   - right; intuition. *)
-(*     discriminate. *)
-(* Qed. *)
-Admitted.
+  - destruct_ps r_n; nomega.
+  - right; intuition.
+    discriminate.
+  - destruct_ps r_n; nomega.
+  - right; intuition.
+    discriminate.
+Qed.
 
 (**************************************************************************)
 
