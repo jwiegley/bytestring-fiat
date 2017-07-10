@@ -31,19 +31,16 @@ Axiom fmapIO   : forall {a b : Type}, (a -> b) -> IO a -> IO b.
 Axiom bindIO   : forall {a b : Type}, IO a -> (a -> IO b) -> IO b.
 Axiom returnIO : forall {a : Type}, a -> IO a.
 Axiom failIO   : forall {a : Type}, IO a.
-Axiom joinIO   : forall {a : Type}, IO (IO a) -> IO a.
 
 Axiom bindIO_inj : forall {a b : Type} x y f g,
   x = y -> (forall z, f z = g z) -> @bindIO a b x f = @bindIO a b y g.
+
 Axiom bindIO_returnIO : forall {a b : Type} (f : a -> b) (x : IO a),
   bindIO x (fun a => returnIO (f a)) = fmapIO f x.
 
-Axiom fmapIO_id : forall {a : Type} (x : IO a),
-  fmapIO id x = x.
+Axiom fmapIO_id : forall {a : Type} (x : IO a), fmapIO id x = x.
 
 Axiom unsafeDupablePerformIO : forall {a : Type}, IO a -> a.
-Axiom unsafeDupablePerformIO_inj : forall {a : Type} x y,
-  x = y -> @unsafeDupablePerformIO a x = unsafeDupablePerformIO y.
 
 Axiom unsafeDupablePerformIO_returnIO : forall {a : Type} (x : a),
   unsafeDupablePerformIO (returnIO x) = x.
@@ -170,6 +167,10 @@ Proof.
   intros ????????.
   destruct c; auto.
 Qed.
+
+Corollary unsafeDupablePerformIO_inj : forall {a : Type} x y,
+  x = y -> @unsafeDupablePerformIO a x = unsafeDupablePerformIO y.
+Proof. intros; subst; reflexivity. Qed.
 
 Check "ghcPackDSL".
 Lemma ghcPackDSL :

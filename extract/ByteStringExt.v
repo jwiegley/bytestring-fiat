@@ -324,7 +324,6 @@ Extract Inlined Constant unsafeDupablePerformIO =>
 Extract Inlined Constant fmapIO   => "Prelude.fmap".
 Extract Inlined Constant bindIO   => "(GHC.Base.>>=)".
 Extract Inlined Constant returnIO => "Prelude.return".
-Extract Inlined Constant joinIO   => "Prelude.join".
 Extract Inlined Constant malloc   => "GHC.ForeignPtr.mallocPlainForeignPtrBytes".
 (* Extract Inlined Constant free     => "Prelude.undefined". *)
 (* Extract Inlined Constant realloc  => "Prelude.undefined". *)
