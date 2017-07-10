@@ -1,10 +1,11 @@
-/Makefile.coq
-.*.aux
+*.glob
 *.v.d
 *.vo
-*.glob
+.*.aux
+/.DS_Store
+/Makefile.coq
 /extract/ByteStringExt.hs
+/extract/Data/ByteString/Fiat/Internal.hs
 /extract/Makefile.coq
 /extract/default.nix
 /extract/result
-/.DS_Store
