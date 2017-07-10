@@ -1,0 +1,62 @@
+name:          bytestring-fiat
+version:       0.1.0.0
+synopsis:      ByteStrings, implemented using Fiat
+github:        jwiegley/bytestring-fiat
+category:      Language
+license:       MIT
+author:
+  - John Wiegley <johnw@newartisans.com>
+  - Ben Delaware <bendy@purdue.edu>
+maintainer:
+  - John Wiegley <johnw@newartisans.com>
+
+flags:
+  integer-simple:
+    description: Use the simple integer library instead of GMP
+    default: False
+    manual: False
+
+dependencies:
+  - base >=4.8 && <4.10
+  - ghc-prim
+  - bytestring
+  - hashable
+
+ghc-options:
+  - -O2
+  - -fmax-simplifier-iterations=10 
+  - -fdicts-cheap
+  -  -fspec-constr-count=6
+
+when:
+  - condition: impl(ghc >= 6.11) && !flag(integer-simple)
+    cpp-options: -DINTEGER_GMP
+    dependencies: integer-gmp >= 0.2
+  - condition: impl(ghc >= 6.9) && impl(ghc < 6.11)
+    cpp-options: -DINTEGER_GMP
+    dependencies: integer >= 0.1 && < 0.2
+
+library:
+  exposed-modules:
+    Data.ByteString
+
+tests:
+  bytestring-test:
+    main: Main.hs
+    dependencies:
+      - bytestring-fiat
+      - hspec == 2.*
+      - QuickCheck
+      - quickcheck-io
+
+benchmarks:
+  bytestring-bench:
+    main: Bench.hs
+    dependencies:
+      - bytestring-fiat
+      - bytestring-show
+      - QuickCheck
+      - blaze-builder
+      - criterion
+      - deepseq
+      - weigh
