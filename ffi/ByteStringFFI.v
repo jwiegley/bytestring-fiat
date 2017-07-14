@@ -8,7 +8,6 @@ Require Import
   ByteString.Lib.HList
   ByteString.Memory
   ByteString.Heap
-  ByteString.FFI.HeapFFI
   ByteString.FFI.CompileFFI
   ByteString.ByteString
   ByteString.ByteStringHeap
