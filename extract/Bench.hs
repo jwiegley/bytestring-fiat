@@ -6,11 +6,9 @@
 
 module Main where
 
-import           Control.Arrow
 import           Control.DeepSeq
 import           Criterion.Main
 import           Criterion.Types
-import qualified "bytestring" Data.ByteString as BS
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Fiat as Fiat
 import           Data.ByteString.Fiat.Internal hiding (IO, map, fmap)
@@ -18,7 +16,7 @@ import qualified Data.ByteString.Fiat.Internal as Internal
 import qualified Data.Foldable as F
 import           Data.Monoid
 import           Data.Word (Word8)
-
+import           System.Environment (getArgs, withArgs)
 import           System.IO.Unsafe
 import           Foreign.Ptr (plusPtr, nullPtr)
 import           Foreign.ForeignPtr
@@ -26,6 +24,9 @@ import           Foreign.Storable
 import           Foreign.Marshal.Array
 import           Foreign.Marshal.Utils
 import           GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+import qualified Weigh
+
+import qualified "bytestring" Data.ByteString as BS
 
 instance NFData PS0 where
     rnf (MakePS0 !_ !_ !_ !_) = ()
@@ -70,11 +71,22 @@ appendBench =  F.foldl' (<>) BS.empty . map (BS.pack . map c2w8 . show)
 appendFiatBench :: [Int] -> Fiat.ByteString
 appendFiatBench = F.foldl' (<>) Fiat.empty . map (Fiat.pack . map c2w8 . show)
 
+-- main :: IO ()
+-- main = memoryMain
+
 main :: IO ()
-main = defaultMainWith defaultConfig { csvFile = Just "bench.csv" }
-    $ replicate 2
+main = do
+    arg:args <- getArgs
+    withArgs args $ case arg of
+        "time"   -> speedMain
+        "memory" -> memoryMain
+        _        -> error "Unknown sub-command: use time or memory"
+
+speedMain :: IO ()
+speedMain = defaultMainWith defaultConfig { csvFile = Just "bench.csv" }
+    $ replicate 1
     (
-    bgroup "[Int]" $ flip map [6 :: Int] $ \i ->
+    bgroup "[Int]" $ flip map [5 :: Int] $ \i ->
         let sz = 10^i
             inp = take sz [1..]
             inp' = take (sz `div` 10) [1..] in
@@ -95,6 +107,28 @@ main = defaultMainWith defaultConfig { csvFile = Just "bench.csv" }
         , bench "ByteString.Fiat.append" (nf appendFiatBench inp')
         ]
     )
+
+memoryMain :: IO ()
+memoryMain = do
+    let sz = 10^(5 :: Int)
+        inp = take sz [1..]
+        inp' = take (sz `div` 10) [1..]
+     -- withArgs [] $ Weigh.mainWith $ do
+    Weigh.mainWith $ do
+        Weigh.func "ByteString.pack"        packBench inp
+        Weigh.func "ByteString.Fiat.pack"   packFiatBench inp
+
+        Weigh.func "ByteString.unpack"      unpackBench (packBench inp)
+        Weigh.func "ByteString.Fiat.unpack" unpackFiatBench (packFiatBench inp)
+
+        Weigh.func "ByteString.cons"        consBench inp'
+        Weigh.func "ByteString.Fiat.cons"   consFiatBench inp'
+
+        Weigh.func "ByteString.uncons"      unconsBench (packBench inp)
+        Weigh.func "ByteString.Fiat.uncons" unconsFiatBench (packFiatBench inp)
+
+        Weigh.func "ByteString.append"      appendBench inp'
+        Weigh.func "ByteString.Fiat.append" appendFiatBench inp'
 
 compute :: (Double, Double)
 compute =
