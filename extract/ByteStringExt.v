@@ -4,7 +4,8 @@ Require Import
   ByteString.Memory
   ByteString.Heap
   ByteString.ByteString
-  ByteString.ByteStringCanon
+  ByteString.ByteStringHeap
+  (* ByteString.ByteStringCanon *)
   ByteString.FFI.ByteStringFFI
   ByteString.FFI.HaskellFFI
   Coq.Strings.Ascii
@@ -13,9 +14,8 @@ Require Import
   Coq.Structures.OrderedTypeEx.
 
 Module Import M  := FMapList.Make(N_as_OT).
-Module Import BM := ByteStringFMap M.
+Module Import BM := ByteStringHeap M.
 
-Import ByteStringHeap.
 Import HeapCanonical.
 Import Heap.
 Import HeapState.
@@ -52,9 +52,9 @@ Section ByteStringExt.
 Variable heap  : Rep HeapSpec.
 Variable heap' : ComputationalADT.cRep (projT1 HeapCanonical).
 
-Variable heap_AbsR : Heap_AbsR heap heap'.
+(* Variable heap_AbsR : Heap_AbsR heap heap'. *)
 
-Axiom one_Haskell_heap : forall h1 h2 : Rep HeapSpec, h1 = h2.
+(* Axiom one_Haskell_heap : forall h1 h2 : Rep HeapSpec, h1 = h2. *)
 
 (* Definition BSimpl' := *)
 (*   projT1 (@ByteStringCanonical heap heap' heap_AbsR one_Haskell_heap). *)
