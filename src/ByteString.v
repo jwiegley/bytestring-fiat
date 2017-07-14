@@ -21,10 +21,7 @@ Definition ByteStringSpec := Def ADT {
 
   Def Constructor0 emptyS : rep := ret []%list,
 
-  (* jww (2017-02-12): For some reason, the following does not work here:
-  Def Constructor1_ packS (xs : list Word) : rep :=
-    ret xs,
-  *)
+  (* Def Constructor1 packS (xs : list Word) : rep := ret xs, *)
   (Build_methDef _
      {| methID    := packS
       ; methArity := 0

@@ -730,28 +730,4 @@ Proof.
 
 Defined.
 
-(*
-Theorem all_bytes_allocated {heap} :
-  forall r : Rep (projT1 (ByteStringHeap heap)), fromADT _ r
-    -> IF psBuffer (snd r) = nullPtr
-       then psBufLen (snd r) = 0
-       else M.MapsTo (psBuffer (snd r)) (psBufLen (snd r)) (resvs (fst r)) /\
-            0 < psBufLen (snd r) /\
-            psOffset (snd r) + psLength (snd r) <= psBufLen (snd r).
-Proof.
-  intros r from_r; pattern r; apply ADT_ind; try eassumption.
-  intro midx;
-  match goal with
-  | [ midx : MethodIndex _ |- _ ] => pattern midx
-  end;
-  apply IterateBoundedIndex.Iterate_Ensemble_equiv';
-  repeat apply IterateBoundedIndex.Build_prim_and;
-  try solve [constructor];
-  simpl in *; intros;
-  simpl in *; destruct_ex; split_and;
-  repeat inspect; injections;
-  simpl in *; eauto; right; eauto.
-Abort.
-*)
-
 End ByteStringHeap.
