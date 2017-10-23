@@ -337,8 +337,8 @@ Proof. intros; destruct_ps ps. Qed.
 
 Lemma buffer_cons_sound : forall r_o r_n s,
   ByteString_list_AbsR r_o r_n s
-    -> forall x r_n' ps', buffer_cons r_n x s ↝ (ps', r_n')
-    -> ByteString_list_AbsR (x :: r_o) ps' r_n'.
+    -> forall x r_n' s', buffer_cons r_n x s ↝ (r_n', s')
+    -> ByteString_list_AbsR (x :: r_o) r_n' s'.
 Proof.
   unfold buffer_cons, Bind2; intros ? ? ? AbsR ???.
   destruct_computations.

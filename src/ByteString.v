@@ -65,3 +65,5 @@ Definition uncons (bs : ByteString) : Comp (ByteString * option Word) :=
 
 Definition append (bs1 bs2 : ByteString) : Comp ByteString :=
   Eval simpl in callMeth ByteStringSpec appendS bs1 bs2.
+
+(* Definition fold {A : Type} (bs : ByteString) (f : Word -> A -> A) (z : A) : Comp A :=. *)

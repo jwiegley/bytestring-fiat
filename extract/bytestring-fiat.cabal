@@ -1,4 +1,4 @@
--- This file has been generated from package.yaml by hpack version 0.18.1.
+-- This file has been generated from package.yaml by hpack version 0.19.3.
 --
 -- see: https://github.com/sol/hpack
 
@@ -34,39 +34,41 @@ library
   ghc-options: -O2 -fmax-simplifier-iterations=10 -fdicts-cheap -fspec-constr-count=6
   build-depends:
       base >=4.8 && <4.10
-    , ghc-prim
     , bytestring
+    , ghc-prim
     , hashable
   if impl(ghc >= 6.11) && !flag(integer-simple)
     cpp-options: -DINTEGER_GMP
     build-depends:
-        integer-gmp >= 0.2
+        integer-gmp >=0.2
   if impl(ghc >= 6.9) && impl(ghc < 6.11)
     cpp-options: -DINTEGER_GMP
     build-depends:
-        integer >= 0.1 && < 0.2
+        integer >=0.1 && <0.2
 
 test-suite bytestring-test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   ghc-options: -O2 -fmax-simplifier-iterations=10 -fdicts-cheap -fspec-constr-count=6
   build-depends:
-      base >=4.8 && <4.10
-    , ghc-prim
+      QuickCheck
+    , base >=4.8 && <4.10
     , bytestring
-    , hashable
     , bytestring-fiat
-    , hspec == 2.*
-    , QuickCheck
+    , ghc-prim
+    , hashable
+    , hspec ==2.*
     , quickcheck-io
   if impl(ghc >= 6.11) && !flag(integer-simple)
     cpp-options: -DINTEGER_GMP
     build-depends:
-        integer-gmp >= 0.2
+        integer-gmp >=0.2
   if impl(ghc >= 6.9) && impl(ghc < 6.11)
     cpp-options: -DINTEGER_GMP
     build-depends:
-        integer >= 0.1 && < 0.2
+        integer >=0.1 && <0.2
+  other-modules:
+      Paths_bytestring_fiat
   default-language: Haskell2010
 
 benchmark bytestring-bench
@@ -74,23 +76,25 @@ benchmark bytestring-bench
   main-is: Bench.hs
   ghc-options: -O2 -fmax-simplifier-iterations=10 -fdicts-cheap -fspec-constr-count=6
   build-depends:
-      base >=4.8 && <4.10
-    , ghc-prim
+      QuickCheck
+    , base >=4.8 && <4.10
+    , blaze-builder
     , bytestring
-    , hashable
     , bytestring-fiat
     , bytestring-show
-    , QuickCheck
-    , blaze-builder
     , criterion
     , deepseq
+    , ghc-prim
+    , hashable
     , weigh
   if impl(ghc >= 6.11) && !flag(integer-simple)
     cpp-options: -DINTEGER_GMP
     build-depends:
-        integer-gmp >= 0.2
+        integer-gmp >=0.2
   if impl(ghc >= 6.9) && impl(ghc < 6.11)
     cpp-options: -DINTEGER_GMP
     build-depends:
-        integer >= 0.1 && < 0.2
+        integer >=0.1 && <0.2
+  other-modules:
+      Paths_bytestring_fiat
   default-language: Haskell2010

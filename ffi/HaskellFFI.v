@@ -266,7 +266,8 @@ Lemma ghcConsDSL :
   { f : PS -> Word -> PS
   & forall r bs w,
       f bs w = unsafeDupablePerformIO
-                 (ghcDenote ((returnIO \o fst) <$> projT1 (consDSL r bs w))) }.
+                 (ghcDenote ((returnIO \o fst)
+                               <$> projT1 (consDSL r bs w))) }.
 Proof.
   eexists; intros.
   symmetry.
@@ -274,6 +275,7 @@ Proof.
   unfold comp.
   rewrite !fmap_If.
   etransitivity.
+  do 4 (unfold compose, comp; simpl).
     do 1 setoid_rewrite ghcDenote_If.
     reflexivity.
   simpl.

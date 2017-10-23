@@ -211,7 +211,7 @@ Inductive MethodCall_Computes
 
 Inductive Free_Computes (R : Type)
           `{Functor (f R)}
-          (crel : forall {A}, f R A -> A -> Prop) :
+          (crel : forall A, f R A -> A -> Prop) :
   forall {A}, Free (f R) A -> A -> Prop :=
   | CPure A (v : A) : Free_Computes R crel (Pure v) v
   | CJoin B (v' : B) :
