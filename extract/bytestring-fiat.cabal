@@ -1,6 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.19.3.
+-- This file has been generated from package.yaml by hpack version 0.21.2.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 16685324a7e395ffdcc632ac117f56dc9dc57eaf55236af3cd4a264c8bfcb6ed
 
 name:                bytestring-fiat
 version:             0.1.0.0
@@ -33,7 +35,7 @@ library
       Paths_bytestring_fiat
   ghc-options: -O2 -fmax-simplifier-iterations=10 -fdicts-cheap -fspec-constr-count=6
   build-depends:
-      base >=4.8 && <4.10
+      base >=4.8 && <5
     , bytestring
     , ghc-prim
     , hashable
@@ -52,7 +54,7 @@ test-suite bytestring-test
   ghc-options: -O2 -fmax-simplifier-iterations=10 -fdicts-cheap -fspec-constr-count=6
   build-depends:
       QuickCheck
-    , base >=4.8 && <4.10
+    , base >=4.8 && <5
     , bytestring
     , bytestring-fiat
     , ghc-prim
@@ -77,7 +79,7 @@ benchmark bytestring-bench
   ghc-options: -O2 -fmax-simplifier-iterations=10 -fdicts-cheap -fspec-constr-count=6
   build-depends:
       QuickCheck
-    , base >=4.8 && <4.10
+    , base >=4.8 && <5
     , blaze-builder
     , bytestring
     , bytestring-fiat

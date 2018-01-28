@@ -9,3 +9,4 @@
 /extract/Makefile.coq
 /extract/default.nix
 /extract/result
+/Makefile.coq.conf

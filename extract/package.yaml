@@ -17,7 +17,7 @@ flags:
     manual: False
 
 dependencies:
-  - base >=4.8 && <4.10
+  - base >=4.8 && <5
   - ghc-prim
   - bytestring
   - hashable
@@ -26,7 +26,7 @@ ghc-options:
   - -O2
   - -fmax-simplifier-iterations=10 
   - -fdicts-cheap
-  -  -fspec-constr-count=6
+  - -fspec-constr-count=6
 
 when:
   - condition: impl(ghc >= 6.11) && !flag(integer-simple)
