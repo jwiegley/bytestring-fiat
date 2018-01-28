@@ -1,6 +1,7 @@
 Require Import
   Fiat.ADT
   Fiat.ADTNotation
+  Fiat.Computation.FixComp
   ByteString.Memory.
 
 (************************************************************************
@@ -66,4 +67,37 @@ Definition uncons (bs : ByteString) : Comp (ByteString * option Word) :=
 Definition append (bs1 bs2 : ByteString) : Comp ByteString :=
   Eval simpl in callMeth ByteStringSpec appendS bs1 bs2.
 
-(* Definition fold {A : Type} (bs : ByteString) (f : Word -> A -> A) (z : A) : Comp A :=. *)
+Import LeastFixedPointFun.
+
+Inductive Foo (A : Type) : Type := MkFoo : list (Foo A) -> Foo A.
+
+Fixpoint mapM {A B} (f : A -> Comp B) (l : list A) :
+  Comp (list B) :=
+  match l with
+  | nil => ret nil
+  | List.cons x xs =>
+    x' <- f x;
+    xs' <- mapM f xs;
+    ret (List.cons x' xs')
+  end.
+
+Definition map' {A B : Type} (f : Foo A -> Foo B) (bs : Foo A) : Comp (Foo B) :=
+  LeastFixedPoint (fDom := [Foo A : Type])
+    (fun rec (bs : Foo A) =>
+       match bs with
+       | MkFoo xs =>
+         res <- mapM (fun x => rec x) xs;
+         ret (MkFoo res)
+       end) bs.
+
+Definition foldr {A : Type} (bs : ByteString) (f : Word -> A -> A) (z : A) :
+  Comp A :=
+  LeastFixedPoint (fDom := [ByteString; A])
+    (fun rec (bs : ByteString) (rest : A) =>
+       `(bs', mw) <- uncons bs;
+       match mw with
+       | None   => ret rest
+       | Some w =>
+         res <- rec bs' rest;
+         ret (f w res)
+       end) bs z.

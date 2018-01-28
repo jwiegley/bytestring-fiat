@@ -624,6 +624,38 @@ Proof.
   injections; simpl; auto.
 Qed.
 
+Definition buffer_foldr {A : Type} (ps : bsrep) (h : Rep HeapSpec)
+           (f : Word -> A -> A) (z : A) : Comp A :=
+  let fix go l :=
+      match l with
+      | O => ret (h, z)
+      | S l' =>
+        `(h, z) <- go l';
+        `(h, w) <- peek h (psBuffer ps) (psOffset ps + (psLength ps - N.of_nat l));
+        ret (h, f w z)
+      end in
+  `(_, z) <- go (N.to_nat (psLength ps));
+  ret z.
+
+Require Import Fiat.Computation.FixComp.
+Import LeastFixedPointFun.
+
+Lemma foldr_refined {A : Type} :
+  { fold' : PS -> Rep HeapSpec -> (Word -> A -> A) -> A -> Comp A
+  & forall (bs bs' : Rep ByteStringSpec)
+           (ps ps' : bsrep) (h h' : Rep HeapSpec)
+           (f : Word -> A -> A) (z : A),
+      ByteString_list_AbsR bs ps h
+        -> refine (foldr bs f z) (fold' ps h f z) }.
+Proof.
+  exists (@buffer_foldr A).
+  unfold foldr, buffer_foldr.
+  unfold Bind2; simpl; intros.
+  (* eapply Finish_refining_LeastFixedPoint with (wf_P := Wf_nat.lt_wf); *)
+  (*   simpl; intros. *)
+  (* simplify with monad laws. *)
+Admitted.
+
 (**************************************************************************)
 
 Require Import Fiat.ADTRefinement.StatefulADTRefinement.
