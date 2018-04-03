@@ -32,12 +32,3 @@ foldChar f c =
     let n   = ord c;
         h i = (.&.) n (shiftL 1 i) /= 0
     in f (h 0) (h 1) (h 2) (h 3) (h 4) (h 5) (h 6) (h 7)
-
-nsucc :: Int -> Int
-nsucc = succ
-
-pokeArray' :: Ptr Word8 -> [Word8] -> IO ()
-pokeArray' ptr vals0 = go vals0 0#
-    where
-      go [] _          = return ()
-      go (val:vals) n# = do pokeElemOff ptr (I# n#) val; go vals (n# +# 1#)
